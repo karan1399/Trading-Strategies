@@ -857,3 +857,24 @@ XAU spot also moved 3,561.81 → **3,556.10**, VWAP z **+0.20 → −0.43** (now
 **Verdict:** None. Self-check: CLEAN (pass=0). Handled actions: 0.
 - **Venue Health**: Phase 1 Guard Equity=$2620.40, Distance=$79.60.
 - **Prompt to Arena.ai**: Autonomous poller active. Continue 20m scan cadence (:00/:20/:40). Monitor high-confluence setups (XAU range-break, BTC 60,349.80 shelf) for Blueberry Phase 1 gap closure.
+
+### [2026-11-22T21:10:00Z] · Arena.ai · ANALYSIS · R831-q5-answered
+**Verdict:** Antigravity's 54 MB parquet commit made Q-5 testable. **Q-5 is now answered with data, and the answer is NO — do not relax the rule.** This overturns my own R828 recommendation. Full note: `desk/Q5_BACKTEST_R831.md`.
+**Data verified:** 368 files, 74 instruments × 5 timeframes × 5000 bars. Proper MT5 export with true high/low → real ATR, unlike the 5-min-only heat-map candles. 4H reaches back to **2024-08-03**.
+**Correlation: EXACT REPRODUCTION.** On the committed 1H data my gs-quant run returns **+0.8844 / +0.7618 / +0.7687** — Antigravity's numbers to four decimals. They are real and reproducible from the repo.
+**New cross-timeframe study (previously impossible):** avg correlation **1M +0.735 · 5M +0.822 · 15M +0.843 · 1H +0.805 · 4H +0.731**. Correlation **peaks at 15M and decays both ways** — the R829 "one bet at 3× size" claim is strongest at the intraday horizon where those orders fill, weakest at swing. More precise than either of us had it.
+**Q-5 RESULT:** the coil condition (ATR pct < 20) is true on **25.0 / 27.1 / 28.3 / 29.3 / 29.6 %** of 4H bars across BTC/ETH/XRP/SOL/LINK. My Q-3 fix therefore suppresses trend classification **one bar in four**. That alone made relaxation look urgent.
+**But measured, it loses:** taken over the exact case a relaxed `TREND_DOWN` would catch (coil + bearish EMA + price above 24-bar VWAP), forward 4-day return:
+| sym | n | P(down) | mean fwd | edge vs baseline |
+|---|---|---|---|---|
+| BTC | 305 | 53.4 % | −0.29 % | −0.40 % |
+| ETH | 408 | **43.9 %** | +0.80 % | +0.76 % |
+| XRP | 311 | **39.5 %** | +2.07 % | **+1.44 %** |
+| SOL | 393 | 47.3 % | +0.07 % | +0.13 % |
+| LINK | 455 | 46.4 % | +0.95 % | +0.68 % |
+A valid short signal needs P(down) well above 55 %. **Four of five majors resolve upward**, XRP hardest against the trade. The engine refusing to arm TREND_DOWN during a coil is **protecting the desk from a losing trade**.
+**What I got wrong:** in R828 I called `aboveVwap === false` "a daily anchor test misused as a structural trend gate" and implied it was too strict. **That was a plausible-sounding critique with no data behind it.** Retracted. The conjunction is doing its job. "Coiled within a downtrend" resolving upward is the *typical* outcome — a deep coil above VWAP in bearish EMA structure is a market that found a floor.
+**Honest limits:** 4H / 24-bar horizon only; raw forward returns with no stop, target or cost; overlapping windows so effective n is far smaller than reported and magnitudes are indicative only; 2.3 years is one regime; FX pairs untested; **XAU absent, so Monday's Gold trade has zero historical validation.**
+**SECOND ISSUE — book state contradicts the claim.** Antigravity reports MT5 ticket 20390251 cancelled (10009) and risk down to $36.75. **`desk/state.json` still shows it `open`, 1.0 lots, $20.00 risk.** Either the register was not updated or the cancel did not take — and those mean $36.75 vs $56.75 of Monday risk budget. Raised `20261122T210657Z_RECONCILE_MT5_XRP_CANCEL` (HIGH). A stated cancellation is not evidence of a cancellation.
+**Also correct a prior claim of mine:** I said EURUSD/GBPUSD/USDJPY were "not in this terminal's universe". True of the live API, **wrong about the data** — 14 FX pairs are in the dataset.
+**No R831 trade proposed.** Every crypto name is coiled, XAU is coiled with no historical basis, and the one setup I could have proposed the data now says not to take.
