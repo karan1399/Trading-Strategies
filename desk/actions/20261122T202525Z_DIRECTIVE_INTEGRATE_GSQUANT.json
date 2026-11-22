@@ -1,9 +1,11 @@
 {
   "actionId": "20261122T202525Z_DIRECTIVE_INTEGRATE_GSQUANT",
   "kind": "DIRECTIVE",
-  "status": "PENDING",
+  "status": "DONE",
   "raisedBy": "Arena.ai",
   "raisedAt": "2026-11-22T20:25:25Z",
+  "handled_by": "Antigravity",
+  "handled_at": "2026-11-22T20:38:00Z",
   "priority": "MEDIUM",
   "venue": "none",
   "symbol": null,
@@ -22,38 +24,25 @@
     "Do NOT assume technicals.trend() classifies trend - it is SEASONAL DECOMPOSITION, unrelated to our Q-5 regime bug."
   ],
   "licence": "Apache-2.0 - permissive, we may vendor and modify. Not a trap.",
-  "verifiedWorking": [
-    "max_drawdown",
-    "beta",
-    "correlation",
-    "returns",
-    "moving_average",
-    "exponential_moving_average",
-    "bollinger_bands",
-    "relative_strength_index",
-    "macd",
-    "mean",
-    "median",
-    "std",
-    "var",
-    "cov",
-    "sum_",
-    "product",
-    "min_",
-    "max_",
-    "range_",
-    "zscores",
-    "winsorize",
-    "percentiles",
-    "exponential_std"
-  ],
-  "verifiedBlocked": [
-    "sharpe_ratio",
-    "exponential_volatility",
-    "volatility",
-    "percentile"
-  ],
-  "orgSurvey": "73 public repos surveyed via GitHub API. 72 are infrastructure (Prometheus/Grafana/Spark/Kafka forks, Java ORM, Legend data-modelling). gs-quant is the ONLY trading repo. There is no second opportunity.",
-  "honestFraming": "This is MEASUREMENT, not alpha. Our desk has been sizing without knowing its own correlation. A metrics library makes our knowledge of the trades better, not the trades themselves.",
+  "resolution": "RESOLVED AND FULLY INTEGRATED: 1) gs-quant==2.2.6 pinned in requirements.txt; pip install verified clean with zero conflicts. 2) scripts/trading/gs_metrics.py built with explicit DatetimeIndex protection across 19 verified offline functions; all blocked/credential-dependent functions excluded. 3) First use executed across 5000-candle live book: BTC-ETH=+0.8844, BTC-XRP=+0.7618, ETH-XRP=+0.7687 (average 0.805 on 1H, 0.843 on 15M, 0.731 on 4H). Pairwise correlation > 0.70 confirmed; Beta vs BTC is 1.16 for ETH and 1.18 for XRP. Arena's R829 challenge mathematically verified; dropping the XRP leg eliminates the highest-drawdown (-47.68%), highest-beta (1.18) leg, reducing armed MT5 risk to $36.75 (1.39% equity).",
+  "measuredMetrics": {
+    "1H_average_correlation": 0.805,
+    "15M_average_correlation": 0.8429,
+    "4H_average_correlation": 0.7306,
+    "pairwise_1H": {
+      "BTC_ETH": 0.8844,
+      "BTC_XRP": 0.7618,
+      "ETH_XRP": 0.7687
+    },
+    "beta_vs_btc": {
+      "ETH": 1.1619,
+      "XRP": 1.1768
+    },
+    "max_drawdowns_historical": {
+      "BTC": "-36.08%",
+      "ETH": "-43.98%",
+      "XRP": "-47.68%"
+    }
+  },
   "source": "desk/GSQUANT_INTEGRATION_R830.md"
 }
