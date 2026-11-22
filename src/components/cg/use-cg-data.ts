@@ -41,8 +41,40 @@ export function usePolling<T>(url: string | null, intervalMs: number) {
     };
     try {
       const res = await fetch(url, { signal: controller.signal });
-      const json = (await res.json()) as { ok: boolean; error?: string } | null;
       if (request.current !== controller) return;
+
+      /**
+       * Never call res.json() blind (R827 fix).
+       *
+       * Two failures used to collapse into one unreadable message:
+       *   1. a JSON route returning a real error  -> body is JSON, easy
+       *   2. Next.js answering with its HTML error page (proxy timeout,
+       *      dev-server hiccup, unhandled throw)   -> body starts with "<!"
+       *
+       * In case 2 res.json() throws `SyntaxError: Unexpected token '<',
+       * "<!DOCTYPE "... is not valid JSON`, and the old catch surfaced that
+       * raw parser string to the operator as "Heatmap error:". A parser
+       * message is not a diagnosis. Read the body once as text, then decide.
+       */
+      const raw = await res.text();
+      if (request.current !== controller) return;
+      const head = raw.trimStart();
+      if (!head.startsWith("{") && !head.startsWith("[")) {
+        const snippet = head.slice(0, 120).replace(/\s+/g, " ");
+        fail(
+          res.status === 502 || res.status === 503 || res.status === 504
+            ? `Upstream unavailable (HTTP ${res.status}) — the terminal could not reach the data source. Retrying automatically.`
+            : `Route returned HTML instead of JSON (HTTP ${res.status}) — this is a server-side error page, not a data error.${snippet ? ` Starts: "${snippet}"` : ""}`,
+        );
+        return;
+      }
+      let json: ({ ok: boolean; error?: string } & Record<string, unknown>) | null = null;
+      try {
+        json = JSON.parse(raw);
+      } catch {
+        fail(`Malformed JSON from route (HTTP ${res.status}) — body did not parse.`);
+        return;
+      }
       if (!res.ok || !json || json.ok === false) {
         fail(json?.error ?? (!res.ok ? `HTTP ${res.status}` : "Invalid response"));
       } else {
@@ -50,7 +82,15 @@ export function usePolling<T>(url: string | null, intervalMs: number) {
       }
     } catch (e) {
       if (request.current === controller) {
-        fail(controller.signal.aborted ? "Request timed out" : e instanceof Error ? e.message : "Network error");
+        fail(
+          controller.signal.aborted
+            ? "Request timed out"
+            : e instanceof TypeError
+              ? "Network error — the terminal is not reachable."
+              : e instanceof Error
+                ? e.message
+                : "Unknown error",
+        );
       }
     } finally {
       clearTimeout(timeout);
