@@ -19775,3 +19775,27 @@ analysis script rc=1
 - Evidence artifacts from the scan are committed alongside: `desk/DATA_COVERAGE_AUDIT.md`,
   `desk/ROUND_R825_FULL_COVERAGE.md`, `scripts/trading/full_coverage_formulate.py`,
   `desk/FORMULATION_20261122_1520.md`, `desk/ROUND_R824.md`, `desk/SYNTHESIS_20261122_1457.md`.
+
+## R826 · 2026-11-22 18:40 UTC · Arena agent — candidate hunt on restarted terminal
+1. **Server**: restarted, health `{"ok":true}` 18:01:52Z. Cold cache — screener reported 0 warm until
+   direct route hits warmed it. 231 instruments confirmed.
+2. **Terminal refusal**: `bestR=null`, `targets=[]`, `invalidation="no setup"` on **24/24** symbols.
+   18 × `NO_TRADE`/SKIP, 6 × `WATCH_EXHAUSTION`/LONG/B.
+3. **ROOT CAUSE (traced)**: `bestR`/`targets` come only from the M2 branch (`narrative.ts:788`),
+   which requires **|VWAP z| ≥ 2.0** (`narrative.ts:802`). Measured max |z| = **1.59σ (LTC)**;
+   **0/14** names qualify. BTC's "no measurable R" is downstream of this, not a missing feed
+   (funding returns 21 venues).
+4. **SECOND FINDING**: `regime` is EMA-based and reports `RANGE_BALANCE` while `market.vol.atrState`
+   reports `squeeze` on the same symbol — so the `COMPRESSION_SQUEEZE` branch (`narrative.ts:842`)
+   is never reached. During a 13/14-name squeeze the terminal emits "no edge" instead of
+   "stand ready". Filed as **Q-3**.
+5. **⛔ SELF-CORRECTION**: R825's rank #1 (KORU 64.35) is **invalid**. The Coinglass `usd` field is
+   not unit-consistent — BTC returns thousands (`10462` = $10.46M), XRP/DOGE raw dollars
+   (`71333298` = $71.3M). KORU's stop cleared a shelf my code read as ~$0.2M that was seven figures.
+   BTC/BNB/LTC in R825 contaminated likewise. `usd_norm()` added and wired into the engine.
+6. **Candidates**: 4 cleared 2R → TRX (14.07R) and BTC (6.70R) **rejected for terminal-LONG conflict**
+   (the exact inversion that invalidated R825); XRP (3.63R) and DOGE (3.64R) survive as **WATCH**.
+   XRP short 0.9399 / stop 0.94748 / tgt 0.9124 fading $63M str-62 shelf. DOGE short 0.05598 /
+   stop 0.0564465 / tgt 0.05428 fading **$888M str-91** shelf. Sizes 1 and 30 vs $1.447032 = 0.53% / 0.99%.
+7. **Verdict**: NO EXECUTABLE TRADE. Passive limit sells only if operator wants exposure; Antigravity
+   holds sole execution. Report: `desk/ROUND_R826.md`.

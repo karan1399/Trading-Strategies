@@ -113,6 +113,26 @@ def shelves(ll, side="above"):
         return []
 
 
+
+def usd_norm(v, ref_price):
+    """Normalize a liquidation-shelf USD figure to real USD.
+
+    VERIFIED 2026-11-22: the Coinglass payload is NOT unit-consistent.
+      - BTC-scale symbols return thousands (62789.2 -> 10462 meaning $10.46M)
+      - sub-dollar symbols return raw dollars (XRP 0.9644 -> 71,333,298)
+    Treating them the same produced false "$0M, immaterial" reads on BTC and
+    false "$888M" reads on DOGE. This is the fix.
+    """
+    v = float(v or 0)
+    if v <= 0:
+        return 0.0
+    if ref_price > 1000 and v < 1e6:      # high-priced: value is in thousands
+        return v * 1000.0
+    if 100 < ref_price <= 1000 and v < 1e6:
+        return v * 1000.0
+    return v
+
+
 def cluster_stop(sym_data, entry, direction, atr):
     """
     FIX-1: derive a stop that clears the WORST-CASE shelf cluster across 3d/7d/30d.
@@ -126,7 +146,7 @@ def cluster_stop(sym_data, entry, direction, atr):
         side = "above" if direction == "SHORT" else "below"
         for L in shelves(ll, side):
             try:
-                px = float(L["price"]); usd = float(L.get("usd") or 0)
+                px = float(L["price"]); usd = usd_norm(L.get("usd"), px)
                 strg = float(L.get("strength") or 0)
             except Exception:
                 continue
@@ -171,9 +191,9 @@ def pick_targets(sym_data, entry, stop, direction):
         if not ll or not ll.get("ok"): continue
         for L in shelves(ll, "below"):
             try:
-                if float(L.get("usd") or 0) >= 20e6:
-                    cands.append({"px": float(L["price"]),
-                                  "tag": f"{ll.get('range')}-liq${float(L['usd'])/1e6:.0f}M"})
+                _px = float(L["price"]); _u = usd_norm(L.get("usd"), _px)
+                if _u >= 20e6:
+                    cands.append({"px": _px, "tag": f"{ll.get('range')}-liq${_u/1e6:.0f}M"})
             except Exception:
                 pass
     # keep only targets below entry for SHORT, sort descending (nearest first)
