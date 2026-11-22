@@ -5,9 +5,23 @@ This project ships a **local order-flow terminal** (Next.js, port 3000) plus an
 your Antigravity agent. Everything is live Coinglass API data — zero mock
 values.
 
+
+## ⚠️ READ FIRST — tricouncil & document authority
+
+Three agents share this repo: **Arena.ai** (analysis/tooling), **GLM** (independent challenge),
+**Antigravity** (operator host — **the only party with Delta Exchange and MT5 execution rights**).
+
+1. Read `desk/AUTHORITY.md` — it names which document wins on every topic, and the hard rules no
+   agent may override (1% equity cap, interlock-first, stop must clear the widest shelf, VERIFIED vs
+   UNVERIFIED-BY-AGENT labelling).
+2. Append your round output to `desk/COUNCIL.md` — append-only, timestamped, signed. Never edit
+   another member's entry. Answer open `Q-<n>` questions with an `ANSWER` entry.
+3. Arena and GLM **propose**; they never punch. An execution claim from either is invalid.
+4. Never cite anything under `desk/archive/` as live policy.
+
 ## Assets covered
 
-CURATED 61 (user directive 2026-11-12, "no gaps"): 30 crypto USDT-M perps
+CURATED 231 (expanded from the original 61; user directive 2026-11-12, "no gaps"): 200 crypto USDT-M perps
 (BTC ETH BNB SOL XRP ADA DOGE TRX LINK LTC AVAX DOT NEAR UNI ATOM XLM ETC
 FIL ICP HBAR APT ARB OP SUI SEI INJ TIA VET 1000PEPE 1000SHIB) + 28 TradFi
 USDT-M TRADIFI perps under the plain names (XAU NVDA SNDK SOXL SPCX GOOGL MU

@@ -10,8 +10,9 @@
 > (`scripts/desk_daemon.mjs`) auto-syncs `desk/` state through this branch.
 
 An institution-style, **100% live-API** order-flow terminal for the curated
-**61-asset universe** (30 crypto perps · 28 TradFi perps · 3 classic indices;
-canonical list in `src/lib/universe/curated.ts`) with a local continuity engine, live notification feed, and a
+**231-asset universe** (canonical list in `src/lib/universe/curated.ts`; the live
+screener reports 231 warm instruments at any moment — always read the count from
+the screener, never from prose) with a local continuity engine, live notification feed, and a
 bundled **MCP server that plugs straight into Antigravity** for automated
 signal analysis and trade formulation.
 
@@ -39,7 +40,7 @@ respected under all conditions.
 │   ├── lib/cg/                 #   Coinglass client, signal engine, asset registry
 │   ├── lib/live/               #   WS/REST real-time lanes + shared breaker
 │   ├── lib/binance/            #   top-200 universe + SIGNED testnet client
-│   └── lib/universe/curated.ts #   canonical 61-asset registry
+│   └── lib/universe/curated.ts #   canonical 231-asset registry
 ├── mcp/server.mjs              # MCP server: terminal data → Antigravity
 ├── desk/                       # trade desk: canonical spec, wake inbox, state
 ├── scripts/                    # operational + research tooling

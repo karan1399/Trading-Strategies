@@ -23,7 +23,13 @@ Ranked by risk, not by effort.
 ### 1. README is factually wrong about the universe
 | | Says | Reality |
 | :--- | :--- | :--- |
-| README line 13 | "**61-asset** universe (30 crypto · 28 TradFi · 3 classic)" | **232** in `curated.ts`, **231** live in the screener |
+| README line 13 | "**61-asset** universe (30 crypto · 28 TradFi · 3 classic)" | **231** — verified by parsing the `CURATED` array literal (231 entries, 231 unique syms, 214 punchable); the live screener also reports **231** |
+
+**Correction (same day):** my first pass reported "232 in curated.ts" from a whole-file regex. That was
+wrong — the regex swept doc comments and type definitions. Parsing only the `CURATED = [...]` array
+literal gives **231**, which matches the live screener exactly. The defect is real and unchanged; my
+number was off by one and my method was sloppy. The `// 61` comment on `CURATED_TOTAL` is the actual
+stale artifact, now fixed.
 
 An agent reading the README will believe it evaluated the universe when it saw 61 names. This is
 the exact failure mode from R825 — believing coverage was complete when it wasn't. **Fix the number,
@@ -193,7 +199,7 @@ then re-measure before deleting anything real.
 
 | # | Task | Effort | Risk removed |
 | :-- | :--- | :--- | :--- |
-| 1 | Fix README asset count (232, derived) | 15 min | agents mis-scoping universe |
+| 1 | Fix README asset count (231, derived) | ✅ done | agents mis-scoping universe |
 | 2 | Archive V1 + backup spec; write `desk/AUTHORITY.md` | 45 min | agents following wrong spec |
 | 3 | Contract test + CI (tsc/eslint/build + 51-route walk) | 3 h | silent API regressions |
 | 4 | Remove unused deps + Prisma layer | 1 h | false persistence belief |

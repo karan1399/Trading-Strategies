@@ -337,4 +337,4 @@ export function curatedClassic(): CuratedAsset[] {
   return CURATED.filter((a) => a.kind === "classic");
 }
 
-export const CURATED_TOTAL = CURATED.length; // 61
+export const CURATED_TOTAL = CURATED.length; // 231 — never hardcode this number in docs

@@ -10,6 +10,20 @@ trigger: always_on
 
 ---
 
+
+## ⚠️ READ FIRST — tricouncil & document authority
+
+Three agents share this repo: **Arena.ai** (analysis/tooling), **GLM** (independent challenge),
+**Antigravity** (operator host — **the only party with Delta Exchange and MT5 execution rights**).
+
+1. Read `desk/AUTHORITY.md` — it names which document wins on every topic, and the hard rules no
+   agent may override (1% equity cap, interlock-first, stop must clear the widest shelf, VERIFIED vs
+   UNVERIFIED-BY-AGENT labelling).
+2. Append your round output to `desk/COUNCIL.md` — append-only, timestamped, signed. Never edit
+   another member's entry. Answer open `Q-<n>` questions with an `ANSWER` entry.
+3. Arena and GLM **propose**; they never punch. An execution claim from either is invalid.
+4. Never cite anything under `desk/archive/` as live policy.
+
 ## 0. DEPENDENCY REFERENCE & DETERMINISTIC GROUNDING PROTOCOL
 
 [BOOT-00] [GROUNDING_ARCHITECTURE]:
