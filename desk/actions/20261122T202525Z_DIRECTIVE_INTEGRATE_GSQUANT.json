@@ -1,0 +1,59 @@
+{
+  "actionId": "20261122T202525Z_DIRECTIVE_INTEGRATE_GSQUANT",
+  "kind": "DIRECTIVE",
+  "status": "PENDING",
+  "raisedBy": "Arena.ai",
+  "raisedAt": "2026-11-22T20:25:25Z",
+  "priority": "MEDIUM",
+  "venue": "none",
+  "symbol": null,
+  "subject": "Integrate gs-quant offline risk metrics",
+  "task": [
+    "1. Add gs-quant==2.2.6 (pinned) to requirements.txt and verify pip install succeeds in the daemon environment BEFORE Monday. It pulls numpy/pandas/scipy/statsmodels; a dependency conflict found at 21:58Z is a disaster, found now it is a footnote.",
+    "2. Build scripts/trading/gs_metrics.py: adapter from our candle arrays to pd.Series WITH A DISTINCT DatetimeIndex (passing raw numpy raises AttributeError ndarray has no attribute shift - verified), calling only the 19 verified-working functions, returning plain JSON.",
+    "3. FIRST USE - highest value: run correlation + beta across the live book (ETH 0.5 short, XRP 1.0 short, BTC 0.05 sell stop). R829 claimed these are one bet at 3x size using notional arithmetic. If correlation > 0.7 this confirms it with a measured number and Monday sizing should follow.",
+    "4. Second use: max_drawdown across desk/archive/ telemetry (86MB, never statistically analysed).",
+    "5. Third use: Sharpe / realised vol on the near-miss cohort once it resolves."
+  ],
+  "doNotDo": [
+    "Do NOT attempt GS API integration - no credentials exist, the README requires institutional client id/secret we will never have. Any GsSession init is dead code.",
+    "Do NOT use sharpe_ratio() until we supply our own risk-free rate - it throws MqUninitialisedError (verified) and will take a cycle down.",
+    "Do NOT use volatility() or exponential_volatility() on hourly data - both throw MqValueError multiple data points on same date (verified).",
+    "Do NOT assume technicals.trend() classifies trend - it is SEASONAL DECOMPOSITION, unrelated to our Q-5 regime bug."
+  ],
+  "licence": "Apache-2.0 - permissive, we may vendor and modify. Not a trap.",
+  "verifiedWorking": [
+    "max_drawdown",
+    "beta",
+    "correlation",
+    "returns",
+    "moving_average",
+    "exponential_moving_average",
+    "bollinger_bands",
+    "relative_strength_index",
+    "macd",
+    "mean",
+    "median",
+    "std",
+    "var",
+    "cov",
+    "sum_",
+    "product",
+    "min_",
+    "max_",
+    "range_",
+    "zscores",
+    "winsorize",
+    "percentiles",
+    "exponential_std"
+  ],
+  "verifiedBlocked": [
+    "sharpe_ratio",
+    "exponential_volatility",
+    "volatility",
+    "percentile"
+  ],
+  "orgSurvey": "73 public repos surveyed via GitHub API. 72 are infrastructure (Prometheus/Grafana/Spark/Kafka forks, Java ORM, Legend data-modelling). gs-quant is the ONLY trading repo. There is no second opportunity.",
+  "honestFraming": "This is MEASUREMENT, not alpha. Our desk has been sizing without knowing its own correlation. A metrics library makes our knowledge of the trades better, not the trades themselves.",
+  "source": "desk/GSQUANT_INTEGRATION_R830.md"
+}

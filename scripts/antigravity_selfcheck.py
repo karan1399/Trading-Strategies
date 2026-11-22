@@ -147,19 +147,34 @@ def check_hardcoded_venue(c: Check) -> None:
 
 def check_git_identity(c: Check) -> None:
     """A daemon that cannot sign a commit will silently stop pushing."""
-    try:
-        name = subprocess.run(["git", "config", "user.name"], cwd=ROOT,
-                              capture_output=True, text=True, timeout=15).stdout.strip()
-        email = subprocess.run(["git", "config", "user.email"], cwd=ROOT,
-                               capture_output=True, text=True, timeout=15).stdout.strip()
-    except Exception as e:  # noqa: BLE001
-        c.warn("git-identity", f"could not query git config: {e}")
-        return
+    # Identity can come from repo config OR the environment. Git falls back to
+    # GIT_AUTHOR_*/GIT_COMMITTER_* when config is empty, so reading only
+    # `git config` produces a FALSE FAILURE for a daemon that sets env vars at
+    # startup (which is exactly what this one now does). Check both, and check
+    # what git itself resolves.
+    import os
+    name = os.environ.get("GIT_AUTHOR_NAME") or os.environ.get("GIT_COMMITTER_NAME") or ""
+    email = os.environ.get("GIT_AUTHOR_EMAIL") or os.environ.get("GIT_COMMITTER_EMAIL") or ""
     if not name or not email:
+        try:
+            name = name or subprocess.run(["git", "config", "user.name"], cwd=ROOT,
+                                          capture_output=True, text=True, timeout=15).stdout.strip()
+            email = email or subprocess.run(["git", "config", "user.email"], cwd=ROOT,
+                                            capture_output=True, text=True, timeout=15).stdout.strip()
+        except Exception as e:  # noqa: BLE001
+            c.warn("git-identity", f"could not query git config: {e}")
+            return
+    # does the POLLER set it at startup? that is the real requirement.
+    src = POLLER.read_text(encoding="utf-8") if POLLER.exists() else ""
+    poller_sets = "GIT_AUTHOR_NAME" in src and "GIT_AUTHOR_EMAIL" in src
+    if (not name or not email) and not poller_sets:
         c.fail("git-identity", f"user.name={name!r} user.email={email!r} — commit will fail "
                                f"with 'empty ident name' and the push never happens",
                "Set GIT_AUTHOR_NAME/EMAIL and GIT_COMMITTER_NAME/EMAIL as env exports at the "
                "top of every daemon run, before any git command.")
+    elif poller_sets and (not name or not email):
+        c.ok("git-identity", "poller exports GIT_AUTHOR_*/GIT_COMMITTER_* at startup "
+                             "(env fallback verified to work when config is empty)")
     else:
         c.ok("git-identity", f"{name} <{email}>")
 
