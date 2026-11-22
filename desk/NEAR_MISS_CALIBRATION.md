@@ -1,5 +1,5 @@
 # NEAR-MISS CALIBRATION REPORT
-> **Generated UTC**: 2026-11-22T21:29:39Z  |  **Engine**: `desk/LLM_TRADE_FORMULATION_PLAYBOOK.md` rejected candidates
+> **Generated UTC**: 2026-11-22T21:49:43Z  |  **Engine**: `desk/LLM_TRADE_FORMULATION_PLAYBOOK.md` rejected candidates
 > **Question**: do rejected 3–6/10 formulations carry positive expectancy? If yes, grade thresholds are too tight; if no, the gate is saving the desk from noise.
 
 ## Method (pessimistic baseline)
