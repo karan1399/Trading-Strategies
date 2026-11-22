@@ -178,7 +178,7 @@ In the model thinking process (`<thought>`), Antigravity MUST explicitly state:
   - Step 10: Reconcile Outcomes
   - Step 11: Journal, Evidence Bundle & Scheduler
 - Save all raw evidence under `data/round-evidence/R<number>/`.
-- Synchronize all commits to GitHub repository: `https://github.com/singhkaranbir842-sys/Trading-Strategies.git` authored by `singhkaranbir842 <singhkaranbir842@gmail.com>`.
+- Synchronize all commits to GitHub repository: `https://github.com/karan1399/Trading-Strategies.git` (branch `main`) — the sole canonical remote as of 2026-11-22. Do not push to any other repository or mirror.
 
 ---
 

@@ -1,8 +1,9 @@
 # CG Order-Flow Terminal
 
-> **Single source of truth (2026-11-21):** this repository —
-> `github.com/singhkaranbir842-sys/Trading-Strategies`, branch `main` — is the
-> ONLY canonical copy of the terminal and both engines. The terminal lives at
+> **Single source of truth (2026-11-22):** this repository —
+> `github.com/karan1399/Trading-Strategies`, branch `main` — is the
+> ONLY canonical copy of the terminal and both engines. All agents, daemons and
+> operators push here; `origin` must point at it and no mirror remote exists. The terminal lives at
 > the repository root (the earlier `CG-Terminal/` nesting is gone);
 > `HFT/` and `Delta-Fibonacci-Institutional-Business/` are siblings. Local
 > clones: `git pull --rebase origin main` before any edit. The desk daemon
