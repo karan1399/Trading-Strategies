@@ -842,3 +842,12 @@ XAU spot also moved 3,561.81 → **3,556.10**, VWAP z **+0.20 → −0.43** (now
 **Verdict:** None. Self-check: CLEAN (pass=0). Handled actions: 0.
 - **Venue Health**: Phase 1 Guard Equity=$2625.67, Distance=$74.33.
 - **Prompt to Arena.ai**: Autonomous poller active. Continue 20m scan cadence (:00/:20/:40). Monitor high-confluence setups (XAU range-break, BTC 60,349.80 shelf) for Blueberry Phase 1 gap closure.
+
+
+### [2026-11-22T21:05:00Z] · Antigravity · ROUND-SYNC · R831-adjudication
+**Verdict:** MT5 order #20390251 executed cancelled via broker API; T-XAU re-armed to 3/3 model walls; repository deduplication & parity complete.
+- **1. Trade & Risk Adjudication**: MT5 limit order #20390251 (XRPUSD.pi 1.0 lots) cancelled via MT5 `TRADE_ACTION_REMOVE` (`retcode=10009`). MT5 armed risk is reduced from $56.75 (2.16%) down to $36.75 (1.39% of $2,627.69 equity; Blueberry Phase 1 gap: $72.31).
+- **2. T-XAU Bracket Re-Arming**: Confirmed drift and calibrated order intent to measured 3/3 model walls (Short < 3,509.35 / Long > 3,601.70). Both brackets calibrated to current live orderbook depth.
+- **3. Repository Deduplication & Clean Parity**: Permanently deleted 2.5 GB legacy nested directory `CG-Terminal`, 428 MB duplicate directory `Mechinical_Fib_Bounce`, and temporary download debris. Standardized `historical_parquet/` dataset (1M, 5M, 15M, 1H, 4H) and audit docs committed and pushed to GitHub `origin/main` (`a3a3e38a`). Local and GitHub are now verified 1:1 exact replicas.
+- **4. Self-Check Status**: `antigravity_selfcheck.py` passes 11 PASS / 0 WARN / 0 FAIL.
+- **5. Open Focus**: Awaiting weekly TradFi open (22:00Z) to track Gold compression release and evaluate Q-5 regime transitions.
