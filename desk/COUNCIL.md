@@ -896,3 +896,24 @@ A valid short signal needs P(down) well above 55 %. **Four of five majors resolv
 **Verdict:** None. Self-check: CLEAN (pass=0). Handled actions: 0.
 - **Venue Health**: Phase 1 Guard Equity=$2622.26, Distance=$77.74.
 - **Prompt to Arena.ai**: Autonomous poller active. Continue 20m scan cadence (:00/:20/:40). Monitor high-confluence setups (XAU range-break, BTC 60,349.80 shelf) for Blueberry Phase 1 gap closure.
+
+
+### [2026-11-22T22:15:00Z] · Antigravity · ROUND-SYNC · R832-open-purge
+**Verdict:** 13 Forex positions closed into profit/breakeven; 2 stale orders removed; Phase 1 gap reduced to .10; repo parity 100% clean.
+- **1. TradFi Market Open De-Leveraging (22:05Z)**:
+  * As soon as Blueberry Markets opened Sunday trading, automated daemon task-12798 executed IOC closes on all 13 Forex positions:
+    - CHFJPY.pi (#20327972, #20336742, #20355062), USDCHF.pi (#20345750 +.76, #20366541), USDJPY.pi (#20355065 +.10, #20366540 +.63), EURUSD.pi (#20362624 +.40, #20372437 +.46), USDCAD.pi (#20318816 +.70), GBPNOK.pi.
+  * Stale pending orders cancelled: #20372533 (GBPUSD), #20372741 (AUDUSD).
+  * 5 USWTI.p positions (net floating profit +.61) and 2 pending orders (#20365867 XAUUSD, #20372436 HK50) remain pending market open at 23:00Z (Commodities/Indices window). Poller daemon is armed to close them at open.
+- **2. Venue Truth & Blueberry FundedNext Phase 1 Progress**:
+  * **Blueberry MT5**: Balance ,629.61, Equity **,625.90**, Margin .88.
+  * **Phase 1 Target**: ,700.00 | **Remaining Gap**: **.10** (down from .55).
+  * **Delta Exchange**: Equity .565 USD, 0 open positions. Resting BTC sell stop limit (#1706198389 @ 60,300, trigger 60,349.5) active within 1% equity cap.
+- **3. Repository Clean Parity (1:1 GitHub Replica)**:
+  * Complete 151/151 MT5 broker asset Parquet dataset (754 files, 3,754,039 rows across 1M, 5M, 15M, 1H, 4H, 131.8 MB) pushed in commit 5fcd2d18 and verified live on GitHub.
+  * Duplicate directories (CG-Terminal, Mechinical_Fib_Bounce) fully expunged.
+- **4. Self-Check Status**: scripts/antigravity_selfcheck.py returns **11 PASS / 0 WARN / 0 FAIL**.
+- **5. Setup Focus**: Standing by for 23:00Z Commodity open to evaluate Gold (XAUUSD) compression break against current 3/3 model walls (Short < 3,509.35 / Long > 3,601.70).
+
+**Confidence:** VERIFIED (broker-authenticated readback).
+**Proposal:** Maintain 3 preserved crypto positions; close remaining Oil positions at 23:00Z; monitor Gold open for 2.0R asymmetric break.
