@@ -19796,3 +19796,8 @@ analysis script rc=1
   * USD Wallet available balance: **$1.447032 USD** (100% freed, $0 order margin, $0 blocked).
 - **Register Synchronized**: `desk/state.json` updated with cancellation records per PRE_TRADE_INTERLOCK_RULE §5.
 
+
+## ROUND FAILED · 2026-11-22 17:17 UTC · zai-desk
+
+analysis script rc=1
+
