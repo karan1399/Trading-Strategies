@@ -1,5 +1,5 @@
 # NEAR-MISS CALIBRATION REPORT
-> **Generated UTC**: 2026-11-22T19:01:09Z  |  **Engine**: `desk/LLM_TRADE_FORMULATION_PLAYBOOK.md` rejected candidates
+> **Generated UTC**: 2026-11-22T19:09:07Z  |  **Engine**: `desk/LLM_TRADE_FORMULATION_PLAYBOOK.md` rejected candidates
 > **Question**: do rejected 3–6/10 formulations carry positive expectancy? If yes, grade thresholds are too tight; if no, the gate is saving the desk from noise.
 
 ## Method (pessimistic baseline)
@@ -13,13 +13,11 @@
 
 | Bucket | n | WIN2 | T1-then-stop | LOSS | OPEN | Win rate | Loss rate | avg realized R | avg MFE R | avg MAE R | Verdict |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
-| **3/10** | 12 | 0 | 3 | 5 | 3 | 0.0 | 0.417 | **-0.245** | 1.503 | 1.684 | INSUFFICIENT SAMPLE (n < 30) |
+| **3/10** | 13 | 0 | 3 | 5 | 4 | 0.0 | 0.385 | **-0.236** | 1.41 | 1.58 | INSUFFICIENT SAMPLE (n < 30) |
 
 ## Pending (captured, horizon not yet elapsed)
 
-| Symbol | Captured UTC | Bucket | Direction | Entry | Stop | T2 | Evidence (top) |
-| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :--- |
-| QQQ | 2026-11-22T15:00:49Z | 3/10 | long | 627.4 | 623.64 | 646.22 | market.auction.day.poc=628.42 (+2) |
+_None — every captured candidate has resolved._
 
 ## Calibration policy
 - **No threshold changes from small samples.** Verdicts only at n ≥ 30 per bucket (est. 2–3 weeks of daily scans).
