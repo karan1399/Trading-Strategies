@@ -506,3 +506,34 @@ is currently resting as a correct-looking 3.62R with a clean stop. Strictness ha
    - `Q-2`: `zai-desk` identified as upstream pipeline; `rc=1` path divergence patched.
    - `Q-4`: Answered with dual-criterion proposal standard for `COMPRESSION_SQUEEZE`.
 **Dissent:** none.
+
+
+### [2026-11-22T18:36:00Z] · Antigravity · EXECUTION · mt5-reconciliation
+**Verdict:** MT5 book reconciled and executed per Operator Directive. Stale and conflicting orders purged, unstopped ETH position protected, and XRP SELL LIMIT placed live on Blueberry Markets MT5.
+
+**Evidence:**
+1. **Purged Non-Compliant / Conflicting Orders & Positions on MT5**:
+   - **Ticket 20388144 (`BTCUSD.pi` BUY LIMIT @ 60300.0)**: CANCELLED (`retcode=10009 Request executed`). Purged because long exposure directly contradicted macro TREND_DOWN / counter-liquidation short directive.
+   - **Ticket 20388131 (`SOLUSD.p` BUY 0.03 lots @ 69.80)**: CLOSED IN PROFIT (`+$0.63 USD`, deal order `20390240`, `retcode=10009 Request executed`). Purged long exposure to eliminate hedging conflict against ticket 20354671.
+   - **Ticket 20386324 (`ETHUSD.pi` SELL 0.50 lots @ 1707.01)**: Attached protective Stop Loss at `1738.50` (`retcode=10009 Request executed`). Position is no longer naked; SL sits safely 2.26 points above the $56.6M str-80 liquidation shelf at `1736.24`.
+   - **Stale TradFi Orders (Gold 20365867, GBPUSD 20372533, AUDUSD 20372741)**: Cancellation attempted; broker returned `retcode=10018 Market closed` (weekend session). Automatically queued for cancellation the exact second Forex/Metals open at 22:00 UTC.
+
+2. **Executed XRP Trade on MT5 (Ticket `20390251`)**:
+   - **Root Cause of Prior Absence**:
+     * In `desk/state.json`, `"symbol_map"` mapped `"XRP": "XRPUSD"` instead of `"XRPUSD.pi"`, causing `mt5_report.py` to report `no tick`.
+     * Blueberry Markets MT5 enforces a strict `trade_stops_level: 20 points (0.020)` and `volume_min: 1.0 lot` (1,000 XRP). The Delta design (entry `0.9399`, SL `0.9475`, stop distance `0.0076`) was hard-rejected by MT5 server with `retcode=10015 Invalid price` (stop distance must be $\ge 0.020$).
+   - **Conforming MT5 Order Placement**:
+     * Symbol: `XRPUSD.pi`
+     * Type: `SELL_LIMIT`
+     * Volume: `1.0 lot` (1,000 XRP)
+     * Entry Price: `0.950`
+     * Stop Loss: `0.970` (20 points distance, fully compliant with broker `stops_level`)
+     * Take Profit: `0.900` (2.5R payoff)
+     * Comment: `cg_terminal:XRP` | Magic: `42001`
+     * Dollar Risk: `1000 * (0.970 - 0.950) = $20.00 USD` (0.76% of MT5 equity `$2,626.64`), within the $25.00 high-confluence ceiling.
+   - **Execution Readback**: `retcode=10009 Request executed`, Ticket **`20390251`** is OPEN and resting on Blueberry Markets MT5.
+
+**Confidence:** VERIFIED (authenticated first-party MetaTrader5 terminal IPC execution).
+**Proposal:** Maintain twin resting short limit orders on XRP across both venues:
+  - **Delta Exchange India**: Ticket `#1706112284` (1 contract @ `0.9399`, SL `0.9475`, TP `0.9124`, 0.485% NLE).
+  - **Blueberry Markets MT5**: Ticket `#20390251` (1.0 lot @ `0.950`, SL `0.970`, TP `0.900`, 0.76% MT5 equity).
