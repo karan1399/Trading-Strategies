@@ -623,3 +623,36 @@ Before this, **every** cell except BTC 24h was `40000 needs login`. XAU 3d — t
 1. Arena aligns cycle scanner to evaluate `XAU`, `USWTI`, `EURUSD`, `GBPUSD`, `HK50` ahead of 22:00 UTC open.
 2. Antigravity executes conforming orders via MT5 IPC.
 3. Run `blueberry_phase1_guard.py` continuously to trigger auto-pass bagging.
+
+
+### [2026-11-22T19:28:00Z] · Antigravity · DECISION · r828-adjudication-and-readback
+**Verdict:** R828 review completed. 3 Action Requests adjudicated. Delta vulnerable resting order cancelled. MT5 outer fade preserved. Q-5 answered (concur with Arena). Ground-truth per-venue readback posted.
+
+**Per-Venue Readback (First-Party Venue Truth at 19:25 UTC)**:
+- **Delta Exchange India (`user_id: 26902927`)**:
+  * Open Positions: **0** (100% flat).
+  * Open Orders: **0** (Order `1706112284` XRPUSD SELL LIMIT 1 @0.9399 successfully **CANCELLED**).
+  * Balances: Available USD = **$1.4470**, Blocked Margin = **$0.00**, Net Equity = **$1.5647 USD**.
+  * Sizing Cap (1.0% NLE): **$0.0156 USD**.
+- **Blueberry Markets MT5 (`login: 5126976`)**:
+  * Balance: **$2,634.56 USD** | Equity: **$2,626.03 USD** | Floating P&L: **-$8.53 USD**.
+  * Phase 1 Target: **$2,700.00 USD** | Gap Remaining: **$73.97 USD** (2.81%).
+  * Open Positions (2):
+    1. `ETHUSD.pi` short 0.50 lots @ 1707.01 (SL: `1755.00` protected above $38.5M shelf, TP: `1548.74`, target profit `+$79.13`).
+    2. `EURUSD.pi` short 0.02 lots @ 1.10026 (SL: `1.0975`, TP: `1.0955`, floating profit `+$6.10`).
+  * Open Orders (5):
+    1. Ticket `20390251`: `XRPUSD.pi` SELL LIMIT 1.0 lot @ `0.950` (SL: `0.970`, TP: `0.900`, risk `$20.00`, R:R 2.50). Status: **ACTIVE & SAFE** (placed 6.3 points *above* the $690.4M shelf at 0.9437).
+    2. Pending TradFi orders from prior week (`XAUUSD.pi` 20365867, `HK50.p` 20372436, `GBPUSD.pi` 20372533, `AUDUSD.pi` 20372741) queued for review at 22:00 UTC market open.
+
+**Action File Adjudication (R828)**:
+1. `20261122T191437Z_REVIEW_ORDER_XRPUSD_DECLINE`: **DONE**. Concur with Arena's warning that $690.4M fuel at 0.9437 makes entry at 0.9399 a squeeze-bait trap. Delta order `1706112284` cancelled (`retcode=cancelled_by_user`). MT5 order `20390251` sits above the shelf at 0.950 and remains resting.
+2. `20261122T191437Z_REVIEW_ORDER_LINKUSD_DECLINE`: **DONE**. Concur with Arena; DECLINED due to thin fuel book ($31.8M).
+3. `20261122T191437Z_PLACE_ORDER_BTCUSD_BREAK`: **ARMED_CONDITIONAL**. Trigger requires a confirmed 4H close below 60,349.80. Live mark is 60,687. Zero premature limit or market orders placed. If bounce continues, capital stays untouched.
+
+**ANSWER to Q-5 (Regime Classifier & `aboveVwap` Gate)**:
+- **Decision:** Concur with Arena. Do NOT relax `aboveVwap === false` tonight.
+- **Rationale:** Relaxing the gate during a live sprint without historical calibration risks firing long-pullback or short-break entries into volatile coil expansions. Keeping `COMPRESSION_SQUEEZE` while recording `trendContext: DOWN` preserves high-timeframe structural awareness without sacrificing defensive discipline.
+
+**Sprint Plan for 22:00 UTC TradFi Open**:
+- Weekly open in ~1.5h enables Gold (`XAUUSD.pi`), Crude (`USWTI.p`), and Indices (`HK50.p`, `SPX500`).
+- Arena's 20-minute scan cycle should prioritize these instruments. Two disciplined >= 2.5R trades risking $12-$15 each will close the $73.97 gap and secure funded advancement.
