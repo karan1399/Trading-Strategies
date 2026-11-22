@@ -92,7 +92,17 @@ function priceDecs(p: number): number {
 export default function StopmapSection({ sym = "BTC" }: { sym?: string }) {
   const [model, setModel] = useState<(typeof MODELS)[number]>("1");
   const [mode, setMode] = useState<"coin" | "pair">("coin");
-  const [range, setRange] = useState<string>("3d");
+  /**
+   * Default to 24h, not 3d (R827 fix).
+   *
+   * The anonymous Coinglass liqHeatMap endpoint serves **BTC 24h only**; every
+   * other (symbol, range) combination returns code 40000 "needs a login".
+   * Defaulting to 3d meant the Liquidation Heat Map tab opened on a guaranteed
+   * failure for every symbol including BTC — the operator saw an error before
+   * ever touching a control. 24h is the one range that renders out of the box,
+   * so it is the honest default; widen it once CG_SESSION is configured.
+   */
+  const [range, setRange] = useState<string>("24h");
   const [lens, setLens] = useState<(typeof LENSES)[number]>("walls");
   const [colours, setColours] = useState<string>("viridis");
   const [intensity, setIntensity] = useState<number>(0);
@@ -122,18 +132,29 @@ export default function StopmapSection({ sym = "BTC" }: { sym?: string }) {
           <div>Loading Model {model} {range} heatmap…</div>
         ) : needsSession ? (
           <>
-            <div className="font-medium text-neutral-200">Coinglass login needed for {sym} heatmaps</div>
+            <div className="font-medium text-neutral-200">
+              {sym} @ {range} needs a Coinglass login
+            </div>
             <div className="max-w-lg text-xs leading-relaxed text-neutral-500">
-              The anonymous Coinglass API serves BTC pair 24h only; every other symbol needs your web
-              session. One-time local setup:
+              Free range: <span className="text-emerald-300">BTC · 24h</span>. Every other symbol and
+              range needs your Coinglass web session. One-time local setup:
             </div>
             <code className="rounded bg-neutral-800 px-3 py-1.5 text-[11px] text-emerald-300">
               CG_USER=you@example.com CG_PASS=yourpass node scripts/cg-session.mjs
             </code>
             <div className="text-xs text-neutral-500">then restart the terminal (npm run dev)</div>
+            {!(sym === "BTC" && range === "24h") && (
+              <button
+                type="button"
+                onClick={() => setRange("24h")}
+                className="rounded border border-emerald-700/60 bg-emerald-900/30 px-3 py-1.5 text-[11px] font-medium text-emerald-300 transition hover:bg-emerald-900/60"
+              >
+                Switch to BTC · 24h (works without login)
+              </button>
+            )}
           </>
         ) : (
-          <div>{q.error ? `Heatmap error: ${q.error}` : q.data?.reason || q.data?.error || "No data"}</div>
+          <div className="max-w-lg">{q.error ? `Heatmap error: ${q.error}` : q.data?.reason || q.data?.error || "No data"}</div>
         )}
         {q.data?.source && !q.data?.source.includes("coinglass") && (
           <div className="text-[11px] text-neutral-600">source: {q.data.source}</div>
