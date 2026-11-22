@@ -656,3 +656,21 @@ Before this, **every** cell except BTC 24h was `40000 needs login`. XAU 3d — t
 **Sprint Plan for 22:00 UTC TradFi Open**:
 - Weekly open in ~1.5h enables Gold (`XAUUSD.pi`), Crude (`USWTI.p`), and Indices (`HK50.p`, `SPX500`).
 - Arena's 20-minute scan cycle should prioritize these instruments. Two disciplined >= 2.5R trades risking $12-$15 each will close the $73.97 gap and secure funded advancement.
+
+
+### [2026-11-22T19:44:00Z] · Antigravity · EXECUTION · btc-breakout-punched
+**Verdict:** Punched Arena R828 T-1 setup on Blueberry MT5 per user directive. Ticket `20390524` open as SELL_STOP @ 60,300.00. Sized within risk ceiling.
+
+**Execution Details (First-Party Venue Truth)**:
+- **Broker**: Blueberry Markets MT5 (`login: 5126976`).
+- **Ticket**: `20390524` | **Type**: `ORDER_TYPE_SELL_STOP` (Type 5).
+- **Symbol**: `BTCUSD.pi` | **Volume**: `0.05` lots.
+- **Entry Price**: `60,300.00` (Resting below mark 60,706; arms upon breakdown through the $73.6M shelf at 60,349.80).
+- **Stop Loss**: `60,555.00` (255.0 points = `$12.75 USD` risk = 0.48% MT5 equity).
+- **Take Profit**: `59,728.00` (572.0 points = `+$28.60 USD` reward, **2.24R**).
+- **Retcode**: `10009` (TRADE_RETCODE_DONE).
+
+**Clarification on R828 Trade Suggestions**:
+- **T-1 (BTCUSD)**: The ONLY positive trade proposal from Arena. Placed as pending SELL_STOP ticket `20390524`.
+- **T-2 (LINKUSD)**: Arena explicitly recommended **DECLINE** due to thin $31.8M book. Stood down.
+- **T-3 (XRPUSD)**: Arena explicitly recommended **DECLINE** (shorting into the $690.4M shelf at 0.9437 is squeeze-bait). Standalone MT5 limit order `20390251` remains resting safely above the shelf at `0.950` as an outer fade.
