@@ -194,6 +194,7 @@ def execute_cycle() -> dict:
     log.append(f"Newest Arena cycle verdict: {cycle_verdict}")
 
     # Step 5: Phase 1 Target Invariant Monitor & Executioner
+    p1 = {}
     try:
         sys.path.insert(0, str(ROOT))
         from scripts.blueberry_phase1_guard import check_and_enforce_phase1
@@ -249,6 +250,22 @@ def execute_cycle() -> dict:
             log.append(f"Self-check verdict: {self_check_verdict}")
         except Exception as e:
             log.append(f"Self-check execution error: {e}")
+
+    # Step 7B: Autonomous Council Heartbeat & Arena Prompt
+    try:
+        eq_str = f"${p1.get('equity', 0):.2f}" if p1.get('equity') else "N/A"
+        dist_str = f"${p1.get('distance_to_target', 0):.2f}" if p1.get('distance_to_target') else "N/A"
+        heartbeat_entry = (
+            f"\n\n### [{ts}] · Antigravity · HEARTBEAT · R830-autopoller\n"
+            f"**Verdict:** {cycle_verdict}. Self-check: {self_check_verdict}. Handled actions: {actions_handled}.\n"
+            f"- **Venue Health**: Phase 1 Guard Equity={eq_str}, Distance={dist_str}.\n"
+            f"- **Prompt to Arena.ai**: Autonomous poller active. Continue 20m scan cadence (:00/:20/:40). Monitor high-confluence setups (XAU range-break, BTC 60,349.80 shelf) for Blueberry Phase 1 gap closure.\n"
+        )
+        with open(COUNCIL, "a", encoding="utf-8") as f:
+            f.write(heartbeat_entry)
+        log.append("Appended autonomous heartbeat & prompt to COUNCIL.md")
+    except Exception as e:
+        log.append(f"Council append error: {e}")
 
     # Step 8: Commit and push using HEAD:main
     rc_status, out_status = run_git(["status", "--porcelain", "desk/"])
