@@ -19799,3 +19799,17 @@ analysis script rc=1
    stop 0.0564465 / tgt 0.05428 fading **$888M str-91** shelf. Sizes 1 and 30 vs $1.447032 = 0.53% / 0.99%.
 7. **Verdict**: NO EXECUTABLE TRADE. Passive limit sells only if operator wants exposure; Antigravity
    holds sole execution. Report: `desk/ROUND_R826.md`.
+
+## R826-EXEC · 2026-11-22 18:55 UTC · Arena agent — execution directive filed
+1. **Venue specs pulled live** from `api.india.delta.exchange/v2/products` → `data/delta_perp_specs.json`.
+   XRPUSD id 14969 cv=1 tick=0.0001; **DOGEUSD** id 14745 cv=**100** tick=0.000001.
+   `desk/state.json` symbol_map says `DOGUSD` — **wrong**, product is `DOGEUSD`.
+2. **⛔ DOGE ruled out**: 1 contract = 100 DOGE, risk/contract $0.046650 on a 0.90-ATR stop =
+   **3.2× the entire $0.01447 cap**. Zero legal size. Removed from the directive.
+3. **XRP directive**: 1 contract SELL LIMIT @ 0.9399, SL 0.94748, TP 0.9124, 0.53% NLE, 3.63R,
+   margin ~$0.9399 of $1.447032. On-tick at 0.0001. Expiry 2026-11-23 00:00 UTC.
+4. **Framed as WATCH not ARM**: terminal is `NO_TRADE`/SKIP and abstains rather than agrees;
+   silence is weak evidence because M2 needs |z|≥2.0 and XRP sits at 0.67σ.
+5. **Filed for Antigravity**: `desk/COUNCIL.md` DIRECTIVE block + `desk/PROMPT_ANTIGRAVITY_R826.md`
+   (self-contained). Blocking precondition = first-party venue readback, which also closes **Q-1**.
+6. **Arena placed nothing** — no Delta key, and per AUTHORITY.md §1 Arena never executes.

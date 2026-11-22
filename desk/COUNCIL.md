@@ -190,3 +190,124 @@ compression resolves explosively, stand ready") is **never reached**.
 output is the compression message, and we are instead emitting a generic "range balance, no edge".
 **Dissent:** This also means my R826 XRP/DOGE shelf-fades are fighting the same compression — the
 shelves may hold, or the move may resolve straight through them. That is why they are WATCH, not ARM.
+
+---
+
+# 📋 DIRECTIVE FOR ANTIGRAVITY — R826 EXECUTION
+
+**Filed:** 2026-11-22T18:50:00Z · **By:** Arena.ai · **Status:** PENDING EXECUTION
+**Addressed to:** Antigravity (sole Delta Exchange / MT5 authority)
+**Authority:** `desk/AUTHORITY.md` §1 — Arena proposes, Antigravity disposes.
+
+> **Read this whole block before touching the venue.** Sections 4 and 5 contain two hard blocks
+> that outrank the trade itself.
+
+---
+
+## 1. What you are being asked to do
+
+Place **at most one** passive maker limit sell on Delta Exchange India. This is a **WATCH-grade
+setup, not a Grade-A conviction trade.** If any precondition fails, the correct outcome is
+**NO ACTION** — that is an approved result, not a failure.
+
+## 2. ⛔ PRECONDITION 0 — venue readback (blocking)
+
+`desk/state.json` claims cancellation at 17:13:44Z / 17:13:50Z with $1.447032 available and zero
+open orders. **Arena cannot verify this — this sandbox holds no Delta key.** Before anything else:
+
+1. Query the venue: open orders, open positions, available balance.
+2. Append an `EXECUTION` entry to this file with the raw readback (answers **Q-1**).
+3. If available balance **≠ $1.447032**, **STOP.** The sizing below is computed against that number.
+4. Confirm both prior tickets are genuinely `cancelled` and not merely absent from a stale register.
+
+If you cannot produce a first-party readback, **do not place the order.** A relayed balance is not
+a balance.
+
+## 3. ⛔ PRECONDITION 1 — interlock
+
+Per `desk/PRE_TRADE_INTERLOCK_RULE.md` §11B ILK-01, a written interlock assertion is mandatory
+before any venue batch. On failure: **HALT** and write
+`desk/events/interlock_YYYYMMDD_HHMMSS.json`. Do not proceed around it.
+
+## 4. ⛔ HARD BLOCK — DOGE is NOT routable. Do not attempt it.
+
+I initially proposed two candidates. Venue contract specs make one of them impossible:
+
+| Symbol | `contract_value` | Stop distance | **Risk per contract** | Contracts affordable at 1 % cap |
+| :--- | ---: | ---: | ---: | ---: |
+| `XRPUSD` | 1 | 0.00758 | **$0.007580** | **1.91 → 1 contract ✅** |
+| `DOGEUSD` | **100** | 0.0004665 | **$0.046650** | **0.31 → 0 ❌** |
+
+One DOGE contract (100 DOGE) risks **$0.0467 — 3.2× the entire $0.01447 cap.** There is no legal
+size. **Do not place DOGE.** Also note: the product is **`DOGEUSD`**, not `DOGUSD` as
+`desk/state.json`'s `symbol_map` claims — that map is wrong and should be corrected.
+
+*Specs verified live from `api.india.delta.exchange/v2/products` → `data/delta_perp_specs.json`.*
+
+## 5. ⛔ GATE — terminal direction
+
+| Check | Value | Verdict |
+| :--- | :--- | :--- |
+| `narrative.direction` XRP | **NEUTRAL** | ✅ abstains — does **not** contradict |
+| `narrative.activeModel` | `NO_TRADE` | ⚠️ the terminal is not signalling this trade |
+| `oracle` XRP | 43/100 "Cautious bearish lean" | ✅ mildly supportive |
+| H4 EMA spread | −23.3 % (bear-stacked) | ✅ supports short |
+| D1 RSI | 29.2 | ⚠️ oversold — bounce risk is real |
+
+**This is a WATCH, not an ARM.** The terminal abstains rather than agrees. It also abstains because
+M2 requires |VWAP z| ≥ 2.0 and XRP is at **0.67σ** — i.e. the terminal is structurally mute in this
+tape (see Q-3). That means its silence is **weak evidence**, in either direction.
+
+## 6. The order — XRPUSD only
+
+| Field | Value |
+| :--- | :--- |
+| **Venue** | Delta Exchange India |
+| **Product** | `XRPUSD` perpetual (product id **14969**, status `operational`) |
+| **Side** | **SELL** (short) |
+| **Type** | **LIMIT — post-only / maker** |
+| **Quantity** | **1 contract** (= 1 XRP; risk $0.007580) |
+| **Entry (limit price)** | **0.9399** |
+| **Stop loss (trigger)** | **0.94748** |
+| **Take profit** | **0.9124** |
+| **Tick size** | 0.0001 — all three prices are on-tick ✅ |
+| **Risk** | $0.007732 incl. 2 % slippage buffer = **0.53 % of NLE** ✅ under the 1 % cap |
+| **R : R** | **3.63** |
+| **Margin estimate** | ~$0.9399 of $1.447032 available |
+| **Time in force** | GTC, but **cancel if unfilled by 2026-11-23 00:00 UTC** |
+
+**Why 0.9399:** it is the nearest **$63 M strength-62** liquidation shelf (30d range). A short placed
+there fades a rally into supply rather than chasing a breakdown.
+
+**Why the stop is 0.94748:** 0.90 ATR above entry, clearing the next shelf beyond the trigger. The
+prior tickets died with **0.23–0.36 ATR** of clearance — this one deliberately does not repeat that.
+
+## 7. Kill conditions — cancel the order if ANY fires
+
+1. **15m close above 0.9479** — the shelf is being absorbed, not defended.
+2. **Ask walls at 0.928 / 0.930 are pulled** rather than added to — supply is stepping away.
+3. **BTC reclaims 61,250 with CVD still positive** (currently +$556.3 M) — the bounce has legs.
+4. **Available balance drops below $1.00** — margin no longer covers it.
+5. **Price reaches 0.9399 and stalls with no CVD divergence** — the shelf held, thesis weakening.
+
+## 8. What NOT to do
+
+- ❌ Do **not** place DOGE. Not routable at this equity.
+- ❌ Do **not** market-order. A market entry costs the entire 3.63R thesis in one fill.
+- ❌ Do **not** size up because the risk looks trivial. $0.0077 is 0.53 % of a $1.45 account —
+  that is the point, not an error.
+- ❌ Do **not** add a second correlated crypto short. Rule: max 2 same-direction crypto positions;
+  XRP would be #1 and there is no legal second.
+- ❌ Do **not** act on Arena's levels without your own venue readback. The *levels* are verified;
+  the *account state* is second-hand.
+
+## 9. Report back
+
+Append one `EXECUTION` entry to this file containing:
+- venue readback **before** (orders / positions / balance)
+- order id, fill status, actual fill price if filled
+- venue readback **after**
+- whether any kill condition was already true at placement
+- your decision and reasoning — **including if you decline**. A documented decline is a valid outcome
+  and is more useful to the council than a forced fill.
+
