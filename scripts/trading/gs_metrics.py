@@ -187,24 +187,66 @@ def calc_winsorize(series: pd.Series, limit: float = 0.05) -> pd.Series:
 # High-Level Desk Portfolio Risk Engine
 # ==============================================================================
 
-def analyze_crypto_risk_correlation(timeframe: str = "1H") -> Dict[str, Any]:
+def load_series_for_symbol(sym: str, timeframe: str = "1H") -> pd.Series:
     """
-    Load live/parquet candlestick series for BTC, ETH, and XRP from historical_parquet,
-    compute pairwise correlation and beta using gs-quant, and evaluate Arena's R829 challenge.
+    Load candlestick series for symbol.
+    First tries local historical_parquet directory.
+    If missing (e.g. in remote sandbox), falls back to live public exchange API (Binance fapi).
     """
     tf_dir = PARQUET_DIR / timeframe
-    files = {
+    file_map = {
         "BTC": tf_dir / "BTCUSD.pi.parquet",
         "ETH": tf_dir / "ETHUSD.pi.parquet",
         "XRP": tf_dir / "XRPUSD.pi.parquet",
     }
-
-    series_dict = {}
-    for sym, path in files.items():
-        if not path.exists():
-            return {"error": f"Missing parquet file for {sym} at {path}"}
+    path = file_map.get(sym)
+    if path and path.exists():
         df = pd.read_parquet(path)
-        series_dict[sym] = to_gs_series(df, column="close", time_column="datetime")
+        return to_gs_series(df, column="close", time_column="datetime")
+
+    # Fallback to public Binance perp tape
+    try:
+        import requests
+        sym_binance = f"{sym}USDT"
+        tf_binance = timeframe.lower()
+        if tf_binance == "1m": tf_binance = "1m"
+        elif tf_binance == "5m": tf_binance = "5m"
+        elif tf_binance == "15m": tf_binance = "15m"
+        elif tf_binance == "1h": tf_binance = "1h"
+        elif tf_binance == "4h": tf_binance = "4h"
+
+        url = "https://fapi.binance.com/fapi/v1/klines"
+        r = requests.get(url, params={"symbol": sym_binance, "interval": tf_binance, "limit": 1000}, timeout=10)
+        if r.status_code == 200:
+            data = r.json()
+            rows = []
+            for row in data:
+                rows.append({
+                    "timestamp": int(row[0] / 1000),
+                    "datetime": pd.to_datetime(row[0], unit="ms", utc=True),
+                    "close": float(row[4])
+                })
+            df = pd.DataFrame(rows)
+            return to_gs_series(df, column="close", time_column="datetime")
+    except Exception:
+        pass
+
+    raise FileNotFoundError(f"Could not load candle series for {sym} from parquet or exchange API")
+
+
+def analyze_crypto_risk_correlation(timeframe: str = "1H") -> Dict[str, Any]:
+    """
+    Load candlestick series for BTC, ETH, and XRP from historical_parquet or live feed,
+    compute pairwise correlation and beta using gs-quant, and evaluate Arena's R829 challenge.
+    """
+    symbols = ["BTC", "ETH", "XRP"]
+    series_dict = {}
+
+    for sym in symbols:
+        try:
+            series_dict[sym] = load_series_for_symbol(sym, timeframe=timeframe)
+        except Exception as e:
+            return {"error": f"Failed loading series for {sym}: {e}"}
 
     # Pairwise GS-Quant Correlation
     corr_matrix = {}
