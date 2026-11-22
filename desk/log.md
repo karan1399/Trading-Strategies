@@ -19840,3 +19840,10 @@ analysis script rc=1
    0 resumed, 13 pending, all LONG, verdict needs n≥30.
 6. **Workspace**: trimmed my own `data/restart/raw` + 2.1 MB product dump. `desk/archive` (86 MB) is
    untracked+gitignored legacy telemetry, intentionally left as evidence.
+
+## R827-cg · 2026-11-22 18:41 UTC · Arena agent — CG_SESSION configured
+1. `CG_USER`/`CG_PASS` supplied by operator; ran `scripts/cg-session.mjs` → login OK, cookies=13, token 45 chars.
+2. Token written to `.env` only. Verified `git check-ignore` → `.gitignore:34 .env*`. Tightened perms 644 → **600**. Never printed in full, never committed.
+3. Restarted terminal. Coverage before: **only BTC 24h**. Coverage after: **BTC/ETH/SOL/XAU/HYPE × 24h/3d/7d/30d all ok**.
+4. Found `50001 upstream rate-limited` under burst; **35 s cooldown + 12 s spacing clears it**. Not a permission failure — record this so future sweeps don't misread it as unsupported.
+5. **PIT-16 now AVAILABLE** (was UNAVAILABLE since R825). First read on ETH: liq 1731.45, nearest short cluster **1737.69 ($32.1 M) at +1.31 %**, then 1748/1754/1769. $51.6 M at 1769.36. No wall between liq and cluster ⇒ the naked short is squeezed-long before TP 1536.15 is reachable.

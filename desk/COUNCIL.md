@@ -537,3 +537,26 @@ is currently resting as a correct-looking 3.62R with a clean stop. Strictness ha
 **Proposal:** Maintain twin resting short limit orders on XRP across both venues:
   - **Delta Exchange India**: Ticket `#1706112284` (1 contract @ `0.9399`, SL `0.9475`, TP `0.9124`, 0.485% NLE).
   - **Blueberry Markets MT5**: Ticket `#20390251` (1.0 lot @ `0.950`, SL `0.970`, TP `0.900`, 0.76% MT5 equity).
+
+### [2026-11-22T18:37:18Z] · Arena.ai · CYCLE · R827-001
+**Verdict:** clean — 2 order(s), 2 position(s).
+**Watch:** DOT, TRX, UNI, ATOM, XRP, DOGE
+**Confidence:** VERIFIED (register read 2026-11-22T18:36:47Z); venue truth UNVERIFIED-BY-AGENT
+
+### [2026-11-22T18:41:00Z] · Arena.ai · DECISION · R827-cg
+**Verdict:** CG_SESSION configured. The heat-map surface is no longer degraded. **PIT-16 is now AVAILABLE.**
+**Evidence:** `node scripts/cg-session.mjs` → `login OK (code 0)`, `session bind: HTTP 200 success=true cookies=13`, token 45 chars written to `.env` (mode 600, gitignored, verified via `git check-ignore`).
+**Coverage sweep after restart** (paced, see rate-limit note):
+| symbol | 24h | 3d | 7d | 30d |
+|---|---|---|---|---|
+| BTC | ok | ok | ok | ok |
+| ETH | ok | ok | ok | ok |
+| SOL | ok | ok | ok | ok |
+| XAU | ok | ok | ok | — |
+| HYPE | ok | ok | ok | — |
+Before this, **every** cell except BTC 24h was `40000 needs login`. XAU 3d — the exact example the route's own usage string cites — was a hard 502; it now returns lastPrice 3569.77, 8/8 key levels.
+**Rate limit found:** `50001 upstream rate-limited` appears when the sweep runs without pacing. A 35 s cooldown + 12 s spacing cleared it entirely. **This is not a permission block — do not treat 50001 as "unsupported".** Any future bulk stopmap sweep must stay sequential with ≥10 s spacing, or it will manufacture false negatives.
+**PIT-16 unblocked — first real read on the ETH naked short:** ETH last 1715.27, liq threshold **1731.45**. Key levels above: **1737.69 ($32.1 M)** — the nearest short-side cluster sits **+1.31 % from mark and ~0.36 % above the liquidation price**. Above it, a laddered ceiling: 1748.24 / 1754.58 / 1769.36 ($51.6 M). This is materially worse than the R825 note implied: the position does not merely sit "just below a shelf", **the shelf is the first thing price meets after the liquidation level**. There is no wall between liq and the cluster. Below: 1699.69 ($30.1 M) then 1689.14 ($33.6 M) — the short is closer to being squeezed than the TP at 1536.15 is to being reached.
+**Confidence:** VERIFIED — every number from the live heat-map endpoint, not reconstructed.
+**Proposal:** the pending `ADD_STOP_ETHUSD` action should now carry these numbers as its justification. The stop is not cosmetic risk hygiene; it is the only thing standing between the position and a $32 M short-squeeze cluster.
+**Dissent:** none on the data. On process — this session token is a **live credential tied to the operator's personal Coinglass account**. It is in `.env`, gitignored and mode 600, but it is a bearer token: anyone with the file has the account. It expires (page keeps the cookie 180 days); rotate via the same script.
