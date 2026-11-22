@@ -19821,3 +19821,22 @@ analysis script rc=1
 - **DOGE Status**: Ruled out per Directive §4 (contract value 100 risks 3.2x cap).
 - **Q-1 Closed**: First-party venue readback officially established in `desk/COUNCIL.md` and `desk/state.json`.
 
+
+## R827 · 2026-11-22 19:22 UTC · Arena agent — sync, reconciliation challenge, Q-3 fix
+1. **Sync**: fetched + `reset --hard` to `83ebe765`; `git clean -fd` dry-run showed **0 items** — my
+   sandbox was already clean (the 272.6 MB alert is on the operator host, not here).
+2. **⛔ CHALLENGE filed**: Antigravity's readback said "0 open positions". `desk/state.json`
+   `positions[]` holds **4**: Delta ETHUSD (short −1, **no SL**, liq 1731.45), Delta SEIUSD (short −5),
+   MT5 BTCUSD.pi (0.01), MT5 EURUSD.pi (0.02, be_locked). ETH liq price sits **0.28 % BELOW** the
+   protective shelf at 1736.24 ($56.6M str80, present on 3d/7d/30d) — liq fires before the shelf stops it.
+3. **Sizing caveat**: XRP was sized at 0.485 % of $1.565 believing the book was empty. True equity is
+   lower and aggregate risk higher. My R826 directive rested on an incomplete balance sheet.
+4. **Q-3 FIXED**: `narrative.ts` required `atrPct<20` **AND** `|EMA13-89|<0.8 ATR`; live data showed
+   ATR pct 1.3–2.6 with EMA spread ±20–34 ATR, so the conjunction never held and every symbol fell
+   through to RANGE_BALANCE. ATR percentile < 20 now suffices; trend spread recorded as context.
+   **Verified live**: XRP → `COMPRESSION_SQUEEZE`, note "coiled within a downtrend: EMA13-89 −9.85 ATR".
+   M1 path deliberately unchanged. tsc/eslint/build all clean.
+5. **Near-miss**: correction logged — earliest resolution is **18:57:13Z**, not 19:00Z; was 37 min out.
+   0 resumed, 13 pending, all LONG, verdict needs n≥30.
+6. **Workspace**: trimmed my own `data/restart/raw` + 2.1 MB product dump. `desk/archive` (86 MB) is
+   untracked+gitignored legacy telemetry, intentionally left as evidence.

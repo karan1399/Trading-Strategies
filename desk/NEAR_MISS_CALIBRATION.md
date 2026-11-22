@@ -1,5 +1,5 @@
 # NEAR-MISS CALIBRATION REPORT
-> **Generated UTC**: 2026-11-22T17:18:54Z  |  **Engine**: `desk/LLM_TRADE_FORMULATION_PLAYBOOK.md` rejected candidates
+> **Generated UTC**: 2026-11-22T18:19:35Z  |  **Engine**: `desk/LLM_TRADE_FORMULATION_PLAYBOOK.md` rejected candidates
 > **Question**: do rejected 3–6/10 formulations carry positive expectancy? If yes, grade thresholds are too tight; if no, the gate is saving the desk from noise.
 
 ## Method (pessimistic baseline)
@@ -19,19 +19,19 @@
 
 | Symbol | Captured UTC | Bucket | Direction | Entry | Stop | T2 | Evidence (top) |
 | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :--- |
-| LINK | 2026-11-22T14:57:13Z | 3/10 | long | 8.783 | 8.7303 | 9.0465 | market.auction.day.poc=8.78775 (+2) |
-| UNI | 2026-11-22T14:57:42Z | 3/10 | long | 4.707 | 4.6788 | 4.8482 | market.auction.day.poc=4.702 (+2) |
-| ETC | 2026-11-22T14:57:58Z | 3/10 | long | 5.569 | 5.5356 | 5.7361 | market.auction.day.vah=5.556 (+2) |
-| OP | 2026-11-22T14:58:35Z | 3/10 | long | 0.072 | 0.0716 | 0.0742 | market.auction.day.poc=0.0719 (+2) |
-| VET | 2026-11-22T14:59:12Z | 3/10 | long | 0.004628 | 0.0046 | 0.0048 | market.auction.day.poc=0.0046 (+2) |
-| 1000PEPE | 2026-11-22T14:59:18Z | 3/10 | long | 0.0034004 | 0.0034 | 0.0035 | market.auction.day.poc=0.0034 (+2) |
-| XAU | 2026-11-22T14:59:28Z | 3/10 | long | 3567.25 | 3545.85 | 3674.27 | market.auction.day.poc=3565.57 (+2) |
-| NVDA | 2026-11-22T14:59:36Z | 3/10 | long | 133.18 | 132.38 | 137.18 | market.auction.day.poc=132.90 (+2) |
-| SOXL | 2026-11-22T14:59:46Z | 3/10 | long | 33.95 | 33.75 | 34.97 | market.auction.day.poc=33.98 (+2) |
-| GOOGL | 2026-11-22T14:59:55Z | 3/10 | long | 275.01 | 273.36 | 283.26 | market.auction.day.poc=274.58 (+2) |
-| MU | 2026-11-22T14:59:59Z | 3/10 | long | 619.14 | 615.43 | 637.71 | market.auction.day.poc=617.88 (+2) |
-| CL | 2026-11-22T15:00:20Z | 3/10 | long | 84.04 | 83.54 | 86.56 | market.auction.day.poc=84.04 (+2) |
-| QQQ | 2026-11-22T15:00:49Z | 3/10 | long | 627.4 | 623.64 | 646.22 | market.auction.day.poc=628.42 (+2) |
+| LINK | 2026-11-22T14:57:13Z | 3/10 | long | 8.783 | 8.7303 | 9.0465 | market.auction.day.poc=8.78775: aligns within 0.25% of level 8.783 (+2) |
+| UNI | 2026-11-22T14:57:42Z | 3/10 | long | 4.707 | 4.6788 | 4.8482 | market.auction.day.poc=4.702016666666666: aligns within 0.25% of level 4.707 (+2) |
+| ETC | 2026-11-22T14:57:58Z | 3/10 | long | 5.569 | 5.5356 | 5.7361 | market.auction.day.vah=5.556125: aligns within 0.25% of level 5.569 (+2) |
+| OP | 2026-11-22T14:58:35Z | 3/10 | long | 0.072 | 0.0716 | 0.0742 | market.auction.day.poc=0.07189083333333333: aligns within 0.25% of level 0.072 (+2) |
+| VET | 2026-11-22T14:59:12Z | 3/10 | long | 0.004628 | 0.0046 | 0.0048 | market.auction.day.poc=0.004625541666666667: aligns within 0.25% of level 0.004628 (+2) |
+| 1000PEPE | 2026-11-22T14:59:18Z | 3/10 | long | 0.0034004 | 0.0034 | 0.0035 | market.auction.day.poc=0.0034031975: aligns within 0.25% of level 0.0034004 (+2) |
+| XAU | 2026-11-22T14:59:28Z | 3/10 | long | 3567.25 | 3545.85 | 3674.27 | market.auction.day.poc=3565.568583333333: aligns within 0.25% of level 3567.25 (+2) |
+| NVDA | 2026-11-22T14:59:36Z | 3/10 | long | 133.18 | 132.38 | 137.18 | market.auction.day.poc=132.9045: aligns within 0.25% of level 133.18 (+2) |
+| SOXL | 2026-11-22T14:59:46Z | 3/10 | long | 33.95 | 33.75 | 34.97 | market.auction.day.poc=33.97541666666666: aligns within 0.25% of level 33.95 (+2) |
+| GOOGL | 2026-11-22T14:59:55Z | 3/10 | long | 275.01 | 273.36 | 283.26 | market.auction.day.poc=274.5783333333333: aligns within 0.25% of level 275.01 (+2) |
+| MU | 2026-11-22T14:59:59Z | 3/10 | long | 619.14 | 615.43 | 637.71 | market.auction.day.poc=617.8785833333333: aligns within 0.25% of level 619.14 (+2) |
+| CL | 2026-11-22T15:00:20Z | 3/10 | long | 84.04 | 83.54 | 86.56 | market.auction.day.poc=84.03575: aligns within 0.25% of level 84.04 (+2) |
+| QQQ | 2026-11-22T15:00:49Z | 3/10 | long | 627.4 | 623.64 | 646.22 | market.auction.day.poc=628.41875: aligns within 0.25% of level 627.4 (+2) |
 
 ## Calibration policy
 - **No threshold changes from small samples.** Verdicts only at n ≥ 30 per bucket (est. 2–3 weeks of daily scans).

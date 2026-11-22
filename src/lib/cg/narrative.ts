@@ -419,9 +419,45 @@ export async function buildNarrative(symRaw: string): Promise<NarrativeVerdict> 
 
   let regime: Regime;
   const regimeBits: string[] = [];
-  if (atrPct != null && atrPct < 20 && emaSpreadAtr != null && Math.abs(emaSpreadAtr) < 0.8) {
+
+  /**
+   * VOLATILITY OVERRIDE (R827 / Q-3, 2026-11-22).
+   *
+   * The original COMPRESSION_SQUEEZE test required BOTH `atrPct < 20` AND a
+   * near-flat H4 EMA13-89 spread (|spread| < 0.8 ATR). Measured live on
+   * 2026-11-22 across 14 majors: ATR percentile sat at 1.3–2.6 (deep coil) on
+   * 13 of 14 names, while the H4 EMA spread was ±20–34 ATR (a strong, mature
+   * trend). The conjunction therefore NEVER held, and because price was also
+   * above Day VWAP (failing TREND_DOWN's `aboveVwap === false` clause) every
+   * symbol fell through to RANGE_BALANCE.
+   *
+   * Net effect: during the single regime where the most valuable advice is
+   * "volatility is coiled — do NOT fade the range, stand ready", the engine
+   * emitted a generic "range balance, no edge". Agents reading that message
+   * treat it as a market opinion and are tempted to override it; the true
+   * message is a volatility STATE, which invites patience.
+   *
+   * Fix: ATR percentile is the primary signal for a coil. A matured trend with
+   * compressed volatility is still compressed — the expansion, when it comes,
+   * is what resolves the trend. We therefore let the coil verdict stand on its
+   * own, and record the trend spread as context rather than as a veto.
+   *
+   * Deliberately NOT changed: M1's `m1Dir` still derives from regime ===
+   * TREND_UP/TREND_DOWN, so a coiled trend does NOT arm trend-pullback entries
+   * (m1Dir stays null → M1 cannot fire). This adds information; it does not
+   * open a new trade path.
+   */
+  if (atrPct != null && atrPct < 20) {
     regime = "COMPRESSION_SQUEEZE";
-    regimeBits.push(`ATR pct ${fmt(atrPct, 0)}% < 20th (coil)`, `flat EMA13-89 spread ${fmt(emaSpreadAtr, 2)} ATR`);
+    regimeBits.push(`ATR pct ${fmt(atrPct, 0)}% < 20th (coil)`);
+    if (emaSpreadAtr != null && Math.abs(emaSpreadAtr) < 0.8) {
+      regimeBits.push(`flat EMA13-89 spread ${fmt(emaSpreadAtr, 2)} ATR`);
+    } else if (emaSpreadAtr != null) {
+      // coiled inside a matured trend — the expansion resolves the trend
+      regimeBits.push(
+        `coiled within a ${emaSpreadAtr > 0 ? "up" : "down"}trend: EMA13-89 ${fmt(emaSpreadAtr, 2)} ATR`,
+      );
+    }
     if (liq?.last) regimeBits.push("rising OI awaited — expansion pending");
   } else if (
     (h4Stack === "up" && (d1Stack === "up" || d1Stack === "tangled") && (emaSpreadAtr ?? 0) > 0.5 && aboveVwap) ||
