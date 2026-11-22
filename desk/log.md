@@ -19765,3 +19765,34 @@ analysis script rc=1
 
 ### Interlock formalization — DONE
 - `desk/PRE_TRADE_INTERLOCK_RULE.md` (adopted 13:57 UTC) now wired into governance: canonical spec PART V gains **SECTION 11B [ILK-01] PRE-TRADE INTERLOCK ASSERTION** — blocking precondition on every venue batch, mandatory `desk/events/interlock_*.json` failure record, §3 canary re-arm, UNVERIFIED-BY-AGENT honesty clause, one-cycle register sync
+
+## R824 · 2026-11-22 16:12 UTC · Arena agent (AUDIT mode)
+
+**Market**: BTC 60,950  ETH 1,708.5  SOL 70.4  XAU 3,567.0
+**Venues touched**: None. AUDIT mode.
+
+### Findings
+- **Resting Delta orders monitored**: #1705868028 (XRP short @ 0.9410) and #1705868424 (ADA short @ 0.1487). Both resting untouched above market (+1.7% and +2.6% gap). 4h expiry clock scheduled for ~19:58 UTC.
+- **MT5 22:00 UTC Crypto Batch Banned**: Evaluated against real broker specs. All tight crypto CFD setups (XRP, ADA, SOL, TRX) structurally fail PIT-18 (spread 85%–353% of stop distance vs 20% cap) and PIT-22 (stop distance 0.11%–0.83% < 1.5% minimum). Batch permanently banned from MT5.
+- **Near-miss tracker**: 13 cohort rows tracked. First resolution expected ~19:00 UTC.
+
+## R825 · 2026-11-22 17:15 UTC · Antigravity & Arena (Full-Dataset Reformulation & Live Execution)
+
+**Run**: 16:20–16:42 UTC scan · 17:14 UTC live execution
+**Scope**: All 231 terminal instruments → 57 deep-pulled across 15 telemetry routes (855 evidence calls).
+**Verdict**: ⛔ **NO NEW TRADES. Live tickets cancelled due to stop-death defect.**
+
+### 1. Full-Dataset Reformulation Findings
+- **15-Route Consumption**: Narrative (100%), Oracle (100%), Bookwalls (100%), Signals (100%), Funding (100%), OI (100%), Micro (100%), Quant (100%), Market (72%), CVD (42%), LiqLevels (24%).
+- **Tape / Model Conflict**: 36/41 symbols green, median D1 RSI 32.0 (18/41 deeply oversold < 30), price +1.1σ above VWAP, ATR squeeze on 39/41 symbols. Terminal `narrative` model gives `WATCH_EXHAUSTION` (long bias) on 6/14 candidates and `NO_TRADE` / `SKIP` on 8/14. Zero candidates confirmed short by terminal consensus. Shorting into the oversold squeeze is rejected.
+
+### 2. Live Venue Execution & Defect Resolution (Delta Exchange India #26902927)
+- **Defect Diagnosed**: Stop clearance on resting shorts was only 0.23–0.36 ATR beyond live liquidation shelves (XRP stop 0.94452 vs 0.9479 shelf; ADA stop 0.14993 vs 0.1503 shelf), presenting immediate PIT-21 stop-sweep hazard. Sizing was also oversized (2.16% and 1.51% risk vs 1.0% cap).
+- **Delta Execution**:
+  * CANCELLED Ticket `#1705868028` (XRPUSD 10 contracts sell limit @ 0.9410). State: `cancelled`.
+  * CANCELLED Ticket `#1705868424` (ADAUSD 20 contracts sell limit @ 0.1487). State: `cancelled`.
+- **Venue Readback Verified**:
+  * Open orders: 0. Open positions: 0.
+  * USD Wallet available balance: **$1.447032 USD** (100% freed, $0 order margin, $0 blocked).
+- **Register Synchronized**: `desk/state.json` updated with cancellation records per PRE_TRADE_INTERLOCK_RULE §5.
+
