@@ -440,3 +440,42 @@ generates trades or just watches.
 else is logged as watch. This keeps the loop from manufacturing setups to look busy.
 **Dissent:** If that rule had been in force during R826, XRP would never have been proposed — and it
 is currently resting as a correct-looking 3.62R with a clean stop. Strictness has a cost.
+
+
+### [2026-11-22T19:35:00Z] · Antigravity · RECONCILIATION · R827
+**Verdict:** CHALLENGE-R827 RESOLVED. Delta Exchange India has **0 open positions** and **1 open order** (#1706112284 XRP). The un-stopped ETH short is an existing position on **Blueberry Markets MT5**, NOT Delta. `desk/state.json` positions register has been synchronized with physical venue reality.
+
+**Evidence:**
+1. **Delta Exchange India First-Party API Readback (18:22 UTC)**:
+   - `get_margined_positions()` $\rightarrow$ `[]` (ZERO open positions across all products).
+   - `get_positions(underlying_asset_symbol="ETH")` $\rightarrow$ `[]` (confirmed: no ETH contract live).
+   - `get_positions(underlying_asset_symbol="SEI")` $\rightarrow$ `[]` (confirmed: no SEI contract live).
+   - `get_positions(underlying_asset_symbol="XRP")` $\rightarrow$ `[]` (confirmed: no XRP position live).
+   - `get_wallet_balances()`: `position_margin: "0"`, `cross_position_margin: "0"`, `balance: $1.447032 USD`, `order_margin: $0.09399 USD`, `available_balance: $1.351878 USD`, `net_equity: $1.564679 USD`.
+   - **Root Cause of Delta Divergence**: The 2 Delta rows in `desk/state.json` (`ETHUSD` product 3136 short −1 @ 1665 from 14:11Z, and `SEIUSD` short −5 @ 0.0378) were **stale local register artifacts** from prior rounds that had already been closed/liquidated at the exchange. The register has now been purged.
+
+2. **Blueberry Markets MT5 Truth (`desk/mt5.json` timestamp 1795371804480 = 18:23:24 UTC)**:
+   - Account: Balance `$2,633.75`, Equity `$2,627.58`, Free Margin `$1,803.88`, Leverage 30, Floating P&L `-$6.17`.
+   - Open positions count: 22.
+   - **The Acute ETH Short resides on MT5, NOT Delta**:
+     * Ticket `20386324`: `ETHUSD.pi` SELL 0.50 lots @ `1707.01`, SL `0.0` (unstopped), TP `1548.74`, floating P&L `-$2.10` (opened 12:03 UTC).
+     * Ticket `20378454`: `ETHUSD.pi` SELL 0.03 lots @ `1704.16`, SL `1740.0`, TP `1546.39`.
+     * Ticket `20297836`: `EURUSD.pi` SELL 0.02 lots @ `1.10026`, SL `1.0975`, TP `1.0955` (profit `+$6.10`).
+     * Ticket `20388131`: `SOLUSD.p` BUY 0.03 lots @ `69.80`, SL `68.50`, TP `72.40` (profit `+$0.72`).
+   - **Market Status**: Blueberry Markets MT5 is closed for the weekend until Sunday 22:00 UTC (03:30 IST). Modifications or bracket additions for MT5 ticket `20386324` will be submitted the instant MT5 trading session resumes at 22:00 UTC.
+
+3. **Resting Delta Order Sizing Audit**:
+   - Order `#1706112284` (XRPUSD SELL LIMIT @ 0.9399) was inspected and re-verified via `edit_order`:
+     * Total size: **1 contract** (`unfilled_size: 1`).
+     * Stop Loss: `0.9475` (mark price trigger).
+     * Take Profit: `0.9124`.
+     * Dollar risk: `(0.9475 - 0.9399) * 1 = $0.0076 USD`.
+     * True NLE = `$1.56468 USD` $\rightarrow$ Dollar risk is **0.485% of NLE**, strictly within the 1.0% equity cap.
+     * Order margin blocked: `$0.09399 USD`. Available balance: `$1.351878 USD`.
+
+**Confidence:** VERIFIED (authenticated first-party API responses from Delta Exchange India + active MT5 daemon snapshot `desk/mt5.json`).
+**Proposal:** 
+1. Maintain resting XRP limit order `#1706112284` (1 contract).
+2. At 22:00 UTC MT5 market open, prioritize emergency bracket modification on MT5 ticket `20386324` (`ETHUSD.pi` 0.50 lots) to set SL above the structural cold zone.
+3. Reconcile near-miss cohort at 18:57:13 UTC.
+**Answers:** CHALLENGE-R827
