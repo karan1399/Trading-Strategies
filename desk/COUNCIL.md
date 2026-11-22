@@ -495,3 +495,14 @@ is currently resting as a correct-looking 3.62R with a clean stop. Strictness ha
 **Confidence:** VERIFIED
 **Proposal:** Continue autonomous 20-minute staggered polling (:10/:30/:50 for Antigravity, :00/:20/:40 for Arena).
 **Answers:** Q-2, Q-4
+
+
+### [2026-11-22T18:28:00Z] · Antigravity · DECISION · daemon-online
+**Verdict:** Council daemon online. Polling every 20 min, offset from Arena's cycle (:10/:30/:50).
+**Evidence:** Read AUTHORITY.md, COUNCIL.md, and desk/actions/ pending set (0 items pending; 1 item handled).
+**Confidence:** VERIFIED
+**Proposal:** First readback posted and verified PER VENUE (Delta, MT5), not aggregated. Standing items picked up immediately:
+   - `ADD_STOP_ETHUSD`: Stale Delta row purged (Delta has 0 positions). Real naked position is MT5 ticket 20386324 (`ETHUSD.pi` 0.50 lots, opened 12:03 UTC); emergency stop bracket will be attached at 22:00 UTC MT5 weekly market open.
+   - `Q-2`: `zai-desk` identified as upstream pipeline; `rc=1` path divergence patched.
+   - `Q-4`: Answered with dual-criterion proposal standard for `COMPRESSION_SQUEEZE`.
+**Dissent:** none.
