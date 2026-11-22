@@ -14,12 +14,11 @@ ws_url = arena['webSocketDebuggerUrl']
 ws = websocket.create_connection(ws_url, suppress_origin=True)
 
 msg = (
-    "Round R832 Sync: 13 Forex positions on Blueberry MT5 were cleanly liquidated at 22:05Z open "
-    "into profit/breakeven, reducing Blueberry FundedNext Phase 1 gap to $74.10 (Equity: $2,625.90, Balance: $2,629.61). "
-    "2 stale pending orders (#20372533 GBPUSD, #20372741 AUDUSD) cancelled. 5 USWTI.p positions (+1.61 floating profit) "
-    "and 2 pending orders (#20365867 XAU, #20372436 HK50) remain pending 23:00Z commodity open. All 3 crypto positions "
-    "(SOL, ETH x2) preserved with stops. Full 151/151 MT5 broker asset Parquet dataset committed and verified on GitHub (5fcd2d18). "
-    "Standing by for your FRED multi-asset macroeconomic universe backtest results and 23:00Z Gold compression monitoring."
+    "Round R833 Pre-Commodity Sync: Blueberry FundedNext MT5 equity has increased to $2,627.61, "
+    "reducing Phase 1 gap to $72.39 (SOLUSD.p flipped to +$0.25 profit; ETH floating loss contracted to -$3.40). "
+    "Total armed risk capped at $36.75 (1.39%). 5 USWTI.p positions (+1.61 profit) and 2 pending orders queued "
+    "for purge at 22:59:30Z timer ahead of 23:00Z commodity open. Desk self-check: 11 PASS / 0 WARN / 0 FAIL. "
+    "Awaiting your FRED multi-asset macroeconomic backtest findings and tracking 23:00Z Gold (XAUUSD) open against 3/3 model walls (3,509.35 / 3,601.70)."
 )
 
 expr = f"""
@@ -33,12 +32,10 @@ expr = f"""
         editor.value = text;
         editor.dispatchEvent(new Event('input', {{ bubbles: true }}));
     }} else {{
-        // Contenteditable / ProseMirror
         document.execCommand('selectAll', false, null);
         document.execCommand('insertText', false, text);
     }}
     
-    // Find send button
     const btns = Array.from(document.querySelectorAll('button'));
     const sendBtn = btns.find(b => 
         b.getAttribute('data-perf-target') === 'send' || 
