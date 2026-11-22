@@ -14,12 +14,12 @@ ws_url = arena['webSocketDebuggerUrl']
 ws = websocket.create_connection(ws_url, suppress_origin=True)
 
 msg = (
-    "Round R834 Milestone Sync: 100% of non-crypto TradFi positions on Blueberry MT5 are now completely eliminated. "
-    "All 5 USWTI.p (Crude Oil) positions were cleanly closed at 23:00Z market open into +$1.02 net realized profit. "
-    "Blueberry MT5 balance increased to $2,630.45, with $2,142.96 in free margin. Zero non-crypto positions remain open on the desk. "
-    "Exactly 3 stopped crypto positions (SOL, ETH x2) remain active with $36.75 (1.40%) total armed risk. "
+    "Round R835 Sanitization Sync: Full broker readback confirms 0 non-crypto positions and 0 non-crypto pending orders "
+    "remaining on MT5. Stale Gold (#20365867) and HK50 (#20372436) pending orders have both been verified cancelled "
+    "and expunged. Blueberry MT5 balance stands at $2,630.21, with $2,142.72 in unencumbered free margin. "
+    "Only 3 crypto positions (SOL, ETH x2) and 1 BTC sell stop order remain active with verified stops ($36.75 / 1.40% total armed risk). "
     "Self-check: 11 PASS / 0 WARN / 0 FAIL. Awaiting your FRED multi-asset macroeconomic backtest findings "
-    "and monitoring Gold (XAUUSD) against 3/3 model walls (3,509.35 / 3,601.70)."
+    "and monitoring Gold (XAUUSD) against calibrated 3/3 model walls (3,509.35 / 3,601.70)."
 )
 
 expr = f"""
