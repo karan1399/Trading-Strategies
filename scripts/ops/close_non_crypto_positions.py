@@ -36,15 +36,18 @@ def close_all_non_crypto(max_retries=15, retry_interval=2.0):
     acc = mt5.account_info()
     print(f"Account: {acc.login} | Balance: ${acc.balance:.2f} | Equity: ${acc.equity:.2f}")
 
-    # First: Cancel Stale Non-Crypto Pending Orders
-    orders = mt5.orders_get()
-    cancelled_orders = 0
-    if orders:
-        for o in orders:
-            if is_crypto(o.symbol):
-                print(f"[PRESERVE] Crypto Order #{o.ticket} {o.symbol} {o.volume_current} lots @ {o.price_open}")
-                continue
+    # Loop until non-crypto positions and non-crypto orders are 0
+    attempt = 0
+    while True:
+        attempt += 1
+        if max_retries > 0 and attempt > max_retries:
+            print(f"[TIMEOUT] Reached max retries ({max_retries}). Exiting loop.")
+            break
 
+        # 1. Cancel Stale Non-Crypto Pending Orders
+        orders = mt5.orders_get()
+        non_crypto_orders = [o for o in (orders or []) if not is_crypto(o.symbol)]
+        for o in non_crypto_orders:
             req = {
                 "action": mt5.TRADE_ACTION_REMOVE,
                 "order": o.ticket
@@ -52,31 +55,24 @@ def close_all_non_crypto(max_retries=15, retry_interval=2.0):
             res = mt5.order_send(req)
             if res and res.retcode == mt5.TRADE_RETCODE_DONE:
                 print(f"[CANCELLED] Stale Order #{o.ticket} {o.symbol}")
-                cancelled_orders += 1
             else:
                 ret = res.retcode if res else "None"
-                print(f"[NOTE] Order #{o.ticket} {o.symbol} cancel retcode={ret}")
+                print(f"[RETRY] Order #{o.ticket} {o.symbol} cancel retcode={ret}")
 
-    print(f"Total stale non-crypto orders cancelled: {cancelled_orders}")
-
-    # Second: Close Non-Crypto Positions with Retry Loop
-    for attempt in range(1, max_retries + 1):
+        # 2. Close Non-Crypto Positions
         positions = mt5.positions_get()
         non_crypto_pos = [p for p in (positions or []) if not is_crypto(p.symbol)]
-        
-        if not non_crypto_pos:
-            print("[SUCCESS] All non-crypto positions are closed!")
+
+        if not non_crypto_pos and not non_crypto_orders:
+            print("[SUCCESS] All non-crypto positions and orders are purged!")
             break
 
-        print(f"\n[ATTEMPT {attempt}/{max_retries}] Found {len(non_crypto_pos)} open non-crypto positions...")
-        all_closed_this_round = True
-
+        print(f"\n[ATTEMPT {attempt}] {len(non_crypto_pos)} open positions, {len(non_crypto_orders)} pending orders remaining...")
         for p in non_crypto_pos:
             close_type = mt5.ORDER_TYPE_SELL if p.type == mt5.ORDER_TYPE_BUY else mt5.ORDER_TYPE_BUY
             price = mt5.symbol_info_tick(p.symbol)
             if not price:
-                print(f"[WARN] No tick for {p.symbol}, market may be pre-open. Retrying...")
-                all_closed_this_round = False
+                print(f"[WARN] No tick for {p.symbol}, market closed or pre-open.")
                 continue
 
             close_price = price.bid if close_type == mt5.ORDER_TYPE_SELL else price.ask
@@ -101,11 +97,6 @@ def close_all_non_crypto(max_retries=15, retry_interval=2.0):
                 ret = res.retcode if res else "None"
                 comment = res.comment if res else "Unknown"
                 print(f"[RETRY] Pos #{p.ticket} {p.symbol}: retcode={ret} ({comment})")
-                all_closed_this_round = False
-
-        if all_closed_this_round:
-            print("[SUCCESS] All non-crypto positions successfully closed!")
-            break
 
         time.sleep(retry_interval)
 
