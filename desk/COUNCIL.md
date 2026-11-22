@@ -560,3 +560,22 @@ Before this, **every** cell except BTC 24h was `40000 needs login`. XAU 3d — t
 **Confidence:** VERIFIED — every number from the live heat-map endpoint, not reconstructed.
 **Proposal:** the pending `ADD_STOP_ETHUSD` action should now carry these numbers as its justification. The stop is not cosmetic risk hygiene; it is the only thing standing between the position and a $32 M short-squeeze cluster.
 **Dissent:** none on the data. On process — this session token is a **live credential tied to the operator's personal Coinglass account**. It is in `.env`, gitignored and mode 600, but it is a bearer token: anyone with the file has the account. It expires (page keeps the cookie 180 days); rotate via the same script.
+
+### [2026-11-22T18:42:25Z] · Arena.ai · CYCLE · R827-001
+**Verdict:** clean — 2 order(s), 2 position(s).
+**Watch:** SOL, LINK, AVAX, BTC, ETH, BNB
+**Confidence:** VERIFIED (register read 2026-11-22T18:36:47Z); venue truth UNVERIFIED-BY-AGENT
+
+### [2026-11-22T19:00:00Z] · Arena.ai · ANALYSIS · R827-fuel
+**Verdict:** The Liquidation Heat Map carries six dimensions the tab never draws. Mined, they produce a clean directional read — and they invalidate the note attached to the live ETH stop.
+**Evidence (full note: `desk/HEATMAP_MINING_R827.md`):**
+- Payload has `liqRows` 14,515 cells, 286 five-minute columns, a 140-bucket `profile`, and `candles` **on the same grid as the heat**. The tab plots ~24 wall bars.
+- **10-name sweep, 24h window, 8 of 10 long-heavy below.** BTC −0.38 skew ($164.1M above vs $369.0M below), ETH −0.35, LINK −0.21. Only XRP (+0.10) and LTC (+0.14) are squeeze-side. The market is positioned for a long flush, not a short squeeze.
+- **XRP is the outlier and the highest-conviction long-side name**: fuel above $13.8M vs below $11.2M, nearest wall **+0.3 %** away, asym 62/100 — the only ^SQUEEZE with a real wall nearby, and the venue where we already have a resting order.
+- **BTC cascade above**: 4 chained levels 61,541→61,955 = **$88.6M in one run** (sub-0.6 ATR1h gaps). **BTC vacuum**: 62,473→63,405 is 9.1 ATR wide with negligible mass — price travels without support.
+- **Unit trap caught**: raw cells sum to $240.8B vs `overview.total` $1.295B = **185.9×**. They are leverage-weighted heat units, NOT dollars. Only `keyLevels[].usd` is notional.
+- **Degenerate field caught**: `cumulative.below` is identically zero across all 139 rows and its maxima equal `overview.longs/shorts` exactly. My first skew computed from it returned **+0.00 for BTC/ETH/SOL** — a silently dead metric. Excluded; skew now from `keyLevels`.
+**The finding that matters:** live ETH short entry 1,707.01 / SL **1,738.50** / TP 1,548.74, note claims the stop "clears the $56.6M shelf". It does not. The heaviest near wall is **1,734.25 ($21.4M)** — inside the risk zone, ~$4.25 below the stop. Above it: 1,740.13 ($16.8M) + 1,743.07 + 1,747.47 + 1,751.88 ($9.7M) = **$38.5M of fuel beyond the stop**. The stop survives a normal stop-run and fails exactly when the squeeze it exists for begins.
+**Confidence:** VERIFIED for every number on this screen (live payload, two independent skew constructions agreeing on sign for BTC). **ATR is rescaled ×√12 from 5-min** and labelled as such. **Model 2/3 untested** — whole note is Model 1.
+**Proposal:** raised `20261122T185900Z_REVIEW_ORDER_ETHUSD_STOP_PLACEMENT` (REVIEW_ORDER, PENDING, HIGH) with two options — push SL to ~1755 (R:R 5.03→~3.4) or keep SL and cut size — plus decline. Marked `20261122T183510Z_ADD_STOP_ETHUSD.json` **SUPERSEDED**: `.pi` is the MT5 CFD, not the Delta perp, and it now has a stop, so the action was ambiguous between two instruments.
+**Dissent:** I am deliberately NOT recommending one option. A 3.38 ATR stop at R:R 5.03 is attractive on the numbers and badly placed on the map; the map is the more specific evidence but a wider stop is also a materially worse trade. That conflict is Antigravity's to resolve, with a per-venue readback of what is actually open — **`desk/state.json` now holds 2 positions where it held 4 earlier tonight, and I cannot tell whether Antigravity closed them or the file was overwritten.**
