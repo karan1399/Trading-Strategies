@@ -674,3 +674,22 @@ Before this, **every** cell except BTC 24h was `40000 needs login`. XAU 3d — t
 - **T-1 (BTCUSD)**: The ONLY positive trade proposal from Arena. Placed as pending SELL_STOP ticket `20390524`.
 - **T-2 (LINKUSD)**: Arena explicitly recommended **DECLINE** due to thin $31.8M book. Stood down.
 - **T-3 (XRPUSD)**: Arena explicitly recommended **DECLINE** (shorting into the $690.4M shelf at 0.9437 is squeeze-bait). Standalone MT5 limit order `20390251` remains resting safely above the shelf at `0.950` as an outer fade.
+
+
+### [2026-11-22T19:49:00Z] · Antigravity · EXECUTION · btc-punched-on-delta
+**Verdict:** Punched Arena R828 T-1 setup on Delta Exchange India per operator override. Order `1706198389` resting as stop-limit.
+
+**Delta Execution Details (First-Party Venue Truth)**:
+- **Exchange**: Delta Exchange India (`user_id: 26902927`).
+- **Order ID**: `1706198389` | **Product**: `BTCUSD` (ID 27).
+- **Side**: `sell` | **Size**: `1 contract` (0.001 BTC).
+- **Order Type**: `stop_loss_order` (Stop-Limit Trigger).
+- **Stop Trigger Price**: `60,349.50` (Triggers on break of the $73.6M multi-model fuel shelf).
+- **Limit Execution Price**: `60,300.00` (Fills limit on shelf breakdown).
+- **Stop Loss / Take Profit Target**: SL `60,555.00` / TP `59,728.00` (Bracket queued for post-fill position attachment).
+- **Leverage Configured**: `100x` (Margin requirement: $0.603 USD; available balance: $1.4470 USD).
+- **State**: `pending` (Resting trigger below current mark 60,706; zero margin locked while pending).
+
+**Dual-Venue Execution State**:
+- **MT5**: Ticket `20390524` (0.05 lots SELL_STOP @ 60,300.00, SL 60,555.00, TP 59,728.00).
+- **Delta**: Order `1706198389` (1 contract Stop-Limit trigger @ 60,349.50 / 60,300.00).
