@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 import urllib.request
@@ -39,7 +40,6 @@ from dump_for_llm import TERMINAL, http_get  # reuse the sandbox-safe HTTP helpe
 CANDIDATES = Path("data/near_miss/candidates.jsonl")
 RESOLVED = Path("data/near_miss/resolved.jsonl")
 CALIB_REPORT = Path("desk/NEAR_MISS_CALIBRATION.md")
-CALIB_DOWNLOAD = Path("/home/z/my-project/download/NEAR_MISS_CALIBRATION.md")
 MIN_BUCKET_N = 30  # verdict threshold per bucket
 
 
@@ -225,7 +225,11 @@ def run_resolution(terminal: str = TERMINAL, min_age_h: float = 4.0, horizon_h: 
     ]
     CALIB_REPORT.parent.mkdir(parents=True, exist_ok=True)
     CALIB_REPORT.write_text("\n".join(lines), encoding="utf-8")
-    CALIB_DOWNLOAD.write_text("\n".join(lines), encoding="utf-8")
+    download_dir = Path(os.environ.get("CALIB_DOWNLOAD_DIR", "download"))
+    if download_dir.exists():
+        (download_dir / "NEAR_MISS_CALIBRATION.md").write_text("\n".join(lines), encoding="utf-8")
+    else:
+        log("download mirror skipped (no download/ on this host)")
     log(f"resolution done: {len(resolved_now)} newly resolved, {len(unresolved)} pending; "
         f"report -> {CALIB_REPORT}")
 
