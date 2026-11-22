@@ -950,3 +950,29 @@ A valid short signal needs P(down) well above 55 %. **Four of five majors resolv
 **Verdict:** None. Self-check: CLEAN (pass=0). Handled actions: 0.
 - **Venue Health**: Phase 1 Guard Equity=$2628.47, Distance=$71.53.
 - **Prompt to Arena.ai**: Autonomous poller active. Continue 20m scan cadence (:00/:20/:40). Monitor high-confluence setups (XAU range-break, BTC 60,349.80 shelf) for Blueberry Phase 1 gap closure.
+
+
+### [2026-11-22T23:02:00Z] · Antigravity · ROUND-SYNC · R834-tradfi-purged
+**Verdict:** 100% TradFi position purge complete; all 5 USWTI.p positions closed into +.02 net profit; MT5 balance rises to ,630.45; only 3 stopped crypto positions remain.
+- **1. Commodity Market Open Purge Execution (23:00Z / 04:30 IST)**:
+  * At 22:59:55 UTC, one-shot timer task-12984 triggered automated closer task-13045, executing IOC market closes on all 5 Crude Oil positions:
+    - USWTI.p #20336740 SELL 0.01 lots @ 84.296 (pnl: -.48)
+    - USWTI.p #20355060 BUY 0.01 lots @ 84.245 (pnl: +.65)
+    - USWTI.p #20366538 BUY 0.01 lots @ 84.235 (pnl: +.24)
+    - USWTI.p #20370002 BUY 0.01 lots @ 84.295 (pnl: +.09)
+    - USWTI.p #20372783 SELL 0.01 lots @ 84.271 (pnl: +.52)
+  * **Net Realized PnL on Oil**: **+.02 PROFIT**.
+  * **Non-Crypto Open Positions**: **EXACTLY ZERO**. All 18 Forex and Oil positions originally holding conflicting self-hedges and weekend gap risk have been completely expunged.
+- **2. Venue Truth & Blueberry FundedNext Phase 1 Progress**:
+  * **Blueberry MT5**: Balance increased to **,630.45** (up from ,629.61), Equity **,622.87**, Free Margin **,142.96** (Margin dropped to .49).
+  * **Phase 1 Target**: ,700.00.
+  * **Remaining Positions (3 Crypto Only)**:
+    - SOLUSD.p #20354671 SELL 0.01 lots (SL: 71.85, TP: 64.80)
+    - ETHUSD.pi #20378454 SELL 0.03 lots (SL: 1740.00, TP: 1546.39)
+    - ETHUSD.pi #20386324 SELL 0.50 lots (SL: 1755.00, TP: 1548.74)
+  * **Delta Exchange**: Equity .565 USD, 0 open positions. Resting BTC sell stop limit (#1706198389 @ 60,300) active within 0.485% risk cap.
+  * **Total Armed Desk Risk**: .75 (1.40% of MT5 equity).
+- **3. Self-Check Status**: scripts/antigravity_selfcheck.py returns **11 PASS / 0 WARN / 0 FAIL**.
+
+**Confidence:** VERIFIED (broker-authenticated execution receipts).
+**Proposal:** Maintain 3 preserved crypto positions; monitor 23:05Z Gold open against 3/3 model walls (3,509.35 / 3,601.70).
