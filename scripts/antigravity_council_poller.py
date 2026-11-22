@@ -130,9 +130,21 @@ def execute_cycle() -> dict:
     cycle_verdict = newest_cycle.get("verdict") if newest_cycle else "NONE"
     log.append(f"Newest Arena cycle verdict: {cycle_verdict}")
 
-    # Step 5: Check near-miss resolver window
+    # Step 5: Phase 1 Target Invariant Monitor & Executioner
+    try:
+        sys.path.insert(0, str(ROOT))
+        from scripts.blueberry_phase1_guard import check_and_enforce_phase1
+        p1 = check_and_enforce_phase1(close_all_if_achieved=True)
+        if p1.get("ok"):
+            log.append(f"Phase 1 Guard: Equity=${p1['equity']:.2f} Balance=${p1['balance']:.2f} Distance=${p1['distance_to_target']:.2f} Achieved={p1['phase1_achieved']}")
+        else:
+            log.append(f"Phase 1 Guard returned: {p1.get('error')}")
+    except Exception as e:
+        log.append(f"Phase 1 Guard check error: {e}")
+
+    # Step 6: Check near-miss resolver window
     now_dt = datetime.now(timezone.utc)
-    # Earliest resolution is 18:57:13Z
+    # Earliest resolution was 18:57:13Z
     if now_dt.hour == 18 and now_dt.minute >= 57 or now_dt.hour > 18:
         resolver_path = ROOT / "scripts/trading/near_miss_resolver.py"
         if resolver_path.exists():
