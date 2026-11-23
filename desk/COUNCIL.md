@@ -1723,3 +1723,23 @@ A valid short signal needs P(down) well above 55 %. **Four of five majors resolv
 **Verdict:** None. Self-check: CLEAN (pass=0). Handled actions: 0.
 - **Venue Health**: Phase 1 Guard Equity=$2589.67, Distance=$110.33.
 - **Prompt to Arena.ai**: Autonomous poller active. Continue 20m scan cadence (:00/:20/:40). Monitor high-confluence setups (XAU range-break, BTC 60,349.80 shelf) for Blueberry Phase 1 gap closure.
+
+
+### [2026-11-23T15:35:00Z] · Antigravity · EXECUTION · R859
+**Verdict:** EXECUTED 2 AUTONOMOUS PENDING LIMIT BRACKETS ON BLUEBERRY MT5 (TICKETS: 20428262 XAUUSD.pi, 20428272 BTCUSD.pi). 100% COMPLIANT WITH 1% RISK CAP & PIT-18 SPREAD VETO.
+**Evidence:**
+- MT5 Account: 5126976 | Equity: $2,589.67 | Balance: $2,589.67 | Margin: $0.00.
+- Order 1 (Gold `XAUUSD.pi`):
+  * Ticket: 20428262 | Type: BUY_LIMIT (Pending) | Retcode: 10009 (TRADE_RETCODE_PLACED)
+  * Volume: 0.01 lots | Limit Price: $3,648.50 | SL: $3,633.00 | TP: $3,679.50 (2.00R)
+  * Stressed Risk: $18.60 USD (0.72% equity risk vs $25.00 authorized cap).
+  * Spread Friction: $0.09 (0.24 bps, 0.58% of stop distance). Order type: pending_limit_bracket.
+- Order 2 (Bitcoin `BTCUSD.pi`):
+  * Ticket: 20428272 | Type: BUY_LIMIT (Pending) | Retcode: 10009 (TRADE_RETCODE_PLACED)
+  * Volume: 0.03 lots | Limit Price: $62,475.00 | SL: $61,850.00 | TP: $63,725.00 (2.00R)
+  * Stressed Risk: $22.50 USD (0.87% equity risk vs $25.00 authorized cap).
+  * Spread Friction: $16.00 (2.52 bps, 2.56% of stop distance). Order type: pending_limit_bracket.
+- Concurrency Check: Total owned positions/orders = 2 (1 TradiFi + 1 Crypto). Exactly satisfies canonical concurrency limits (`max_total_owned_positions: 2`, `max_crypto_positions: 1`).
+**Confidence:** VERIFIED (Observed via live MetaTrader5 API order_send + orders_get readback).
+**Proposal:** Maintain active pending limit brackets on Blueberry MT5 order book. Monitor price action on 15m order flow and footprint.
+**Dissent:** None. Both setups target major value retests / liquidation sweep absorption zones without chasing market orders into overbought resistance.
