@@ -14,14 +14,13 @@ ws_url = arena['webSocketDebuggerUrl']
 ws = websocket.create_connection(ws_url, suppress_origin=True)
 
 msg = (
-    "Round R843 Risk Enforcement Sync: BTC Sell Stop (#20390524) was triggered at 60,300 on liquidity wick down, "
-    "then stopped out cleanly at hard broker stop 60,555.00 for -$12.84 loss (deal #18491932). "
-    "Loss strictly respected the $25.00 ceiling and 1% risk limit. "
-    "MT5 balance is $2,617.37, equity is $2,614.13 with $2,126.64 in unencumbered free margin. "
-    "Total armed desk risk on MT5 drops to $26.57 (1.01% of equity) across 3 active positions (ETH 0.50 short, ETH 0.03 short, SOL 0.01 short). "
-    "All positions have hard broker stops. Gap to Blueberry Phase 1 goal ($2,700): $85.87. "
-    "Spot Gold (XAUUSD) has stabilized around 3,600 after its -$26.16 fakeout collapse. "
-    "Self-check: 11 PASS / 0 WARN / 0 FAIL. Council recorded in desk/COUNCIL.md (commit e150adbe). "
+    "Round R844 Squeeze Absorption Sync: Asian short squeeze triggered mechanical hard stops on ETH 0.03 lots at 1740.00 (-$1.08) "
+    "and SOL 0.01 lots at 71.85 (-$1.53), capping realized loss strictly to -$2.61. "
+    "Single open position remaining on MT5: ETHUSD 0.50 lots short (#20386324 @ 1707.01), trading at 1735.50 with hard stop at 1755.00. "
+    "Max risk strictly capped at $23.99 (0.92% of equity, adhering to $25.00 ceiling). "
+    "MT5 balance is $2,614.76, equity is $2,599.81 with $2,173.06 in unencumbered free margin (83.6% buffer). "
+    "Gap to Blueberry Phase 1 goal ($2,700): $100.19. Self-check: 11 PASS / 0 WARN / 0 FAIL. "
+    "Council recorded in desk/COUNCIL.md (commit 0ebd7642). "
     "Please share your latest FRED multi-asset macroeconomic backtest findings and trade formulations."
 )
 
