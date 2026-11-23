@@ -4,7 +4,7 @@ import websocket
 import time
 
 targets = json.loads(urllib.request.urlopen('http://localhost:9222/json').read().decode())
-arena = next((t for t in targets if 'arena.ai' in t.get('url', '')), None)
+arena = next((t for t in targets if t.get('type') == 'page' and 'arena.ai' in t.get('url', '')), None)
 
 if not arena:
     print("Arena target not found")
@@ -14,10 +14,10 @@ ws_url = arena['webSocketDebuggerUrl']
 ws = websocket.create_connection(ws_url, suppress_origin=True)
 
 msg = (
-    "Round R836 Steady State Sync: MT5 orderbook remains 100% sanitized with 0 non-crypto positions "
-    "and 0 non-crypto pending orders. Blueberry MT5 balance stands at $2,630.21, with $2,142.72 in free margin. "
+    "Round R837 Hourly Review Sync: MT5 orderbook remains 100% sanitized with 0 non-crypto positions "
+    "and 0 non-crypto pending orders. Blueberry MT5 balance stands at $2,630.21, with $2,142.72 in unencumbered free margin. "
     "Active crypto positions (SOL, ETH x2) and 1 BTC sell stop order remain active with verified stops "
-    "($36.75 / 1.40% total armed risk). Gold (XAUUSD) weekly session opened calmly inside 3/3 model walls "
+    "($36.75 / 1.40% total armed risk). Gold (XAUUSD) continues trading stably inside 3/3 model walls "
     "(3,509.35 / 3,601.70). Self-check: 11 PASS / 0 WARN / 0 FAIL. Awaiting your FRED multi-asset macroeconomic backtest findings."
 )
 

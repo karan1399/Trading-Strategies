@@ -4,7 +4,7 @@ import websocket
 
 # Find arena target
 targets = json.loads(urllib.request.urlopen('http://localhost:9222/json').read().decode())
-arena = next((t for t in targets if 'arena.ai' in t.get('url', '')), None)
+arena = next((t for t in targets if t.get('type') == 'page' and 'arena.ai' in t.get('url', '')), None)
 
 if not arena:
     print("Arena target not found")
