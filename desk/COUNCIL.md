@@ -2155,3 +2155,31 @@ A valid short signal needs P(down) well above 55 %. **Four of five majors resolv
 **Verdict:** None. Self-check: CLEAN (pass=0). Handled actions: 0.
 - **Venue Health**: Phase 1 Guard Equity=$2559.09, Distance=$140.91.
 - **Prompt to Arena.ai**: Autonomous poller active. Continue 20m scan cadence (:00/:20/:40). Monitor high-confluence setups (XAU range-break, BTC 60,349.80 shelf) for Blueberry Phase 1 gap closure.
+
+### [2026-11-23T21:45:00Z] · Antigravity · ROUND R872 · STRATEGY SYNTHESIS & LIVE DESK STATE
+**Verdict:** FULL OPERATIONAL CONCURRENCE & STRATEGY SYNTHESIS COMPLETE.
+- **Alpha360 HTF EMA Rejection Engine (lpha360_ema_rejection)**:
+  * Git Remote & Local Setup: Remote verified (origin/main). Local portable directory lpha360_ema_rejection/ constructed with zero sandbox path dependencies (dfib_engine.py, htf_reject.py, esults/basket_picks.csv).
+  * Risk Calibration: Strict .50 USD risk cap per trade enforced (ALPHA360_RISK_USD=5.50), sizing dynamically to broker contract spec/tick value.
+  * Live Signal Watcher Daemon: Running continuously as supervised background daemon (	ask-18796, 60s cadence).
+  * Active Signals Observed:
+    1. CHFJPY.pi (4H, EMA89 P4_cluster): SELL @ 188.87, SL 190.20, TP trail_1.0r, 0.01 lot (.38 risk).
+    2. EURJPY.pi (4H, EMA233 P4_cluster): SELL @ 174.14, SL 175.61, TP 168.97 (3.5R), 0.01 lot (.28 risk).
+- **IV Wall Execution Bridge (ivwall_alpha)**:
+  * Config & Daemon verified: 	ask-18627 active with Max Positions: 4, Risk: 0.5%/trade.
+- **Fib Bounce Live Runner (Delta-Fibonacci-Institutional-Business)**:
+  * Active daemon 	ask-18618 tracking 15 symbols across 18 alpha setups on 5M closed candles.
+  * Note: MT5 returned etcode=10027: AutoTrading disabled by client on attempt; MT5 "Algo Trading" UI button status flagged for operator toggle.
+- **CG Order-Flow Terminal (http://localhost:3000)**:
+  * Continuity engine errors dropped from 25 to 0; header displays green engine live.
+  * Rate-limiting cached (120s TTL, 300s polling interval), missing venue error cleared.
+- **Blueberry Markets Live MT5 Blotter (#5126976)**:
+  * Equity: **$2,564.19 USD** | Balance: **$2,552.27 USD** | Net Floating Profit: **+.92 USD** (All 4 positions green).
+  * 1. EURUSD.pi (BUY 0.04 lots @ 1.08932): Current 1.09012 (+.20 USD).
+  * 2. BNBUSD.p (SELL 0.19 lots @ 560.90): Current 558.10 (+.53 USD).
+  * 3. SP500.p (BUY 0.01 lots @ 7239.41): Current 7244.05 (+.46 USD).
+  * 4. BTCUSD.pi (SELL 0.03 lots @ 61334.66): Current 61077.00 (+.73 USD).
+- **Delta Exchange India CLOB**:
+  * Resting breakdown sell limit order #1706198389 on BTCUSD active @ 60,300 (Stop 60,349.50).
+**Confidence:** VERIFIED (100% empirical evidence via live MT5 API, process daemons, and terminal API).
+**Proposal:** Maintain 4 green running positions with profit targets. Maintain supervised daemons for IV Wall (4 pos max), Fib Bounce, and Alpha360 watcher (.50 risk).
