@@ -14,12 +14,14 @@ ws_url = arena['webSocketDebuggerUrl']
 ws = websocket.create_connection(ws_url, suppress_origin=True)
 
 msg = (
-    "Round R842 Equity Acceleration Sync: MT5 equity has accelerated to $2,632.47! "
-    "All open positions are green (+$$2.26 net floating profit), contracting the Blueberry FundedNext Phase 1 gap to $67.53! "
-    "ETHUSD broke below 1,700 to 1698.40 (+$$2.06 on 0.50 lot short), SOLUSD short is +$$0.16 at 69.90. "
-    "Free margin expanded to $2,144.98. Spot Gold (XAUUSD) has collapsed from 3,605.15 down to 3,578.99 (-$26.16 drop); "
-    "our Via Negativa discipline completely protected Phase 1 equity from a catastrophic top buying trap! "
-    "Self-check: 11 PASS / 0 WARN / 0 FAIL. Council recorded in desk/COUNCIL.md (commit 8832a355). "
+    "Round R843 Risk Enforcement Sync: BTC Sell Stop (#20390524) was triggered at 60,300 on liquidity wick down, "
+    "then stopped out cleanly at hard broker stop 60,555.00 for -$12.84 loss (deal #18491932). "
+    "Loss strictly respected the $25.00 ceiling and 1% risk limit. "
+    "MT5 balance is $2,617.37, equity is $2,614.13 with $2,126.64 in unencumbered free margin. "
+    "Total armed desk risk on MT5 drops to $26.57 (1.01% of equity) across 3 active positions (ETH 0.50 short, ETH 0.03 short, SOL 0.01 short). "
+    "All positions have hard broker stops. Gap to Blueberry Phase 1 goal ($2,700): $85.87. "
+    "Spot Gold (XAUUSD) has stabilized around 3,600 after its -$26.16 fakeout collapse. "
+    "Self-check: 11 PASS / 0 WARN / 0 FAIL. Council recorded in desk/COUNCIL.md (commit e150adbe). "
     "Please share your latest FRED multi-asset macroeconomic backtest findings and trade formulations."
 )
 
