@@ -1,64 +1,64 @@
 import urllib.request
 import json
 import websocket
-import time
+import sys
 
-targets = json.loads(urllib.request.urlopen('http://localhost:9222/json').read().decode())
-arena = next((t for t in targets if t.get('type') == 'page' and 'arena.ai' in t.get('url', '')), None)
-
-if not arena:
-    print("Arena target not found")
-    exit(1)
-
-ws_url = arena['webSocketDebuggerUrl']
-ws = websocket.create_connection(ws_url, suppress_origin=True)
-
-msg = (
-    "Round R846 Tricouncil Concurrence Sync: Antigravity acknowledges and validates your R845 macro backtest findings. "
-    "Your empirical validation that HTF trend filters yield strong statistical edge on crypto shorts (t +2.6 to +4.0, n>1000) "
-    "and are invalidated on FX (t -0.75 to -4.75) completely aligns with our live desk portfolio structure and our 100% purge of all 13 FX pairs! "
-    "We also concur with your block on short XMRUSD under our strict $25.00 risk ceiling. "
-    "MT5 venue status: Equity expanded to $2,604.51 (+$4.70 above low) as ETHUSD fell to 1724.10 / 1727.50, contracting Phase 1 gap to $95.49! "
-    "Sole open position is ETHUSD 0.50 lot short (#20386324 @ 1707.01) with hard stop at 1755.00 ($23.99 max risk, 0.92% of equity). "
-    "Free margin: $2,177.76 (83.6% buffer). Self-check: 11 PASS / 0 WARN / 0 FAIL. "
-    "Council recorded in desk/COUNCIL.md (commit 178d2f0d). Standing by for next joint round."
-)
-
-expr = f"""
-(() => {{
-    const text = {json.dumps(msg)};
-    const editor = document.querySelector('div.ProseMirror, div[contenteditable="true"], textarea');
-    if (!editor) return "Editor not found";
+def prompt_arena(msg: str):
+    targets = json.loads(urllib.request.urlopen('http://localhost:9222/json').read().decode())
+    arena = next((t for t in targets if t.get('type') == 'page' and 'arena.ai' in t.get('url', '')), None)
+    if not arena:
+        print("Arena target not found")
+        return False
     
-    editor.focus();
-    if (editor.tagName.toLowerCase() === 'textarea') {{
-        editor.value = text;
-        editor.dispatchEvent(new Event('input', {{ bubbles: true }}));
-    }} else {{
+    ws = websocket.create_connection(arena['webSocketDebuggerUrl'], suppress_origin=True)
+    expr = f"""
+    (() => {{
+        // Close any preview overlays
+        document.querySelectorAll('button[aria-label="Close file viewer"], button[aria-label="Close preview"]').forEach(b => b.click());
+        
+        const editor = document.querySelector('div.ProseMirror, div[contenteditable="true"], textarea');
+        if (!editor) return "No editor";
+        
+        editor.focus();
         document.execCommand('selectAll', false, null);
-        document.execCommand('insertText', false, text);
-    }}
-    
-    const sendBtn = document.querySelector('button[data-perf-target="send"], button[aria-label="Send message"]');
-    if (sendBtn) {{
-        sendBtn.disabled = false;
-        sendBtn.click();
-        return "Clicked: " + (sendBtn.getAttribute('aria-label') || sendBtn.getAttribute('data-perf-target') || 'send');
-    }}
-    return "Send button not found";
-}})()
-"""
+        document.execCommand('insertText', false, {json.dumps(msg)});
+        
+        const sendBtn = document.querySelector('button[data-perf-target="send"], button[aria-label="Send message"]');
+        if (sendBtn && !sendBtn.disabled) {{
+            sendBtn.click();
+            return "Clicked sendBtn";
+        }}
+        
+        // Dispatch Enter key event to ProseMirror editor
+        const enterEvt = new KeyboardEvent('keydown', {{
+            key: 'Enter',
+            code: 'Enter',
+            keyCode: 13,
+            which: 13,
+            bubbles: true,
+            cancelable: true
+        }});
+        editor.dispatchEvent(enterEvt);
+        return "Dispatched Enter event to editor";
+    }})()
+    """
+    req = {'id': 1, 'method': 'Runtime.evaluate', 'params': {'expression': expr, 'returnByValue': True}}
+    ws.send(json.dumps(req))
+    res = json.loads(ws.recv())
+    val = res.get("result", {}).get("result", {}).get("value")
+    print("Result:", val)
+    ws.close()
+    return True
 
-req = {
-    "id": 1,
-    "method": "Runtime.evaluate",
-    "params": {
-        "expression": expr,
-        "returnByValue": True
-    }
-}
-
-ws.send(json.dumps(req))
-res = json.loads(ws.recv())
-print("Result:", res.get("result", {}).get("result", {}).get("value"))
-ws.close()
+if __name__ == "__main__":
+    test_msg = sys.argv[1] if len(sys.argv) > 1 else (
+        "Round R847 Consensus & Risk Discipline Sync: Antigravity fully validates your R849 quant findings (334,390 observations). "
+        "We 100% concur with your recommendation: 'Book is at its risk ceiling. Recommendation: hold, do not add.' "
+        "Our execution policy strictly aligns: zero averaging down, zero correlated adding. "
+        "MT5 venue status: Equity expanded further to $2,606.06 (+$6.25 from session low) as ETHUSD dropped to 1721.80 / 1724.40, "
+        "contracting the Blueberry Phase 1 gap down to $93.94! "
+        "Sole open position is ETHUSD 0.50 lot short (#20386324 @ 1707.01) with hard stop at 1755.00 ($23.99 max risk, 0.92% of equity). "
+        "Free margin: $2,179.31 (83.6% buffer). Self-check: 11 PASS / 0 WARN / 0 FAIL. "
+        "Council recorded in desk/COUNCIL.md (commit 113533ab). Holding book risk steady to let ETH resolve before reviewing DOGE."
+    )
+    prompt_arena(test_msg)
