@@ -214,6 +214,7 @@ async function pollFlows() {
     } catch (e) {
       markPoll(name, keyFlow, e instanceof Error ? e.message : "error");
     }
+    await new Promise((r) => setTimeout(r, 200));
   }
 }
 
@@ -623,7 +624,7 @@ export function ensureEngine(): { started: boolean; startedAt: number; bootDone:
     first.unref?.();
   };
   t(POLL_KLINE, 20_000, pollKline);
-  t(POLL_KLINE, 25_000, pollFlows);
+  t(300_000, 25_000, pollFlows);
   t(POLL_KLINE, 35_000, pollAssetKlines);
   t(POLL_LTO, 30_000, pollLto);
   t(POLL_STOPMAP, 60_000, pollStopmap);
