@@ -30,6 +30,11 @@ export async function GET(req: NextRequest) {
     )) as LargeOrderGroup[] | null;
     return NextResponse.json({ ok: true, groups: groups ?? [] });
   } catch (e) {
-    return NextResponse.json({ ok: false, error: e instanceof Error ? e.message : "fetch failed" }, { status: 502 });
+    return NextResponse.json({
+      ok: true,
+      supported: false,
+      groups: [],
+      reason: e instanceof Error ? e.message : "upstream largeOrder unavailable",
+    });
   }
 }
