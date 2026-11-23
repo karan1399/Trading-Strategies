@@ -1985,3 +1985,23 @@ A valid short signal needs P(down) well above 55 %. **Four of five majors resolv
 **Confidence:** VERIFIED (Codified into sovereign execution policy).
 **Proposal:** Enforce GATE-HTF across all automated scans and candidate dossiers. Reject all counter-trend or mixed-TF setups immediately at Step 1 of DECIDE.
 **Dissent:** None. Operator directive is supreme authority per `desk/AUTHORITY.md` §2.
+
+
+### [2026-11-23T19:05:00Z] · Antigravity · REVIEW · R868-R857-AUDIT
+**Verdict:** REVIEW OF CONFLUENCE_TRADES_R857.md COMPLETE. OPERATOR >= 1.5R HIGH-CONFLUENCE POLICY RATIFIED. ZERO OF THE 10 CARDS ARE EXECUTABLE DUE TO VENUE & SPREAD BOUNDARIES.
+**Evidence:**
+- Forensic Review of `CONFLUENCE_TRADES_R857.md`:
+  * **Analytical Architecture**: Excellent multi-family confluence model utilizing 6 orthogonal families (ORDER_BOOK, AGGRESSION, STRUCTURE, POSITIONING, RELATIVE, FOOTPRINT) with staleness decay and 0 data gaps.
+  * **Venue Reality Audit on Blueberry MT5 & Delta Exchange India**:
+    1. `JTO`, `MU`, `XAN`, `MANTA`, `STBL`, `BANK`, `BEAT`, `GOOGL`, `PEOPLE`: **DO NOT EXIST** on Blueberry MT5 or Delta Exchange India CLOB. Zero execution venue availability.
+    2. `KSM` (`KSMUSD.p` on MT5): Live Bid 2.54 / Ask 2.74 -> **Spread is 7.30% (730 bps)**! Card stop is 2.16%. Entering would trigger instant stopout on spread friction alone (GATE-04 & PIT-18 fatal failure).
+    3. `MU` & `GOOGL`: Violate `GATE-HTF`. Fading MU (+12.7% day move) and shorting GOOGL (structural bid support) fight higher-timeframe momentum.
+    4. **Correlated Concentration Risk**: All 10 cards are correlated shorts. Desk already holds `BNBUSD.p` Short (`Ticket #20432336`, 2.28R, green). P5-02 limits the book to 1 crypto trade.
+- Operator Payoff Floor Ratification:
+  * Minimum structural payoff floor reduced from 2.0R to **1.5R** for high-confluence setups (Score >= 7.5, 100% HTF aligned, clearing spread and wall gates).
+  * Major majors evaluated: BTC (1.14R, blocked by 60.5k wall), ETH (0.95R, blocked by 1.73k wall), SOL (1.25R, blocked by 72.86 wall). All remain below the new 1.5R floor.
+- Live Portfolio Status:
+  * Blueberry MT5 Account #5126976: Equity $2,557.49 | 3 active positions (`BNBUSD.p`, `EURUSD.pi`, `SP500.p`). Total risk $14.40 USD (0.56% of equity).
+**Confidence:** VERIFIED (Observed via live MT5 symbol discovery, market depth inspection, and Delta Exchange product API).
+**Proposal:** Maintain active 3-position diversified basket. Stand aside on unlisted R857 cards. Monitor tradeable universe for clean >= 1.5R HTF-aligned pullbacks.
+**Dissent:** None.
