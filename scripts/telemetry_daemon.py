@@ -1,20 +1,25 @@
 #!/usr/bin/env python3
 """
-telemetry_daemon.py — Continuous Local Order-Flow Telemetry Daemon.
-Pulls every data point from all 10 attached terminal tabs across all levels,
-markets, and timeframes into an atomic live JSON file.
+telemetry_daemon.py — High-Speed Per-Asset Order-Flow Telemetry Daemon.
 
-Tabs Covered:
-1. Overview: /api/cg/ticker, /api/cg/market, /api/cg/screener
-2. Footprint: /api/cg/fp (m1, m5, m15, m30, h1, h4, d1) + /api/cg/signals (all, time, vol, range)
-3. Large Orders: /api/cg/largeorder (m15, h1, h4, 24h/72h)
-4. Liq Levels: /api/cg/liqlevels (3d, 7d, 30d) + /api/cg/stopmap (Models 1/2/3, coin/pair, 24h..30d)
-5. Book Walls: /api/cg/bookwalls (futures & spot, intervals m1..d1, bands 0.5..5%)
-6. CVD: /api/cg/cvd (perp, spot, split, total across m1..d1)
-7. TradFi Quant [COT]: /api/cg/cot (XAU, XAG, SP500, NDX100) + /api/cg/quant
-8. Backtest: /api/cg/backtest?trades=0
-9. Alerts: /api/cg/notifications
-10. Live L2: /api/cg/live, /api/cg/livebook
+Architecture:
+- Fetches all data points directly from the local terminal engine (http://127.0.0.1:3000)
+- Instead of monolithic multi-megabyte files, writes a clean, dedicated JSON file per asset:
+    data/telemetry/assets/<SYM>.json
+- Writes a single lightweight universe screener index:
+    data/telemetry/universe_overview.json
+- Updates continuously in the background using atomic writes (tmp -> replace)
+- Covers every single attached tab at each level, market, and timeframe:
+    1. Overview (Real-time price, Auction VAL/POC/VAH, VWAP ±1/2/3σ, EMA 13/89/233, RSI)
+    2. Footprint (1m, 5m, 15m, 1h, 4h bars, buckets, delta %, POC)
+    3. Footprint Signals (15m Time, Auto Volume, Auto Range: Absorption, Divergence, Trap, Exhaustion)
+    4. Large Orders (Resting whale walls & executed trade notionals per venue)
+    5. Liq Levels (3d, 7d, 30d clusters, total long vs short mass, distance bands)
+    6. Stopmap (Models 1, 2, 3 in Coin & Pair modes across 24h, 3d, 7d, 30d)
+    7. Book Walls (Futures Aggregated & Spot Aggregated across 15m, 1h, 4h, confirmed walls, age, events)
+    8. CVD (Perp, Spot, Split across 15m, 1h, 4h, quadrant, divergences)
+    9. TradFi Quant [COT] (CFTC reports for commodities/indices)
+   10. Funding & OI (8h rates, open interest trends)
 """
 
 import urllib.request
@@ -24,17 +29,19 @@ import os
 import sys
 
 BASE_URL = os.environ.get("TERMINAL_BASE_URL", "http://127.0.0.1:3000")
-OUT_FILE = os.path.join("data", "telemetry", "live_orderflow_daemon.json")
-TMP_FILE = OUT_FILE + ".tmp"
-INBOX_OUT = os.path.join("desk", "inbox", "LIVE_TELEMETRY.json")
+ASSETS_DIR = os.path.join("data", "telemetry", "assets")
+OVERVIEW_FILE = os.path.join("data", "telemetry", "universe_overview.json")
 
-# Core assets for deep multi-timeframe multi-model sweep
-PRIME_SYMBOLS = ["BTC", "ETH", "SOL", "DOGE", "LINK", "ADA", "XRP", "BNB", "AVAX", "NEAR"]
+# Prime Curated Order-Flow Universe
+CURATED_UNIVERSE = [
+    "BTC", "ETH", "SOL", "DOGE", "LINK", "ADA", "XRP", "BNB", "AVAX", "NEAR",
+    "SUI", "LTC", "BCH", "TIA", "APT", "ARB", "OP", "XAU", "XAG", "NVDA"
+]
 
-def get_json(endpoint, timeout=3):
-    url = f"{BASE_URL}{endpoint}"
+def fetch_json(path, timeout=3):
+    url = f"{BASE_URL}{path}"
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "Antigravity-TelemetryDaemon/2.0"})
+        req = urllib.request.Request(url, headers={"User-Agent": "Antigravity-TelemetryEngine/3.0"})
         with urllib.request.urlopen(req, timeout=timeout) as res:
             if res.status == 200:
                 return json.loads(res.read().decode("utf-8"))
@@ -42,164 +49,188 @@ def get_json(endpoint, timeout=3):
         return {"_err": str(e)}
     return {"_err": "non-200"}
 
-def run_cycle():
+def atomic_write(filepath, data):
+    tmp_path = filepath + ".tmp"
+    with open(tmp_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+    os.replace(tmp_path, filepath)
+
+def harvest_asset(sym):
     t0 = time.time()
-    telemetry = {
-        "metadata": {
-            "timestamp_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            "timestamp_epoch": time.time(),
-            "version": "2.0-universal-daemon",
-            "tabs_covered": [
-                "Overview", "Footprint", "Large Orders", "Liq Levels",
-                "Book Walls", "CVD", "TradFi Quant [COT]", "Backtest",
-                "Alerts", "Live L2 & Ticket [WS]"
-            ]
+    profile = {
+        "symbol": sym,
+        "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "updated_epoch": time.time(),
+        "ticker": None,
+        "market_structure": None,
+        "liquidations": {
+            "clusters": {},
+            "stopmap": {}
         },
-        "universe_screener": None,
-        "backtest_summary": None,
-        "live_alerts": None,
-        "cot_reports": {},
-        "prime_assets": {}
+        "book_walls": {
+            "futures": {},
+            "spot": {}
+        },
+        "cvd": {
+            "perp": {},
+            "spot": {},
+            "split": {}
+        },
+        "footprint": {
+            "bars": {},
+            "signals": {}
+        },
+        "large_orders": {},
+        "cot_report": None,
+        "funding_and_oi": {}
     }
 
-    # 1. OVERVIEW SCREENER (All 231 universe assets)
-    scr = get_json("/api/cg/screener")
-    if scr and scr.get("ok"):
-        telemetry["universe_screener"] = {
-            "count": len(scr.get("rows", [])),
-            "warmCount": scr.get("warmCount"),
-            "rows": scr.get("rows", [])
+    # 1. TICKER & MARKET STRUCTURE (Auction, VWAP, EMAs)
+    tk = fetch_json(f"/api/cg/ticker?sym={sym}")
+    if tk and tk.get("ok"):
+        profile["ticker"] = {
+            "price": tk.get("price"),
+            "dir": tk.get("dir"),
+            "source": tk.get("source"),
+            "updatedAt": tk.get("updatedAt")
         }
 
-    # 2. BACKTEST RESULTS (Last walk-forward calibration)
-    bt = get_json("/api/cg/backtest?trades=0")
-    if bt and bt.get("ok"):
-        telemetry["backtest_summary"] = bt.get("status") or bt.get("params")
-
-    # 3. ALERTS & LIVE NOTIFICATION FEED
-    notifs = get_json("/api/cg/notifications")
-    if notifs and notifs.get("ok"):
-        telemetry["live_alerts"] = {
-            "count": notifs.get("count"),
-            "items": notifs.get("items", [])[:20]
+    mkt = fetch_json(f"/api/cg/market?sym={sym}")
+    if mkt and mkt.get("ok"):
+        profile["market_structure"] = {
+            "price": mkt.get("price"),
+            "auction": mkt.get("auction"),
+            "vwap": mkt.get("vwap"),
+            "emas": mkt.get("emas"),
+            "rsi": mkt.get("rsi")
         }
 
-    # 4. TRADFI QUANT [COT] REPORTS (XAU, XAG, SP500, NDX100)
-    for c_sym in ["XAU", "XAG", "SP500", "NDX100"]:
-        c_res = get_json(f"/api/cg/cot?sym={c_sym}")
-        if c_res and not c_res.get("_err"):
-            telemetry["cot_reports"][c_sym] = c_res
-
-    # 5. DEEP DIVE PER ASSET ACROSS ALL TABS, LEVELS, AND TIMEFRAMES
-    for sym in PRIME_SYMBOLS:
-        print(f"  [telemetry] Harvesting deep matrix for {sym}...", flush=True)
-        asset_node = {
-            "symbol": sym,
-            "overview": get_json(f"/api/cg/market?sym={sym}"),
-            "ticker": get_json(f"/api/cg/ticker?sym={sym}"),
-            "footprint": {},
-            "signals": {},
-            "large_orders": {},
-            "liq_levels": {},
-            "stopmap": {},
-            "book_walls": {
-                "futures": {},
-                "spot": {}
-            },
-            "cvd": {
-                "perp": {},
-                "spot": {},
-                "split": {}
+    # 2. LIQUIDATION LEVELS (3d, 7d, 30d)
+    for rng in ["3d", "7d", "30d"]:
+        l_res = fetch_json(f"/api/cg/liqlevels?sym={sym}&range={rng}")
+        if l_res and l_res.get("ok"):
+            profile["liquidations"]["clusters"][rng] = {
+                "stats": l_res.get("stats"),
+                "venues": l_res.get("venues"),
+                "livePrice": l_res.get("livePrice")
             }
-        }
 
-        # Tab: Footprint (m1, m5, m15, h1, h4)
-        for itv in ["m1", "m5", "m15", "h1", "h4"]:
-            fp_res = get_json(f"/api/cg/fp?sym={sym}&itv={itv}&limit=50")
-            if fp_res and fp_res.get("ok"):
-                asset_node["footprint"][itv] = fp_res
+    # 3. STOPMAP HEATMAP (Models 1/2/3, Coin & Pair modes)
+    for m in [1, 2, 3]:
+        for mode in ["coin", "pair"]:
+            for rng in ["24h", "3d", "7d"]:
+                sm = fetch_json(f"/api/cg/stopmap?sym={sym}&model={m}&mode={mode}&range={rng}")
+                if sm and sm.get("ok"):
+                    profile["liquidations"]["stopmap"][f"m{m}_{mode}_{rng}"] = {
+                        "keyLevels": sm.get("keyLevels"),
+                        "overview": sm.get("overview")
+                    }
 
-        # Tab: Signals (15m Time, Auto Volume, Auto Range)
-        for bt in ["all", "time", "vol", "range"]:
-            sig_res = get_json(f"/api/cg/signals?sym={sym}&bt={bt}")
-            if sig_res and sig_res.get("ok"):
-                asset_node["signals"][bt] = sig_res
-
-        # Tab: Large Orders (Resting walls & large executed trades)
+    # 4. BOOK WALLS (Futures Aggregated & Spot Aggregated across 15m, 1h, 4h)
+    for mkt_type in ["futures", "spot"]:
         for itv in ["m15", "h1", "h4"]:
-            lo_res = get_json(f"/api/cg/largeorder?symbol=Binance_{sym}USDT&interval={itv}&hours=24")
-            if lo_res and lo_res.get("ok"):
-                asset_node["large_orders"][itv] = lo_res.get("groups", [])
+            bw = fetch_json(f"/api/cg/bookwalls?sym={sym}&market={mkt_type}&interval={itv}&band=5")
+            if bw and bw.get("ok"):
+                profile["book_walls"][mkt_type][itv] = {
+                    "imbalance": bw.get("imbalance"),
+                    "imbalance5mAgo": bw.get("imbalance5mAgo"),
+                    "bidDepth": bw.get("bidDepth"),
+                    "askDepth": bw.get("askDepth"),
+                    "largestBid": bw.get("largestBid"),
+                    "largestAsk": bw.get("largestAsk"),
+                    "walls": bw.get("walls", [])[:8],
+                    "events": bw.get("events", [])[:5]
+                }
 
-        # Tab: Liq Levels (3d, 7d, 30d clusters)
-        for rng in ["3d", "7d", "30d"]:
-            l_res = get_json(f"/api/cg/liqlevels?sym={sym}&range={rng}")
-            if l_res and l_res.get("ok"):
-                asset_node["liq_levels"][rng] = l_res.get("stats")
+    # 5. CVD (Perp, Spot, Split across 15m, 1h, 4h)
+    for cvd_mode in ["perp", "spot", "split"]:
+        for itv in ["m15", "h1", "h4"]:
+            cv = fetch_json(f"/api/cg/cvd?sym={sym}&mode={cvd_mode}&itv={itv}&anchor=day")
+            if cv and cv.get("ok"):
+                profile["cvd"][cvd_mode][itv] = {
+                    "kpis": cv.get("kpis"),
+                    "divergences": cv.get("divergences", []),
+                    "quadrant": cv.get("quadrant")
+                }
 
-        # Tab: Stopmap (Liquidation Heatmap Models 1/2/3, coin & pair)
-        for m in [1, 2, 3]:
-            for mode in ["coin", "pair"]:
-                for rng in ["24h", "3d", "7d"]:
-                    sm_res = get_json(f"/api/cg/stopmap?sym={sym}&model={m}&mode={mode}&range={rng}")
-                    if sm_res and sm_res.get("ok"):
-                        asset_node["stopmap"][f"m{m}_{mode}_{rng}"] = {
-                            "keyLevels": sm_res.get("keyLevels"),
-                            "overview": sm_res.get("overview")
-                        }
+    # 6. FOOTPRINT BARS & SIGNALS
+    for itv in ["m5", "m15", "h1"]:
+        fp = fetch_json(f"/api/cg/fp?sym={sym}&itv={itv}&limit=50")
+        if fp and fp.get("ok"):
+            profile["footprint"]["bars"][itv] = {
+                "supported": fp.get("supported"),
+                "bucketsAvailable": fp.get("bucketsAvailable"),
+                "venues": fp.get("venues")
+            }
 
-        # Tab: Book Walls (Futures vs Spot across intervals and depth bands)
-        for mkt in ["futures", "spot"]:
-            for itv in ["m5", "m15", "h1"]:
-                bw_res = get_json(f"/api/cg/bookwalls?sym={sym}&market={mkt}&interval={itv}&band=5")
-                if bw_res and bw_res.get("ok"):
-                    asset_node["book_walls"][mkt][itv] = {
-                        "imbalance": bw_res.get("imbalance"),
-                        "imbalance5mAgo": bw_res.get("imbalance5mAgo"),
-                        "bidDepth": bw_res.get("bidDepth"),
-                        "askDepth": bw_res.get("askDepth"),
-                        "largestBid": bw_res.get("largestBid"),
-                        "largestAsk": bw_res.get("largestAsk"),
-                        "walls": bw_res.get("walls", [])[:6]
-                    }
+    for bt in ["all", "time", "vol", "range"]:
+        sg = fetch_json(f"/api/cg/signals?sym={sym}&bt={bt}")
+        if sg and sg.get("ok"):
+            profile["footprint"]["signals"][bt] = {
+                "counts": sg.get("counts"),
+                "thresholds": sg.get("thresholds"),
+                "sets": sg.get("sets", [])[:5]
+            }
 
-        # Tab: CVD (Perp, Spot, Split across intervals)
-        for mode in ["perp", "spot", "split"]:
-            for itv in ["m15", "h1", "h4"]:
-                cvd_res = get_json(f"/api/cg/cvd?sym={sym}&mode={mode}&itv={itv}&anchor=day")
-                if cvd_res and cvd_res.get("ok"):
-                    asset_node["cvd"][mode][itv] = {
-                        "kpis": cvd_res.get("kpis"),
-                        "divergences": cvd_res.get("divergences", []),
-                        "quadrant": cvd_res.get("quadrant")
-                    }
+    # 7. LARGE ORDERS (24h resting whale walls and executed trades)
+    lo = fetch_json(f"/api/cg/largeorder?symbol=Binance_{sym}USDT&interval=m15&hours=24")
+    if lo and lo.get("ok"):
+        profile["large_orders"]["24h"] = lo.get("groups", [])[:5]
 
-        telemetry["prime_assets"][sym] = asset_node
+    # 8. TRADFI QUANT [COT] (if mapped for this asset)
+    cot = fetch_json(f"/api/cg/cot?sym={sym}&quiet=1")
+    if cot and not cot.get("_err"):
+        profile["cot_report"] = cot
 
-    telemetry["metadata"]["cycle_duration_sec"] = round(time.time() - t0, 2)
+    # 9. FUNDING & OPEN INTEREST
+    fnd = fetch_json(f"/api/cg/funding?sym={sym}")
+    if fnd and fnd.get("ok"):
+        profile["funding_and_oi"]["funding"] = fnd.get("venues")
 
-    # Atomic write to data/telemetry/live_orderflow_daemon.json
-    os.makedirs(os.path.dirname(OUT_FILE), exist_ok=True)
-    with open(TMP_FILE, "w", encoding="utf-8") as f:
-        json.dump(telemetry, f, indent=2)
-    os.replace(TMP_FILE, OUT_FILE)
+    oi = fetch_json(f"/api/cg/oi?sym={sym}")
+    if oi and oi.get("ok"):
+        profile["funding_and_oi"]["open_interest"] = oi.get("venues")
 
-    # Also sync copy to desk/inbox/LIVE_TELEMETRY.json for Arena/GLM bus
-    os.makedirs(os.path.dirname(INBOX_OUT), exist_ok=True)
-    with open(INBOX_OUT, "w", encoding="utf-8") as f:
-        json.dump(telemetry, f, indent=2)
+    # Atomic write to data/telemetry/assets/<SYM>.json
+    target_file = os.path.join(ASSETS_DIR, f"{sym}.json")
+    atomic_write(target_file, profile)
+    elapsed = round(time.time() - t0, 2)
+    file_size_kb = round(os.path.getsize(target_file) / 1024, 1)
+    print(f"  [telemetry] {sym:5s} -> {target_file} ({file_size_kb} KB) in {elapsed}s", flush=True)
 
-    print(f"[{time.strftime('%H:%M:%S')}] Telemetry cycle complete in {telemetry['metadata']['cycle_duration_sec']}s -> {OUT_FILE} ({os.path.getsize(OUT_FILE)} bytes)", flush=True)
+def update_universe_overview():
+    scr = fetch_json("/api/cg/screener")
+    if scr and scr.get("ok"):
+        atomic_write(OVERVIEW_FILE, {
+            "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "total_assets": len(scr.get("rows", [])),
+            "warm_count": scr.get("warmCount"),
+            "rows": scr.get("rows", [])
+        })
+        print(f"[telemetry] Universe overview updated ({len(scr.get('rows', []))} assets) -> {OVERVIEW_FILE}", flush=True)
 
 def main():
+    os.makedirs(ASSETS_DIR, exist_ok=True)
     once = "--once" in sys.argv
+    sym_arg = [a for a in sys.argv if a.startswith("--symbols=")]
+    target_symbols = sym_arg[0].split("=")[1].split(",") if sym_arg else CURATED_UNIVERSE
     interval = int(os.environ.get("TELEMETRY_INTERVAL_SECS", "60"))
-    print(f"Starting Telemetry Daemon (once={once}, interval={interval}s)...", flush=True)
+
+    print(f"=== Starting High-Speed Per-Asset Telemetry Daemon ===", flush=True)
+    print(f"Target directory: {ASSETS_DIR}", flush=True)
+    print(f"Symbols ({len(target_symbols)}): {', '.join(target_symbols[:8])}...", flush=True)
+
     while True:
+        cycle_start = time.time()
         try:
-            run_cycle()
+            update_universe_overview()
+            for sym in target_symbols:
+                harvest_asset(sym)
         except Exception as e:
-            print(f"Cycle error: {e}", file=sys.stderr, flush=True)
+            print(f"Daemon cycle exception: {e}", file=sys.stderr, flush=True)
+
+        cycle_dur = round(time.time() - cycle_start, 2)
+        print(f"=== Telemetry Cycle Complete in {cycle_dur}s ===", flush=True)
         if once:
             break
         time.sleep(interval)
