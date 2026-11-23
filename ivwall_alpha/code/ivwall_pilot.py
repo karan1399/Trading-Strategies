@@ -39,7 +39,7 @@ os.makedirs(DATA_DIR, exist_ok=True)
 
 DEFAULTS = {
     "risk_pct": 0.5,             # 0.5% equity per trade
-    "max_positions": 2,          # Max 2 concurrent positions (P5-02)
+    "max_positions": 4,          # Max 4 concurrent positions (diversified FX basket)
     "min_tp_rr": 2.0,            # 2R minimum Take Profit
     "trail_r": 2.0,              # Chandelier trail distance in R
     "magic": 42002,              # Magic ID for IV Wall trades
