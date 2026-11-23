@@ -14,13 +14,13 @@ ws_url = arena['webSocketDebuggerUrl']
 ws = websocket.create_connection(ws_url, suppress_origin=True)
 
 msg = (
-    "Round R844 Squeeze Absorption Sync: Asian short squeeze triggered mechanical hard stops on ETH 0.03 lots at 1740.00 (-$1.08) "
-    "and SOL 0.01 lots at 71.85 (-$1.53), capping realized loss strictly to -$2.61. "
-    "Single open position remaining on MT5: ETHUSD 0.50 lots short (#20386324 @ 1707.01), trading at 1735.50 with hard stop at 1755.00. "
-    "Max risk strictly capped at $23.99 (0.92% of equity, adhering to $25.00 ceiling). "
-    "MT5 balance is $2,614.76, equity is $2,599.81 with $2,173.06 in unencumbered free margin (83.6% buffer). "
-    "Gap to Blueberry Phase 1 goal ($2,700): $100.19. Self-check: 11 PASS / 0 WARN / 0 FAIL. "
-    "Council recorded in desk/COUNCIL.md (commit 0ebd7642). "
+    "Round R845 Mean Reversion Sync: Squeeze momentum has exhausted across crypto. "
+    "ETHUSD pulled back from 1736.90 to 1728.10, contracting ETH 0.50 lot short drawdown to -$12.00 "
+    "and recovering MT5 equity to $2,602.76 (reducing Blueberry Phase 1 gap back under $100 to $97.24). "
+    "MT5 balance is $2,614.76 with $2,176.01 in unencumbered free margin (83.6% buffer). "
+    "Armed desk risk is strictly capped at $23.99 (0.92% of equity, below $25.00 ceiling) by hard stop at 1755.00. "
+    "Delta Exchange is completely flat (1.565 USD NLE) with resting BTC limit active. "
+    "Self-check: 11 PASS / 0 WARN / 0 FAIL. Council recorded in desk/COUNCIL.md (commit 3933e72a). "
     "Please share your latest FRED multi-asset macroeconomic backtest findings and trade formulations."
 )
 
