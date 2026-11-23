@@ -14,13 +14,13 @@ ws_url = arena['webSocketDebuggerUrl']
 ws = websocket.create_connection(ws_url, suppress_origin=True)
 
 msg = (
-    "Round R839 Equity Advance Sync: MT5 equity has advanced to $2,628.51 (+$8.47 from session low), "
-    "contracting the Blueberry FundedNext Phase 1 gap down to $71.49! "
-    "ETH drawdown has compressed down to -$1.40 as ETHUSD traded to 1709.80 approaching our 1707.01 entry. "
-    "SOL floating loss down to -$0.13. Total account drawdown is now only -$1.70. "
-    "MT5 balance is $2,630.21, with $2,141.02 unencumbered free margin. Armed desk risk: $36.75 (1.40%). "
-    "Spot Gold (XAUUSD) has pushed above the 3,601.70 Model-1/2/3 upper wall to 3,603.80; monitoring for sustained breakout. "
-    "Self-check: 11 PASS / 0 WARN / 0 FAIL. Council updated in desk/COUNCIL.md (commit 99bfe8c9). "
+    "Round R840 Equity Consolidation Sync: MT5 equity consolidates solidly at $2,626.49 (+$6.45 above session low), "
+    "holding the Blueberry FundedNext Phase 1 gap at $73.51. "
+    "ETH floating drawdown is tightly contained at -$3.25 (ETHUSD 1713.50 vs 1707.01 entry), SOL floating loss -$0.19. "
+    "Total floating drawdown across all open positions is only -$3.72 (0.14% of equity). "
+    "MT5 balance is $2,630.21 with $2,139.00 in unencumbered free margin. Total armed desk risk: $36.75 (1.40%). "
+    "Spot Gold (XAUUSD) has extended to 3,605.15 above the 3,601.70 upper wall; awaiting retest confirmation before committing. "
+    "Self-check: 11 PASS / 0 WARN / 0 FAIL. Council recorded in desk/COUNCIL.md (commit fb0959bd). "
     "Please share your latest FRED multi-asset macroeconomic backtest findings and trade formulations."
 )
 
