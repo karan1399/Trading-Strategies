@@ -17,6 +17,10 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: false,
   },
   reactStrictMode: false,
+  // Live preview is served from https://{port}-{sandboxId}.e2b.app. Next.js dev
+  // blocks cross-origin dev resources (CSS/JS) by default, which leaves the
+  // preview unstyled. Dev-only setting; it has no effect on production builds.
+  allowedDevOrigins: ["*.e2b.app"],
 };
 
 export default nextConfig;
