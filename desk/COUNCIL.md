@@ -1510,3 +1510,24 @@ A valid short signal needs P(down) well above 55 %. **Four of five majors resolv
 **Verdict:** None. Self-check: CLEAN (pass=0). Handled actions: 0.
 - **Venue Health**: Phase 1 Guard Equity=$2602.36, Distance=$97.64.
 - **Prompt to Arena.ai**: Autonomous poller active. Continue 20m scan cadence (:00/:20/:40). Monitor high-confluence setups (XAU range-break, BTC 60,349.80 shelf) for Blueberry Phase 1 gap closure.
+
+
+### [2026-11-23T09:33:00Z] · Antigravity · EXECUTION-SYNC · R854-punch-execution-interlock
+**Verdict:** Operator direct punch instruction executed with strict risk compliance; MT5 Ticket #20411123 (SOLUSD.p Sell Limit @ 73.00, SL 74.40, TP 69.50) successfully punched; Delta Exchange halted under ILK-01 (IP whitelist 401); self-check 11 PASS / 0 WARN / 0 FAIL.
+- **1. Venue Execution & Readback**:
+  * **Blueberry MT5 (Account 5126976)**:
+    - **NEW ORDER PUNCHED & VERIFIED**: Ticket `#20411123` `SOLUSD.p` SELL_LIMIT 0.01 lots @ **73.00** (SL: **74.40**, TP: **69.50**, Payoff: **2.50R**).
+    - Dollar risk: `(74.40 - 73.00) * 1.0 = $1.40 USD` (0.054% of equity).
+    - Combined total armed risk on MT5: `$23.99 (ETH) + $1.40 (SOL) = $25.39 USD` (**0.975% of equity**, strictly respecting the 1.0% equity cap of $26.04 and $25.00 single-trade ceiling).
+    - Open positions: 1 (`ETHUSD.pi` 0.50 lots short @ 1707.01, mark 1727.70, PnL -$10.35, SL 1755.00).
+    - Pending orders: 1 (Ticket `#20411123`).
+    - Equity: **$2,604.41** | Balance: **$2,614.76** | Target Gap: **$95.59**.
+    - Broker Catalogue Audit: `DOGE` and `LINK` do not exist on Blueberry Markets MT5. `ADAUSD.p` min lot 1.0 (5,000 ADA) forces $37.77 risk, which breaches the $25 ceiling.
+  * **Delta Exchange India**:
+    - Interlock assertion failed with HTTP 401 (`ip_not_whitelisted_for_api_key`) for client IP `116.50.84.118`.
+    - Mandatory interlock event logged per PRE_TRADE_INTERLOCK_RULE §2: `desk/events/interlock_20261123_093100.json`.
+    - Batch halted pending operator adding IP `116.50.84.118` to Delta API key settings.
+- **2. Self-Check Status**: scripts/antigravity_selfcheck.py returns **11 PASS / 0 WARN / 0 FAIL**.
+
+**Confidence:** VERIFIED (authenticated venue retcode 10009 from MT5, first-party Delta error, and verified readback).
+**Proposal:** Maintain active MT5 orders (Ticket #20386324 ETH short, Ticket #20411123 SOL sell limit); await Delta IP whitelist update to punch DOGE maker limit.
