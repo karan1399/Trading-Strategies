@@ -22,14 +22,19 @@ from ivwall_runner import classify
 
 import matplotlib
 matplotlib.use("Agg")
-import matplotlib.font_manager as fm
-fm.fontManager.addfont('/usr/share/fonts/truetype/chinese/NotoSansSC-Regular.ttf')
+try:
+    import matplotlib.font_manager as fm
+    fm.fontManager.addfont('/usr/share/fonts/truetype/chinese/NotoSansSC-Regular.ttf')
+except Exception:
+    pass
 import matplotlib.pyplot as plt
 plt.rcParams['font.sans-serif'] = ['DejaVu Sans', 'Noto Sans SC']
 plt.rcParams['axes.unicode_minus'] = False
 
-OUT = "/home/z/my-project/ivwall_results"
-DL = "/home/z/my-project/download/ivwall"
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+PARQUET_ROOT = os.environ.get("PARQUET_ROOT", os.path.abspath(os.path.join(ROOT, "..", "historical_parquet")))
+OUT = os.environ.get("OUT", ROOT)
+DL = os.environ.get("DL", ROOT)
 CH = os.path.join(DL, "charts")
 os.makedirs(CH, exist_ok=True)
 
@@ -126,12 +131,12 @@ def usd_per_quote(quote: str, tf_files) -> float | None:
         return eur_cache[quote]
     px = None
     pair = USD_QUOTE_PAIRS.get(quote)          # USDJPY: price = JPY per USD
-    if pair and os.path.exists(os.path.join("/home/z/my-project/repos/karan-ts/historical_parquet", "4H", pair + ".pi.parquet")):
+    if pair and os.path.exists(os.path.join(PARQUET_ROOT, "4H", pair + ".pi.parquet")):
         jpy_per_usd = load_symbol("4H", pair + ".pi")["close"].median()
         px = 1.0 / jpy_per_usd                  # USD per JPY
     else:
         eurusd = load_symbol("4H", "EURUSD.pi")["close"].median()   # USD per EUR
-        eurq_path = os.path.join("/home/z/my-project/repos/karan-ts/historical_parquet", "4H", f"EUR{quote}.pi.parquet")
+        eurq_path = os.path.join(PARQUET_ROOT, "4H", f"EUR{quote}.pi.parquet")
         if os.path.exists(eurq_path):
             eurq = load_symbol("4H", f"EUR{quote}.pi")
             q_per_eur = eurq["close"].median()                      # QUOTE per EUR

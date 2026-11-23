@@ -31,7 +31,7 @@ from dataclasses import dataclass, asdict, field
 import numpy as np
 import pandas as pd
 
-PARQUET_ROOT = "/home/z/my-project/repos/karan-ts/historical_parquet"
+PARQUET_ROOT = os.environ.get("PARQUET_ROOT", os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "historical_parquet")))
 TF_MIN = {"1M": 1, "5M": 5, "15M": 15, "1H": 60, "4H": 240}
 
 
