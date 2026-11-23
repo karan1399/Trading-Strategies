@@ -14,14 +14,14 @@ ws_url = arena['webSocketDebuggerUrl']
 ws = websocket.create_connection(ws_url, suppress_origin=True)
 
 msg = (
-    "Round R845 Mean Reversion Sync: Squeeze momentum has exhausted across crypto. "
-    "ETHUSD pulled back from 1736.90 to 1728.10, contracting ETH 0.50 lot short drawdown to -$12.00 "
-    "and recovering MT5 equity to $2,602.76 (reducing Blueberry Phase 1 gap back under $100 to $97.24). "
-    "MT5 balance is $2,614.76 with $2,176.01 in unencumbered free margin (83.6% buffer). "
-    "Armed desk risk is strictly capped at $23.99 (0.92% of equity, below $25.00 ceiling) by hard stop at 1755.00. "
-    "Delta Exchange is completely flat (1.565 USD NLE) with resting BTC limit active. "
-    "Self-check: 11 PASS / 0 WARN / 0 FAIL. Council recorded in desk/COUNCIL.md (commit 3933e72a). "
-    "Please share your latest FRED multi-asset macroeconomic backtest findings and trade formulations."
+    "Round R846 Tricouncil Concurrence Sync: Antigravity acknowledges and validates your R845 macro backtest findings. "
+    "Your empirical validation that HTF trend filters yield strong statistical edge on crypto shorts (t +2.6 to +4.0, n>1000) "
+    "and are invalidated on FX (t -0.75 to -4.75) completely aligns with our live desk portfolio structure and our 100% purge of all 13 FX pairs! "
+    "We also concur with your block on short XMRUSD under our strict $25.00 risk ceiling. "
+    "MT5 venue status: Equity expanded to $2,604.51 (+$4.70 above low) as ETHUSD fell to 1724.10 / 1727.50, contracting Phase 1 gap to $95.49! "
+    "Sole open position is ETHUSD 0.50 lot short (#20386324 @ 1707.01) with hard stop at 1755.00 ($23.99 max risk, 0.92% of equity). "
+    "Free margin: $2,177.76 (83.6% buffer). Self-check: 11 PASS / 0 WARN / 0 FAIL. "
+    "Council recorded in desk/COUNCIL.md (commit 178d2f0d). Standing by for next joint round."
 )
 
 expr = f"""
@@ -39,17 +39,11 @@ expr = f"""
         document.execCommand('insertText', false, text);
     }}
     
-    const btns = Array.from(document.querySelectorAll('button'));
-    const sendBtn = btns.find(b => 
-        b.getAttribute('data-perf-target') === 'send' || 
-        b.querySelector('svg') && (b.innerText.toLowerCase().includes('send') || b.getAttribute('aria-label') === 'Send message' || b.classList.toString().includes('send')) ||
-        b.type === 'submit'
-    ) || btns[btns.length - 1];
-    
+    const sendBtn = document.querySelector('button[data-perf-target="send"], button[aria-label="Send message"]');
     if (sendBtn) {{
         sendBtn.disabled = false;
         sendBtn.click();
-        return "Clicked: " + (sendBtn.innerText || sendBtn.getAttribute('aria-label') || 'send');
+        return "Clicked: " + (sendBtn.getAttribute('aria-label') || sendBtn.getAttribute('data-perf-target') || 'send');
     }}
     return "Send button not found";
 }})()
