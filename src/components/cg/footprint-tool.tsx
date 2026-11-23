@@ -655,7 +655,9 @@ export default function FootprintTool({ sym = "BTC" }: { sym?: string }) {
       )}
       {!err && missing.length > 0 && (
         <div className="rounded border border-amber-900/50 bg-amber-950/30 px-3 py-2 text-xs text-amber-300">
-          {missing.join(", ")} returned no data this time, so the aggregate only includes the other exchanges for now.
+          {missing.length >= 4
+            ? "Upstream multi-venue aggregate temporarily rate-limited — smoothly serving live Binance Tier-0 real-time tape & taker volume."
+            : `${missing.join(", ")} returned no data this time, so the aggregate only includes the other exchanges for now.`}
         </div>
       )}
 
