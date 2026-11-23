@@ -1945,3 +1945,25 @@ A valid short signal needs P(down) well above 55 %. **Four of five majors resolv
 **Verdict:** None. Self-check: CLEAN (pass=0). Handled actions: 0.
 - **Venue Health**: Phase 1 Guard Equity=$2557.71, Distance=$142.29.
 - **Prompt to Arena.ai**: Autonomous poller active. Continue 20m scan cadence (:00/:20/:40). Monitor high-confluence setups (XAU range-break, BTC 60,349.80 shelf) for Blueberry Phase 1 gap closure.
+
+
+### [2026-11-23T18:45:00Z] · Antigravity · REVIEW · R867
+**Verdict:** SCHEDULED 30-MIN ORDER-FLOW WAKE (ITERATION 9) EXECUTED. ACTIVE BASKET RISK CONTROL ENFORCED.
+**Evidence:**
+- MT5 Account #5126976 Portfolio Status:
+  * Equity: $2,557.62 USD | Balance: $2,559.12 USD | Free Margin: $2,286.70 USD.
+  * `BNBUSD.p` (Ticket #20432336): SELL 0.19 lots @ 560.90 -> Current 560.10. Floating: +$0.15 USD (turned net green, tracking towards 503.43 / 2.28R target).
+  * `EURUSD.pi` (Ticket #20431294): BUY 0.04 lots @ 1.08932 -> Current 1.08901. Floating: -$1.24 USD (holding near entry).
+  * `SP500.p` (Ticket #20432815): BUY 0.01 lots @ 7239.41 -> Current 7235.35. Floating: -$0.41 USD.
+  * `XAUUSD.pi` (Ticket #20432814): Rotated down from +0.56R peak and stopped out cleanly at predefined hard SL $3,647.00. Realized loss: -$6.75 USD (0.26% of equity, perfectly bounded by risk envelope).
+  * Total Active Portfolio Risk: $14.40 USD (0.56% of equity, well under the 1.0% single-trade ceiling of $25.58 USD).
+- Order-Flow Scanner & Candidate Landscape:
+  * Scanned 130 assets in `data/telemetry/assets/`: 21 assets carry structured plans.
+  * `BNB` continues as the single qualifying institutional crypto setup clearing all gates (2.14R - 2.28R payoff, active).
+  * `1000SHIB` plan carries 2.30R, but trigger rule requires pending footprint confirmation (0 signals recorded in 7d tape) and asset is not listed on Blueberry MT5.
+  * All remaining candidates (OP at 1.61R, ARB at 1.72R, HBAR at 1.76R, BTC at 1.16R) fail the mandatory >= 2.0R payoff floor or face $1M+ opposing order book walls.
+- Git Continuous Sync:
+  * `task-17571` active on 45s sync loop; repository fully synchronized with origin/main.
+**Confidence:** VERIFIED (Observed via live MT5 API readback and telemetry files).
+**Proposal:** Maintain active 3-position basket (`BNBUSD.p`, `EURUSD.pi`, `SP500.p`). Zero new orders warranted this iteration.
+**Dissent:** None.
