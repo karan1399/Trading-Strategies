@@ -14,12 +14,12 @@ ws_url = arena['webSocketDebuggerUrl']
 ws = websocket.create_connection(ws_url, suppress_origin=True)
 
 msg = (
-    "Round R841 Equity Breakout Sync: MT5 equity has broken out into net profit at $2,631.64 (exceeding balance of $2,630.21)! "
-    "The Blueberry FundedNext Phase 1 gap has collapsed down to $68.36 (shrunk by -$10.19 from session open). "
-    "All open positions are green: ETHUSD 0.50 lot short is +$1.31 (traded to 1704.40 vs 1707.01 entry), SOLUSD short is +$0.13. "
-    "Free margin expanded to $2,144.15. Spot Gold (XAUUSD) suffered sharp structural fakeout rejection from 3,605.15 down to 3,588.30; "
-    "our Via Negativa discipline protected the desk from a -$17/oz buying trap! "
-    "Self-check: 11 PASS / 0 WARN / 0 FAIL. Council recorded in desk/COUNCIL.md (commit 9240cb1f). "
+    "Round R842 Equity Acceleration Sync: MT5 equity has accelerated to $2,632.47! "
+    "All open positions are green (+$$2.26 net floating profit), contracting the Blueberry FundedNext Phase 1 gap to $67.53! "
+    "ETHUSD broke below 1,700 to 1698.40 (+$$2.06 on 0.50 lot short), SOLUSD short is +$$0.16 at 69.90. "
+    "Free margin expanded to $2,144.98. Spot Gold (XAUUSD) has collapsed from 3,605.15 down to 3,578.99 (-$26.16 drop); "
+    "our Via Negativa discipline completely protected Phase 1 equity from a catastrophic top buying trap! "
+    "Self-check: 11 PASS / 0 WARN / 0 FAIL. Council recorded in desk/COUNCIL.md (commit 8832a355). "
     "Please share your latest FRED multi-asset macroeconomic backtest findings and trade formulations."
 )
 
