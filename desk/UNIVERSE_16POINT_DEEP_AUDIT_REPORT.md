@@ -1,13 +1,13 @@
 # 360° Order-Flow Telemetry & Footprint Universe Deep Audit (All 231 Assets)
-**Date:** 2026-11-23 16:46:29 UTC · **Total Curated Constituents:** 231 · **Evaluated:** 182 · **Protocol:** Canonical Master Specification §8 & Table 7
+**Date:** 2026-11-23 17:43:54 UTC · **Total Curated Constituents:** 231 · **Evaluated:** 230 · **Protocol:** Canonical Master Specification §8 & Table 7
 
 ---
 
 ## 1. Executive Summary & Macro Order-Flow Regime
 - **Universe Scope**: Full Curated 231 Constituents (200 Crypto USDT-M Perps + 28 TradFi USDT-M Perps + 3 Classic Indices).
-- **Live Audited Coverage**: **182 active instruments** evaluated across all 16 order-flow dimensions. (49 instruments unquoted/closed/settling).
-- **Top Scored Candidate Assets**: **ICP, DOGE, XAU, BTC, LINK** (Table 7 Scores $\ge 6.5 - 7.5/11.5$).
-- **Global Leverage Asymmetry**: Across crypto perps, post-squeeze long loading remains heavily asymmetric (median long share: **73.4%**).
+- **Live Audited Coverage**: **230 active instruments** evaluated across all 16 order-flow dimensions. (1 instruments unquoted/closed/settling).
+- **Top Scored Candidate Assets**: **1000PEPE, XLM, OP, 1000SHIB, XAU** (Table 7 Scores $\ge 6.5 - 7.5/11.5$).
+- **Global Leverage Asymmetry**: Across crypto perps, post-squeeze long loading remains heavily asymmetric (median long share: **73.7%**).
 - **Primary Liquidation Magnets**: BTC ($62,571 $66.19M), ETH ($1,752 $24.8M), SOL ($72.80 $8.4M) sit directly below current market prices.
 - **Execution Gate Disposition (Table 7 $\ge 8.5/11.5$)**: **ZERO assets currently meet Grade A threshold ($\ge 8.5/11.5$)**. The market is in structural consolidation after the massive multi-thousand dollar short squeeze. Standing by in cash (Account Equity: $2,589.67, 100% Flat) is the mathematically validated posture.
 
@@ -17,443 +17,427 @@
 
 | Rank | Symbol | Kind | Price | Confluence Score | Regime | Bias | RSI(15m) | Long Share | Book Imb | Largest Liq | Telemetry Tier |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-|   1 | **ICP** | crypto-perp | $2.12 | **10.25/11.5** | RANGE_BALANCE | LONG | 63.4 | 89.6% | +0.095 | $72k | Tier-1 Deep (16-Pt) |
-|   2 | **DOGE** | crypto-perp | $0.058020 | **10.00/11.5** | RANGE_BALANCE | NEUTRAL | 56.6 | 73.3% | -0.078 | $1.1M | Tier-1 Deep (16-Pt) |
-|   3 | **XAU** | tradfi-perp | $3,680.30 | **10.00/11.5** | RANGE_BALANCE | LONG | 63.1 | 84.0% | -0.114 | $4.9M | Tier-1 Deep (16-Pt) |
-|   4 | **BTC** | crypto-perp | $62,353.40 | **9.50/11.5** | TREND_DOWN | SHORT | 50.4 | 70.8% | -0.053 | $94.3M | Tier-1 Deep (16-Pt) |
-|   5 | **LINK** | crypto-perp | $9.20 | **9.50/11.5** | RANGE_BALANCE | NEUTRAL | 54.9 | 72.9% | -0.101 | $240k | Tier-1 Deep (16-Pt) |
-|   6 | **FIL** | crypto-perp | $0.581100 | **9.50/11.5** | RANGE_BALANCE | NEUTRAL | 73.4 | 74.0% | -0.065 | $239k | Tier-1 Deep (16-Pt) |
-|   7 | **ARB** | crypto-perp | $0.115620 | **9.50/11.5** | TREND_DOWN | SHORT | 47.6 | 57.3% | -0.094 | $218k | Tier-1 Deep (16-Pt) |
-|   8 | **OP** | crypto-perp | $0.073210 | **9.50/11.5** | RANGE_BALANCE | NEUTRAL | 54.1 | 71.7% | +0.076 | $66k | Tier-1 Deep (16-Pt) |
-|   9 | **XRP** | crypto-perp | $0.973700 | **9.25/11.5** | RANGE_BALANCE | NEUTRAL | 51.6 | 67.7% | -0.063 | $3.0M | Tier-1 Deep (16-Pt) |
-|  10 | **ATOM** | crypto-perp | $1.28 | **9.25/11.5** | RANGE_BALANCE | LONG | 76.4 | 77.0% | -0.370 | $68k | Tier-1 Deep (16-Pt) |
-|  11 | **APT** | crypto-perp | $0.394800 | **9.25/11.5** | RANGE_BALANCE | NEUTRAL | 52.7 | 77.6% | -0.125 | $96k | Tier-1 Deep (16-Pt) |
-|  12 | **SEI** | crypto-perp | $0.036190 | **9.25/11.5** | RANGE_BALANCE | NEUTRAL | 60.5 | 78.3% | -0.055 | $52k | Tier-1 Deep (16-Pt) |
-|  13 | **VET** | crypto-perp | $0.004928 | **9.25/11.5** | RANGE_BALANCE | NEUTRAL | 63.1 | 82.0% | +0.015 | $28k | Tier-1 Deep (16-Pt) |
-|  14 | **TSLA** | tradfi-perp | $390.00 | **9.25/11.5** | RANGE_BALANCE | NEUTRAL | 82.0 | 58.1% | +0.127 | $1.4M | Tier-1 Deep (16-Pt) |
-|  15 | **ETH** | crypto-perp | $1,767.14 | **9.00/11.5** | RANGE_BALANCE | NEUTRAL | 53.3 | 66.9% | +0.030 | $41.6M | Tier-1 Deep (16-Pt) |
-|  16 | **SOL** | crypto-perp | $74.43 | **9.00/11.5** | TREND_DOWN | SHORT | 50.6 | 64.5% | -0.179 | $11.1M | Tier-1 Deep (16-Pt) |
-|  17 | **NEAR** | crypto-perp | $3.09 | **9.00/11.5** | TREND_DOWN | SHORT | 49.2 | 75.8% | -0.023 | $870k | Tier-1 Deep (16-Pt) |
-|  18 | **HBAR** | crypto-perp | $0.055420 | **9.00/11.5** | RANGE_BALANCE | NEUTRAL | 67.4 | 94.1% | -0.230 | $84k | Tier-1 Deep (16-Pt) |
-|  19 | **TIA** | crypto-perp | $0.342900 | **9.00/11.5** | RANGE_BALANCE | LONG | 49.4 | 83.2% | +0.004 | $92k | Tier-1 Deep (16-Pt) |
-|  20 | **1000PEPE** | crypto-perp | $0.003622 | **9.00/11.5** | RANGE_BALANCE | LONG | 60.2 | 76.5% | n/a | $542k | Tier-1 Deep (16-Pt) |
-|  21 | **AAPL** | tradfi-perp | $348.63 | **9.00/11.5** | RANGE_BALANCE | NEUTRAL | 50.1 | 49.2% | -0.079 | $319k | Tier-1 Deep (16-Pt) |
-|  22 | **AVAX** | crypto-perp | $6.93 | **8.75/11.5** | RANGE_BALANCE | LONG | 52.9 | 63.5% | -0.053 | $288k | Tier-1 Deep (16-Pt) |
-|  23 | **GOOGL** | tradfi-perp | $282.47 | **8.75/11.5** | RANGE_BALANCE | NEUTRAL | 56.1 | 61.0% | +0.060 | $902k | Tier-1 Deep (16-Pt) |
-|  24 | **XAG** | tradfi-perp | $43.85 | **8.75/11.5** | RANGE_BALANCE | LONG | 63.0 | 74.7% | -0.189 | $4.0M | Tier-1 Deep (16-Pt) |
-|  25 | **BCH** | crypto-perp | $205.89 | **8.75/11.5** | RANGE_BALANCE | NEUTRAL | 53.4 | 75.0% | +0.004 | $282k | Tier-1 Deep (16-Pt) |
-|  26 | **ADA** | crypto-perp | $0.152500 | **8.50/11.5** | RANGE_BALANCE | NEUTRAL | 59.5 | 84.7% | -0.149 | $347k | Tier-1 Deep (16-Pt) |
-|  27 | **LTC** | crypto-perp | $42.47 | **8.50/11.5** | RANGE_BALANCE | NEUTRAL | 58.6 | 74.9% | -0.135 | $172k | Tier-1 Deep (16-Pt) |
-|  28 | **DOT** | crypto-perp | $0.704900 | **8.50/11.5** | RANGE_BALANCE | NEUTRAL | 62.5 | 82.7% | -0.113 | $107k | Tier-1 Deep (16-Pt) |
-|  29 | **XLM** | crypto-perp | $0.134650 | **8.50/11.5** | RANGE_BALANCE | NEUTRAL | 66.3 | 90.1% | n/a | $114k | Tier-1 Deep (16-Pt) |
-|  30 | **INJ** | crypto-perp | $6.85 | **8.50/11.5** | RANGE_BALANCE | LONG | 67.4 | 60.8% | +0.080 | $297k | Tier-1 Deep (16-Pt) |
-|  31 | **MSFT** | tradfi-perp | $499.08 | **8.50/11.5** | RANGE_BALANCE | NEUTRAL | 40.8 | 49.6% | +0.015 | $78k | Tier-1 Deep (16-Pt) |
-|  32 | **AMZN** | tradfi-perp | $257.15 | **8.50/11.5** | RANGE_BALANCE | NEUTRAL | 51.9 | 48.6% | -0.013 | $88k | Tier-1 Deep (16-Pt) |
-|  33 | **ONDO** | crypto-perp | $0.304500 | **8.50/11.5** | RANGE_BALANCE | NEUTRAL | 63.6 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
-|  34 | **NVDA** | tradfi-perp | $165.18 | **8.25/11.5** | RANGE_BALANCE | NEUTRAL | 69.1 | 63.5% | +0.263 | $13.7M | Tier-1 Deep (16-Pt) |
-|  35 | **QQQ** | tradfi-perp | $653.42 | **8.25/11.5** | RANGE_BALANCE | NEUTRAL | 66.2 | 56.6% | -0.020 | $2.4M | Tier-1 Deep (16-Pt) |
-|  36 | **BNB** | crypto-perp | $564.24 | **8.00/11.5** | TREND_DOWN | SHORT | 48.7 | 73.0% | -0.038 | $780k | Tier-1 Deep (16-Pt) |
-|  37 | **ZEC** | crypto-perp | $871.21 | **8.00/11.5** | RANGE_BALANCE | BEAR | 56.1 | 92.5% | n/a | $3.0M | Tier-1 Deep (16-Pt) |
-|  38 | **UNI** | crypto-perp | $5.04 | **7.75/11.5** | RANGE_BALANCE | LONG | 59.5 | 83.3% | -0.210 | $354k | Tier-1 Deep (16-Pt) |
-|  39 | **MSTR** | tradfi-perp | $87.25 | **7.50/11.5** | RANGE_BALANCE | NEUTRAL | 53.4 | 73.4% | +0.002 | $596k | Tier-1 Deep (16-Pt) |
-|  40 | **SUI** | crypto-perp | $0.699300 | **7.25/11.5** | RANGE_BALANCE | NEUTRAL | 54.8 | 65.8% | -0.101 | $304k | Tier-1 Deep (16-Pt) |
-|  41 | **ETC** | crypto-perp | $6.01 | **7.00/11.5** | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
-|  42 | **1000SHIB** | crypto-perp | $0.003754 | **7.00/11.5** | RANGE_BALANCE | NEUTRAL | 59.8 | 90.0% | +0.047 | $52k | Tier-1 Deep (16-Pt) |
-|  43 | **ENJ** | crypto-perp | $0.019160 | 6.50/11.5 | RANGE_BALANCE | NEUTRAL | 65.5 | 83.8% | n/a | $9k | Tier-1 Deep (16-Pt) |
-|  44 | **ZRO** | crypto-perp | $1.27 | 6.50/11.5 | RANGE_BALANCE | NEUTRAL | 47.8 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
-|  45 | **WLD** | crypto-perp | $0.248900 | 6.50/11.5 | RANGE_BALANCE | NEUTRAL | 58.7 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
-|  46 | **TRX** | crypto-perp | $0.311740 | 6.25/11.5 | RANGE_BALANCE | NEUTRAL | 78.6 | 53.7% | -0.003 | $345k | Tier-1 Deep (16-Pt) |
-|  47 | **INTC** | tradfi-perp | $58.78 | 6.25/11.5 | RANGE_BALANCE | NEUTRAL | 76.9 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
-|  48 | **LIGHT** | crypto-perp | $0.225500 | 6.25/11.5 | RANGE_BALANCE | NEUTRAL | 82.2 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
-|  49 | **USUAL** | crypto-perp | $0.011815 | 6.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 90.1% | n/a | $52k | Tier-1 Deep (16-Pt) |
-|  50 | **1MBABYDOGE** | crypto-perp | $0.000259 | 6.00/11.5 | RANGE_BALANCE | NEUTRAL | 69.9 | 87.6% | n/a | $5k | Tier-1 Deep (16-Pt) |
-|  51 | **SOXL** | tradfi-perp | $43.60 | 5.75/11.5 | RANGE_BALANCE | NEUTRAL | 72.0 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
-|  52 | **MU** | tradfi-perp | $709.81 | 5.75/11.5 | RANGE_BALANCE | NEUTRAL | 79.9 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
-|  53 | **SKHY** | tradfi-perp | $125.81 | 5.75/11.5 | RANGE_BALANCE | NEUTRAL | 73.3 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
-|  54 | **META** | tradfi-perp | $589.57 | 5.75/11.5 | RANGE_BALANCE | SHORT | 58.5 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
-|  55 | **AMD** | tradfi-perp | $453.64 | 5.75/11.5 | RANGE_BALANCE | LONG | 54.1 | 53.0% | n/a | $264k | Tier-1 Deep (16-Pt) |
-|  56 | **AUCTION** | crypto-perp | $2.56 | 5.75/11.5 | RANGE_BALANCE | NEUTRAL | 65.2 | 72.2% | n/a | $4k | Tier-1 Deep (16-Pt) |
-|  57 | **HYPE** | crypto-perp | $65.46 | 5.50/11.5 | RANGE_BALANCE | NEUTRAL | 48.0 | 75.0% | n/a | $105k | Screener + Live |
-|  58 | **COIN** | tradfi-perp | $109.17 | 5.25/11.5 | RANGE_BALANCE | LONG | 61.5 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
-|  59 | **MANTA** | crypto-perp | $0.041150 | 5.25/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
-|  60 | **XAUT** | crypto-perp | $3,657.47 | 5.25/11.5 | RANGE_BALANCE | NEUTRAL | 63.8 | 68.8% | n/a | $598k | Tier-1 Deep (16-Pt) |
-|  61 | **SNDK** | tradfi-perp | $93.87 | 5.00/11.5 | RANGE_BALANCE | NEUTRAL | 66.6 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
-|  62 | **SPCX** | tradfi-perp | $136.57 | 5.00/11.5 | RANGE_BALANCE | NEUTRAL | 80.3 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
-|  63 | **NBIS** | tradfi-perp | $102.92 | 5.00/11.5 | RANGE_BALANCE | NEUTRAL | 66.5 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|   1 | **1000PEPE** | crypto-perp | $0.003533 | **8.75/11.5** | RANGE_BALANCE | BEAR | 45.7 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|   2 | **XLM** | crypto-perp | $0.134650 | **8.50/11.5** | RANGE_BALANCE | BEAR | 66.3 | 90.1% | n/a | $114k | Tier-1 Deep (16-Pt) |
+|   3 | **OP** | crypto-perp | $0.072310 | **8.50/11.5** | RANGE_BALANCE | NEUTRAL | 48.0 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|   4 | **1000SHIB** | crypto-perp | $0.003710 | **8.25/11.5** | RANGE_BALANCE | NEUTRAL | 49.3 | 89.3% | +0.001 | $52k | Tier-1 Deep (16-Pt) |
+|   5 | **XAU** | tradfi-perp | $3,668.91 | **8.25/11.5** | RANGE_BALANCE | LONG | 55.3 | 83.9% | -0.002 | $4.9M | Tier-1 Deep (16-Pt) |
+|   6 | **NVDA** | tradfi-perp | $166.46 | **8.25/11.5** | RANGE_BALANCE | NEUTRAL | 68.7 | 60.9% | +0.273 | $13.7M | Tier-1 Deep (16-Pt) |
+|   7 | **XAG** | tradfi-perp | $43.62 | **8.00/11.5** | RANGE_BALANCE | LONG | 55.7 | 74.7% | -0.040 | $4.0M | Tier-1 Deep (16-Pt) |
+|   8 | **XRP** | crypto-perp | $0.966200 | **7.75/11.5** | RANGE_BALANCE | BEAR | 48.3 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|   9 | **DOGE** | crypto-perp | $0.057700 | **7.75/11.5** | RANGE_BALANCE | NEUTRAL | 51.6 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  10 | **TRX** | crypto-perp | $0.312010 | **7.75/11.5** | RANGE_BALANCE | BEAR | 75.8 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  11 | **HBAR** | crypto-perp | $0.054320 | **7.75/11.5** | RANGE_BALANCE | NEUTRAL | 55.3 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  12 | **ARB** | crypto-perp | $0.115790 | **7.75/11.5** | RANGE_BALANCE | BEAR | 48.0 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  13 | **ADA** | crypto-perp | $0.151000 | **7.50/11.5** | RANGE_BALANCE | BULL | 53.5 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  14 | **UNI** | crypto-perp | $5.00 | **7.50/11.5** | RANGE_BALANCE | NEUTRAL | 53.2 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  15 | **FIL** | crypto-perp | $0.570700 | **7.50/11.5** | RANGE_BALANCE | NEUTRAL | 57.8 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  16 | **SUI** | crypto-perp | $0.695600 | **7.50/11.5** | RANGE_BALANCE | NEUTRAL | 51.6 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  17 | **ENJ** | crypto-perp | $0.019160 | **7.50/11.5** | RANGE_BALANCE | BEAR | 65.5 | 83.8% | n/a | $9k | Tier-1 Deep (16-Pt) |
+|  18 | **USUAL** | crypto-perp | $0.011815 | **7.50/11.5** | RANGE_BALANCE | NEUTRAL | 45.6 | 90.1% | n/a | $52k | Tier-1 Deep (16-Pt) |
+|  19 | **ONDO** | crypto-perp | $0.304500 | **7.50/11.5** | RANGE_BALANCE | BEAR | 63.6 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  20 | **BNB** | crypto-perp | $563.79 | **7.25/11.5** | RANGE_BALANCE | BEAR | 47.9 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  21 | **LINK** | crypto-perp | $9.15 | **7.25/11.5** | RANGE_BALANCE | BEAR | 51.0 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  22 | **LTC** | crypto-perp | $42.12 | **7.25/11.5** | RANGE_BALANCE | NEUTRAL | 52.9 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  23 | **AVAX** | crypto-perp | $6.91 | **7.25/11.5** | RANGE_BALANCE | BEAR | 51.6 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  24 | **DOT** | crypto-perp | $0.692900 | **7.25/11.5** | RANGE_BALANCE | NEUTRAL | 48.9 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  25 | **NEAR** | crypto-perp | $3.09 | **7.25/11.5** | RANGE_BALANCE | NEUTRAL | 49.3 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  26 | **APT** | crypto-perp | $0.393200 | **7.25/11.5** | RANGE_BALANCE | BEAR | 51.0 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  27 | **TSM** | tradfi-perp | $370.53 | **7.25/11.5** | RANGE_BALANCE | NEUTRAL | 75.0 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  28 | **LIGHT** | crypto-perp | $0.225500 | **7.25/11.5** | RANGE_BALANCE | BEAR | 82.2 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  29 | **BCH** | crypto-perp | $204.37 | **7.25/11.5** | RANGE_BALANCE | BEAR | 48.7 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  30 | **ETC** | crypto-perp | $6.01 | **7.00/11.5** | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  31 | **INJ** | crypto-perp | $6.71 | 6.75/11.5 | RANGE_BALANCE | NEUTRAL | 54.3 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  32 | **GOOGL** | tradfi-perp | $284.38 | 6.75/11.5 | RANGE_BALANCE | NEUTRAL | 59.6 | 61.0% | +0.138 | $902k | Tier-1 Deep (16-Pt) |
+|  33 | **INTC** | tradfi-perp | $58.78 | 6.75/11.5 | RANGE_BALANCE | NEUTRAL | 76.9 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  34 | **QQQ** | tradfi-perp | $653.29 | 6.50/11.5 | RANGE_BALANCE | NEUTRAL | 62.1 | 56.6% | -0.022 | $2.4M | Tier-1 Deep (16-Pt) |
+|  35 | **ZRO** | crypto-perp | $1.27 | 6.50/11.5 | RANGE_BALANCE | NEUTRAL | 47.8 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  36 | **SOL** | crypto-perp | $73.88 | 6.25/11.5 | RANGE_BALANCE | BEAR | 46.2 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  37 | **VET** | crypto-perp | $0.004881 | 6.25/11.5 | RANGE_BALANCE | NEUTRAL | 54.8 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  38 | **AMZN** | tradfi-perp | $258.62 | 6.25/11.5 | RANGE_BALANCE | NEUTRAL | 57.0 | 48.6% | +0.028 | $88k | Tier-1 Deep (16-Pt) |
+|  39 | **AVGO** | tradfi-perp | $312.51 | 6.25/11.5 | RANGE_BALANCE | NEUTRAL | 44.0 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  40 | **ZEC** | crypto-perp | $871.21 | 6.25/11.5 | RANGE_BALANCE | BEAR | 51.0 | 92.5% | n/a | $3.0M | Tier-1 Deep (16-Pt) |
+|  41 | **AXS** | crypto-perp | $0.642400 | 6.25/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 86.0% | n/a | $14k | Tier-1 Deep (16-Pt) |
+|  42 | **SUSHI** | crypto-perp | $0.156800 | 6.25/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 94.3% | n/a | $18k | Tier-1 Deep (16-Pt) |
+|  43 | **BTC** | crypto-perp | $61,715.70 | 6.00/11.5 | RANGE_BALANCE | BEAR | 42.9 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  44 | **ATOM** | crypto-perp | $1.27 | 6.00/11.5 | RANGE_BALANCE | NEUTRAL | 64.5 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  45 | **TSLA** | tradfi-perp | $390.60 | 6.00/11.5 | RANGE_BALANCE | NEUTRAL | 73.7 | 57.6% | +0.076 | $1.4M | Tier-1 Deep (16-Pt) |
+|  46 | **1MBABYDOGE** | crypto-perp | $0.000259 | 6.00/11.5 | RANGE_BALANCE | NEUTRAL | 69.9 | 87.6% | n/a | $5k | Tier-1 Deep (16-Pt) |
+|  47 | **ETH** | crypto-perp | $1,755.66 | 5.75/11.5 | RANGE_BALANCE | BEAR | 48.3 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  48 | **ICP** | crypto-perp | $2.10 | 5.75/11.5 | RANGE_BALANCE | NEUTRAL | 53.8 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  49 | **SEI** | crypto-perp | $0.035560 | 5.75/11.5 | RANGE_BALANCE | NEUTRAL | 49.5 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  50 | **TIA** | crypto-perp | $0.342500 | 5.75/11.5 | RANGE_BALANCE | NEUTRAL | 49.8 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  51 | **META** | tradfi-perp | $589.57 | 5.75/11.5 | RANGE_BALANCE | SHORT | 58.5 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  52 | **SOON** | crypto-perp | $0.268400 | 5.75/11.5 | RANGE_BALANCE | NEUTRAL | 37.5 | 70.8% | n/a | $18k | Tier-1 Deep (16-Pt) |
+|  53 | **AUCTION** | crypto-perp | $2.56 | 5.75/11.5 | RANGE_BALANCE | NEUTRAL | 65.2 | 72.2% | n/a | $4k | Tier-1 Deep (16-Pt) |
+|  54 | **MSTR** | tradfi-perp | $86.46 | 5.50/11.5 | TREND_DOWN | SHORT | 48.1 | 72.8% | -0.006 | $596k | Tier-1 Deep (16-Pt) |
+|  55 | **AAPL** | tradfi-perp | $349.16 | 5.50/11.5 | RANGE_BALANCE | NEUTRAL | 52.6 | 49.2% | -0.043 | $319k | Tier-1 Deep (16-Pt) |
+|  56 | **MSFT** | tradfi-perp | $499.45 | 5.50/11.5 | RANGE_BALANCE | NEUTRAL | 43.9 | 49.6% | +0.038 | $78k | Tier-1 Deep (16-Pt) |
+|  57 | **COIN** | tradfi-perp | $109.17 | 5.25/11.5 | RANGE_BALANCE | LONG | 61.5 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  58 | **INIT** | crypto-perp | $0.086270 | 5.25/11.5 | RANGE_BALANCE | NEUTRAL | 50.5 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  59 | **XAUT** | crypto-perp | $3,657.47 | 5.25/11.5 | RANGE_BALANCE | NEUTRAL | 63.8 | 68.8% | n/a | $598k | Tier-1 Deep (16-Pt) |
+|  60 | **ZEN** | crypto-perp | $3.81 | 5.25/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  61 | **HYPE** | crypto-perp | $65.80 | 5.25/11.5 | RANGE_BALANCE | BEAR | 49.5 | 75.0% | -0.220 | $167k | Screener + Live |
+|  62 | **KORU** | tradfi-perp | $6.24 | 5.00/11.5 | RANGE_BALANCE | NEUTRAL | 62.4 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  63 | **AMD** | tradfi-perp | $453.64 | 5.00/11.5 | RANGE_BALANCE | LONG | 54.1 | 53.0% | n/a | $264k | Tier-1 Deep (16-Pt) |
 |  64 | **NFLX** | tradfi-perp | $58.15 | 5.00/11.5 | RANGE_BALANCE | SHORT | 55.8 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
-|  65 | **ARIA** | crypto-perp | $0.313850 | 5.00/11.5 | RANGE_BALANCE | NEUTRAL | 42.3 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
-|  66 | **NEIRO** | crypto-perp | $0.000050 | 5.00/11.5 | RANGE_BALANCE | LONG | 64.4 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
-|  67 | **CRCL** | tradfi-perp | $52.88 | 4.75/11.5 | RANGE_BALANCE | LONG | 66.2 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
-|  68 | **AVGO** | tradfi-perp | $312.51 | 4.75/11.5 | RANGE_BALANCE | NEUTRAL | 44.0 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
-|  69 | **TSM** | tradfi-perp | $370.53 | 4.75/11.5 | RANGE_BALANCE | NEUTRAL | 75.0 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
-|  70 | **TRUMP** | crypto-perp | $0.941000 | 4.75/11.5 | RANGE_BALANCE | NEUTRAL | 61.9 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
-|  71 | **CL** | tradfi-perp | $80.31 | 4.50/11.5 | TREND_DOWN | SHORT | 23.0 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
-|  72 | **LDO** | crypto-perp | $0.252800 | 4.50/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
-|  73 | **TNSR** | crypto-perp | $0.019850 | 4.50/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
-|  74 | **EDEN** | crypto-perp | $0.040960 | 4.50/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
-|  75 | **DYDX** | crypto-perp | $0.075200 | 4.50/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 88.1% | n/a | $14k | Tier-1 Deep (16-Pt) |
-|  76 | **SWARMS** | crypto-perp | $0.005983 | 4.50/11.5 | RANGE_BALANCE | NEUTRAL | 62.8 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
-|  77 | **AAVE** | crypto-perp | $103.40 | 4.50/11.5 | RANGE_BALANCE | BEAR | 51.9 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
-|  78 | **PROVE** | crypto-perp | $0.136700 | 4.25/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
-|  79 | **AIOT** | crypto-perp | $0.067540 | 4.25/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
-|  80 | **1000BONK** | crypto-perp | $0.002286 | 4.25/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
-|  81 | **RUNE** | crypto-perp | $0.527000 | 4.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
-|  82 | **GALA** | crypto-perp | $0.001379 | 4.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
-|  83 | **IN** | crypto-perp | $0.023990 | 4.00/11.5 | RANGE_BALANCE | NEUTRAL | 60.1 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
-|  84 | **BLUR** | crypto-perp | $0.008187 | 4.00/11.5 | RANGE_BALANCE | NEUTRAL | 64.9 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
-|  85 | **VVV** | crypto-perp | $24.98 | 4.00/11.5 | RANGE_BALANCE | NEUTRAL | 29.9 | 50.0% | n/a | n/a | Screener + Live |
-|  86 | **DOGS** | crypto-perp | $0.000026 | 4.00/11.5 | RANGE_BALANCE | NEUTRAL | 49.9 | 50.0% | n/a | n/a | Screener + Live |
-|  87 | **PARTI** | crypto-perp | $0.039540 | 4.00/11.5 | RANGE_BALANCE | NEUTRAL | 63.4 | 50.0% | n/a | n/a | Screener + Live |
-|  88 | **MEME** | crypto-perp | $0.000302 | 4.00/11.5 | RANGE_BALANCE | NEUTRAL | 51.5 | 50.0% | n/a | n/a | Screener + Live |
-|  89 | **PAXG** | crypto-perp | $3,648.80 | 4.00/11.5 | RANGE_BALANCE | NEUTRAL | 54.9 | 50.0% | n/a | n/a | Screener + Live |
-|  90 | **GTC** | crypto-perp | $0.129200 | 4.00/11.5 | RANGE_BALANCE | NEUTRAL | 37.4 | 50.0% | n/a | n/a | Screener + Live |
-|  91 | **JCT** | crypto-perp | $0.001618 | 4.00/11.5 | RANGE_BALANCE | NEUTRAL | 47.0 | 50.0% | n/a | n/a | Screener + Live |
-|  92 | **WLFI** | crypto-perp | $0.042790 | 4.00/11.5 | RANGE_BALANCE | NEUTRAL | 38.8 | 50.0% | n/a | n/a | Screener + Live |
-|  93 | **KITE** | crypto-perp | $0.141760 | 4.00/11.5 | RANGE_BALANCE | NEUTRAL | 64.2 | 50.0% | n/a | n/a | Screener + Live |
-|  94 | **SONIC** | crypto-perp | $0.017060 | 4.00/11.5 | RANGE_BALANCE | NEUTRAL | 52.2 | 50.0% | n/a | n/a | Screener + Live |
-|  95 | **SIREN** | crypto-perp | $0.025460 | 4.00/11.5 | RANGE_BALANCE | NEUTRAL | 39.7 | 50.0% | n/a | n/a | Screener + Live |
-|  96 | **SOON** | crypto-perp | $0.268400 | 3.75/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 70.8% | n/a | $18k | Tier-1 Deep (16-Pt) |
-|  97 | **GRAM** | crypto-perp | $1.01 | 3.75/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 65.9% | n/a | $83k | Tier-1 Deep (16-Pt) |
-|  98 | **BMT** | crypto-perp | $0.020280 | 3.75/11.5 | RANGE_BALANCE | NEUTRAL | 48.0 | 50.0% | n/a | n/a | Screener + Live |
-|  99 | **FF** | crypto-perp | $0.101480 | 3.75/11.5 | RANGE_BALANCE | NEUTRAL | 48.0 | 50.0% | n/a | n/a | Screener + Live |
-| 100 | **ASTER** | crypto-perp | $0.516700 | 3.75/11.5 | RANGE_BALANCE | NEUTRAL | 53.1 | 50.0% | n/a | n/a | Screener + Live |
-| 101 | **COOKIE** | crypto-perp | $0.008170 | 3.50/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
-| 102 | **DRAM** | tradfi-perp | $40.01 | 3.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
-| 103 | **BERA** | crypto-perp | $0.084500 | 3.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
-| 104 | **POL** | crypto-perp | $0.078950 | 3.00/11.5 | RANGE_BALANCE | LONG | 61.2 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
-| 105 | **WIF** | crypto-perp | $0.129000 | 3.00/11.5 | RANGE_BALANCE | NEUTRAL | 56.2 | 50.0% | n/a | n/a | Screener + Live |
-| 106 | **BILL** | crypto-perp | $0.004174 | 3.00/11.5 | RANGE_BALANCE | NEUTRAL | 48.1 | 50.0% | n/a | n/a | Screener + Live |
-| 107 | **PUMP** | crypto-perp | $0.002632 | 3.00/11.5 | RANGE_BALANCE | NEUTRAL | 49.1 | 50.0% | n/a | n/a | Screener + Live |
-| 108 | **ZK** | crypto-perp | $0.007065 | 3.00/11.5 | RANGE_BALANCE | NEUTRAL | 50.0 | 50.0% | n/a | n/a | Screener + Live |
-| 109 | **OPN** | crypto-perp | $0.031800 | 3.00/11.5 | RANGE_BALANCE | NEUTRAL | 55.5 | 50.0% | n/a | n/a | Screener + Live |
-| 110 | **COAI** | crypto-perp | $0.174200 | 3.00/11.5 | RANGE_BALANCE | NEUTRAL | 50.9 | 50.0% | n/a | n/a | Screener + Live |
-| 111 | **PNUT** | crypto-perp | $0.027350 | 3.00/11.5 | RANGE_BALANCE | NEUTRAL | 49.9 | 50.0% | n/a | n/a | Screener + Live |
-| 112 | **VANA** | crypto-perp | $0.581800 | 3.00/11.5 | RANGE_BALANCE | NEUTRAL | 55.0 | 50.0% | n/a | n/a | Screener + Live |
-| 113 | **XAI** | crypto-perp | $0.005406 | 3.00/11.5 | RANGE_BALANCE | NEUTRAL | 52.5 | 50.0% | n/a | n/a | Screener + Live |
-| 114 | **KAITO** | crypto-perp | $0.167800 | 3.00/11.5 | RANGE_BALANCE | NEUTRAL | 51.2 | 50.0% | n/a | n/a | Screener + Live |
-| 115 | **TOWNS** | crypto-perp | $0.000923 | 3.00/11.5 | RANGE_BALANCE | NEUTRAL | 58.7 | 50.0% | n/a | n/a | Screener + Live |
-| 116 | **SOPH** | crypto-perp | $0.000901 | 3.00/11.5 | RANGE_BALANCE | NEUTRAL | 50.9 | 50.0% | n/a | n/a | Screener + Live |
-| 117 | **ETHFI** | crypto-perp | $0.509500 | 3.00/11.5 | RANGE_BALANCE | NEUTRAL | 45.4 | 50.0% | n/a | n/a | Screener + Live |
-| 118 | **ALT** | crypto-perp | $0.004420 | 3.00/11.5 | RANGE_BALANCE | NEUTRAL | 53.1 | 50.0% | n/a | n/a | Screener + Live |
-| 119 | **RLC** | crypto-perp | $0.321500 | 3.00/11.5 | RANGE_BALANCE | NEUTRAL | 53.1 | 50.0% | n/a | n/a | Screener + Live |
-| 120 | **RIVER** | crypto-perp | $0.639400 | 3.00/11.5 | RANGE_BALANCE | NEUTRAL | 51.5 | 50.0% | n/a | n/a | Screener + Live |
-| 121 | **UKO** | classic | $86.99 | 3.00/11.5 | RANGE_BALANCE | NEUTRAL | 33.2 | 50.0% | n/a | n/a | Screener + Live |
-| 122 | **INIT** | crypto-perp | $0.086270 | 2.50/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
-| 123 | **ZORA** | crypto-perp | $0.004473 | 2.50/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
-| 124 | **VELVET** | crypto-perp | $0.080350 | 2.50/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
-| 125 | **QNT** | crypto-perp | $160.55 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 126 | **CROSS** | crypto-perp | $0.131560 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 127 | **LAYER** | crypto-perp | $0.043500 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 128 | **TLM** | crypto-perp | $0.000934 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 129 | **ME** | crypto-perp | $0.036740 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 130 | **MOVE** | crypto-perp | $0.004672 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 131 | **EVAA** | crypto-perp | $3.16 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 132 | **AIGENSYN** | crypto-perp | $0.016320 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 133 | **SPX** | crypto-perp | $0.289600 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 134 | **ENA** | crypto-perp | $0.105310 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 135 | **JUP** | crypto-perp | $0.247400 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 136 | **KSM** | crypto-perp | $2.69 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 137 | **AVAAI** | crypto-perp | $0.007665 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 138 | **MUBARAK** | crypto-perp | $0.025710 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 139 | **HIVE** | crypto-perp | $0.034710 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 140 | **TST** | crypto-perp | $0.010460 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 141 | **CAP** | crypto-perp | $0.099760 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 142 | **MASK** | crypto-perp | $0.279400 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 143 | **ESPORTS** | crypto-perp | $0.010059 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 144 | **RAVE** | crypto-perp | $0.121000 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 145 | **IO** | crypto-perp | $0.105000 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 146 | **IOST** | crypto-perp | $0.000612 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 147 | **NOT** | crypto-perp | $0.000301 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 148 | **PEOPLE** | crypto-perp | $0.004991 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 149 | **SAGA** | crypto-perp | $0.013670 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 150 | **BIO** | crypto-perp | $0.015690 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 151 | **MELANIA** | crypto-perp | $0.052010 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 152 | **BANK** | crypto-perp | $0.016150 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 153 | **RARE** | crypto-perp | $0.013500 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 154 | **PIPPIN** | crypto-perp | $0.018570 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 155 | **MON** | crypto-perp | $0.012080 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 156 | **GLM** | crypto-perp | $0.090750 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 157 | **1000FLOKI** | crypto-perp | $0.017020 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 158 | **TAO** | crypto-perp | $195.11 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 159 | **BEAT** | crypto-perp | $0.076160 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 160 | **ARC** | crypto-perp | $0.028680 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 161 | **API3** | crypto-perp | $0.178200 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 162 | **XMR** | crypto-perp | $503.01 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 163 | **FRAX** | crypto-perp | $0.197700 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 164 | **GOAT** | crypto-perp | $0.010740 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 165 | **SUN** | crypto-perp | $0.014836 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 166 | **AR** | crypto-perp | $2.45 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 167 | **JTO** | crypto-perp | $0.248500 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 168 | **MOVR** | crypto-perp | $0.878900 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 169 | **1000SATS** | crypto-perp | $0.000007 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 170 | **LIT** | crypto-perp | $2.67 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 171 | **HANA** | crypto-perp | $0.012270 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 172 | **SKL** | crypto-perp | $0.002950 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 173 | **IRYS** | crypto-perp | $0.017280 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 174 | **SIGN** | crypto-perp | $0.008711 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 175 | **EIGEN** | crypto-perp | $0.118400 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 176 | **FARTCOIN** | crypto-perp | $0.085000 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 177 | **ARK** | crypto-perp | $0.128100 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 178 | **PENDLE** | crypto-perp | $1.34 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 179 | **ACT** | crypto-perp | $0.008837 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 180 | **CAKE** | crypto-perp | $1.59 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 181 | **SPX500** | classic | $7,219.50 | 1.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
-| 182 | **NDX100** | classic | $26,619.00 | 1.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+|  65 | **GRIFFAIN** | crypto-perp | $0.009906 | 5.00/11.5 | RANGE_BALANCE | NEUTRAL | 64.9 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  66 | **MANTA** | crypto-perp | $0.041150 | 5.00/11.5 | RANGE_BALANCE | BEAR | 48.6 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  67 | **EDEN** | crypto-perp | $0.040960 | 5.00/11.5 | RANGE_BALANCE | NEUTRAL | 51.2 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  68 | **DYDX** | crypto-perp | $0.075200 | 5.00/11.5 | RANGE_BALANCE | NEUTRAL | 51.5 | 88.1% | n/a | $14k | Tier-1 Deep (16-Pt) |
+|  69 | **GRAM** | crypto-perp | $1.01 | 5.00/11.5 | RANGE_BALANCE | NEUTRAL | 51.7 | 65.9% | n/a | $83k | Tier-1 Deep (16-Pt) |
+|  70 | **ARIA** | crypto-perp | $0.313850 | 5.00/11.5 | RANGE_BALANCE | NEUTRAL | 42.3 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  71 | **NEIRO** | crypto-perp | $0.000050 | 5.00/11.5 | RANGE_BALANCE | LONG | 64.4 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  72 | **TAO** | crypto-perp | $195.13 | 5.00/11.5 | RANGE_BALANCE | BEAR | 54.7 | 75.0% | n/a | $7k | Screener + Live |
+|  73 | **AIXBT** | crypto-perp | $0.012140 | 4.75/11.5 | RANGE_BALANCE | NEUTRAL | 65.7 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  74 | **PROVE** | crypto-perp | $0.136700 | 4.75/11.5 | RANGE_BALANCE | NEUTRAL | 63.0 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  75 | **COOKIE** | crypto-perp | $0.008170 | 4.75/11.5 | RANGE_BALANCE | NEUTRAL | 49.3 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  76 | **WLD** | crypto-perp | $0.244600 | 4.75/11.5 | RANGE_BALANCE | NEUTRAL | 51.7 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  77 | **TRUMP** | crypto-perp | $0.941000 | 4.75/11.5 | RANGE_BALANCE | NEUTRAL | 61.9 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  78 | **CRCL** | tradfi-perp | $52.88 | 4.50/11.5 | RANGE_BALANCE | LONG | 66.2 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  79 | **LDO** | crypto-perp | $0.252800 | 4.50/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  80 | **TNSR** | crypto-perp | $0.019850 | 4.50/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  81 | **AIOT** | crypto-perp | $0.067540 | 4.50/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  82 | **SWARMS** | crypto-perp | $0.005983 | 4.50/11.5 | RANGE_BALANCE | NEUTRAL | 62.8 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  83 | **AAVE** | crypto-perp | $103.40 | 4.50/11.5 | RANGE_BALANCE | BEAR | 51.9 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  84 | **DASH** | crypto-perp | $36.12 | 4.50/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  85 | **RSR** | crypto-perp | $0.001284 | 4.50/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 81.0% | n/a | $8k | Tier-1 Deep (16-Pt) |
+|  86 | **STX** | crypto-perp | $0.265600 | 4.50/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 71.3% | n/a | $35k | Tier-1 Deep (16-Pt) |
+|  87 | **DOOD** | crypto-perp | $0.001496 | 4.50/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  88 | **ASTER** | crypto-perp | $0.512800 | 4.50/11.5 | RANGE_BALANCE | BEAR | 45.3 | 50.0% | n/a | n/a | Screener + Live |
+|  89 | **SNDK** | tradfi-perp | $93.87 | 4.25/11.5 | RANGE_BALANCE | NEUTRAL | 66.6 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  90 | **SPCX** | tradfi-perp | $136.17 | 4.25/11.5 | RANGE_BALANCE | NEUTRAL | 80.3 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  91 | **CL** | tradfi-perp | $81.03 | 4.25/11.5 | TREND_DOWN | SHORT | 23.0 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  92 | **NBIS** | tradfi-perp | $102.92 | 4.25/11.5 | RANGE_BALANCE | NEUTRAL | 66.5 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  93 | **BERA** | crypto-perp | $0.084500 | 4.25/11.5 | RANGE_BALANCE | BEAR | 50.7 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  94 | **1000BONK** | crypto-perp | $0.002286 | 4.25/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  95 | **CHIP** | crypto-perp | $0.029140 | 4.25/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  96 | **GIGGLE** | crypto-perp | $22.23 | 4.25/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  97 | **LISTA** | crypto-perp | $0.089950 | 4.25/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  98 | **SOXL** | tradfi-perp | $43.60 | 4.00/11.5 | RANGE_BALANCE | NEUTRAL | 72.0 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+|  99 | **MU** | tradfi-perp | $709.81 | 4.00/11.5 | RANGE_BALANCE | NEUTRAL | 79.9 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+| 100 | **SKHY** | tradfi-perp | $124.90 | 4.00/11.5 | RANGE_BALANCE | NEUTRAL | 73.3 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+| 101 | **JASMY** | crypto-perp | $0.003182 | 4.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+| 102 | **RUNE** | crypto-perp | $0.527000 | 4.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+| 103 | **GALA** | crypto-perp | $0.001379 | 4.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+| 104 | **BTW** | crypto-perp | $0.748700 | 4.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+| 105 | **IN** | crypto-perp | $0.023990 | 4.00/11.5 | RANGE_BALANCE | NEUTRAL | 60.1 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+| 106 | **BLUR** | crypto-perp | $0.008187 | 4.00/11.5 | RANGE_BALANCE | NEUTRAL | 64.9 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+| 107 | **ENA** | crypto-perp | $0.105000 | 4.00/11.5 | RANGE_BALANCE | BEAR | 46.7 | 75.0% | n/a | $25.9M | Screener + Live |
+| 108 | **BASED** | crypto-perp | $0.038970 | 3.75/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+| 109 | **XAN** | crypto-perp | $0.007925 | 3.75/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+| 110 | **VIRTUAL** | crypto-perp | $0.390700 | 3.75/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+| 111 | **M** | crypto-perp | $0.792100 | 3.75/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+| 112 | **AIO** | crypto-perp | $0.030850 | 3.75/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 55.3% | n/a | $4k | Tier-1 Deep (16-Pt) |
+| 113 | **XMR** | crypto-perp | $505.50 | 3.75/11.5 | RANGE_BALANCE | NEUTRAL | 48.1 | 50.0% | n/a | n/a | Screener + Live |
+| 114 | **XPL** | crypto-perp | $0.046740 | 3.50/11.5 | RANGE_BALANCE | NEUTRAL | 49.6 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+| 115 | **SKYAI** | crypto-perp | $0.036650 | 3.50/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+| 116 | **PENGU** | crypto-perp | $0.004564 | 3.50/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+| 117 | **SAHARA** | crypto-perp | $0.005123 | 3.50/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+| 118 | **TAC** | crypto-perp | $0.001177 | 3.50/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+| 119 | **ORDER** | crypto-perp | $0.027530 | 3.50/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+| 120 | **BR** | crypto-perp | $0.437000 | 3.50/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+| 121 | **WCT** | crypto-perp | $0.029090 | 3.50/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+| 122 | **BLESS** | crypto-perp | $0.016948 | 3.50/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+| 123 | **NMR** | crypto-perp | $7.70 | 3.50/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+| 124 | **MANA** | crypto-perp | $0.057820 | 3.50/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+| 125 | **XAI** | crypto-perp | $0.005379 | 3.50/11.5 | RANGE_BALANCE | NEUTRAL | 49.6 | 50.0% | n/a | n/a | Screener + Live |
+| 126 | **SONIC** | crypto-perp | $0.017000 | 3.50/11.5 | RANGE_BALANCE | BEAR | 54.6 | 50.0% | n/a | n/a | Screener + Live |
+| 127 | **DRAM** | tradfi-perp | $40.01 | 3.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+| 128 | **RED** | crypto-perp | $0.110100 | 3.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+| 129 | **ALLO** | crypto-perp | $0.132650 | 3.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+| 130 | **SOLV** | crypto-perp | $0.004056 | 3.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+| 131 | **DUSK** | crypto-perp | $0.062170 | 3.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+| 132 | **POL** | crypto-perp | $0.078950 | 3.00/11.5 | RANGE_BALANCE | LONG | 61.2 | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+| 133 | **PARTI** | crypto-perp | $0.039380 | 3.00/11.5 | RANGE_BALANCE | BULL | 62.0 | 50.0% | n/a | n/a | Screener + Live |
+| 134 | **CAP** | crypto-perp | $0.100860 | 3.00/11.5 | RANGE_BALANCE | NEUTRAL | 76.9 | 50.0% | n/a | n/a | Screener + Live |
+| 135 | **KSM** | crypto-perp | $2.67 | 2.75/11.5 | RANGE_BALANCE | BEAR | 55.9 | 50.0% | n/a | n/a | Screener + Live |
+| 136 | **GTC** | crypto-perp | $0.129710 | 2.75/11.5 | RANGE_BALANCE | BEAR | 42.9 | 50.0% | n/a | n/a | Screener + Live |
+| 137 | **BMT** | crypto-perp | $0.020270 | 2.75/11.5 | RANGE_BALANCE | BEAR | 48.0 | 50.0% | n/a | n/a | Screener + Live |
+| 138 | **WLFI** | crypto-perp | $0.042700 | 2.75/11.5 | RANGE_BALANCE | BEAR | 37.4 | 50.0% | n/a | n/a | Screener + Live |
+| 139 | **AR** | crypto-perp | $2.44 | 2.75/11.5 | RANGE_BALANCE | BEAR | 57.6 | 50.0% | n/a | n/a | Screener + Live |
+| 140 | **SOPH** | crypto-perp | $0.000894 | 2.75/11.5 | RANGE_BALANCE | BEAR | 50.9 | 50.0% | n/a | n/a | Screener + Live |
+| 141 | **ETHFI** | crypto-perp | $0.508100 | 2.75/11.5 | RANGE_BALANCE | BEAR | 44.3 | 50.0% | n/a | n/a | Screener + Live |
+| 142 | **ZORA** | crypto-perp | $0.004473 | 2.50/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+| 143 | **VELVET** | crypto-perp | $0.080350 | 2.50/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+| 144 | **IOTA** | crypto-perp | $0.031840 | 2.50/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+| 145 | **POPCAT** | crypto-perp | $0.026490 | 2.50/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Tier-1 Deep (16-Pt) |
+| 146 | **ME** | crypto-perp | $0.036710 | 2.50/11.5 | RANGE_BALANCE | NEUTRAL | 57.1 | 50.0% | n/a | n/a | Screener + Live |
+| 147 | **MOVE** | crypto-perp | $0.004655 | 2.50/11.5 | RANGE_BALANCE | NEUTRAL | 53.3 | 50.0% | n/a | n/a | Screener + Live |
+| 148 | **EVAA** | crypto-perp | $3.03 | 2.50/11.5 | RANGE_BALANCE | BULL | 48.5 | 50.0% | n/a | n/a | Screener + Live |
+| 149 | **ESPORTS** | crypto-perp | $0.010028 | 2.50/11.5 | RANGE_BALANCE | NEUTRAL | 47.9 | 50.0% | n/a | n/a | Screener + Live |
+| 150 | **IO** | crypto-perp | $0.104500 | 2.50/11.5 | RANGE_BALANCE | NEUTRAL | 53.8 | 50.0% | n/a | n/a | Screener + Live |
+| 151 | **COAI** | crypto-perp | $0.173200 | 2.50/11.5 | RANGE_BALANCE | BEAR | 50.0 | 50.0% | n/a | n/a | Screener + Live |
+| 152 | **MEME** | crypto-perp | $0.000301 | 2.50/11.5 | RANGE_BALANCE | BEAR | 48.8 | 50.0% | n/a | n/a | Screener + Live |
+| 153 | **NOT** | crypto-perp | $0.000300 | 2.50/11.5 | RANGE_BALANCE | NEUTRAL | 50.5 | 50.0% | n/a | n/a | Screener + Live |
+| 154 | **PEOPLE** | crypto-perp | $0.004979 | 2.50/11.5 | RANGE_BALANCE | BEAR | 56.4 | 50.0% | n/a | n/a | Screener + Live |
+| 155 | **PAXG** | crypto-perp | $3,651.68 | 2.50/11.5 | RANGE_BALANCE | BEAR | 54.9 | 50.0% | n/a | n/a | Screener + Live |
+| 156 | **PNUT** | crypto-perp | $0.027250 | 2.50/11.5 | RANGE_BALANCE | BEAR | 48.9 | 50.0% | n/a | n/a | Screener + Live |
+| 157 | **JCT** | crypto-perp | $0.001600 | 2.50/11.5 | RANGE_BALANCE | BEAR | 47.0 | 50.0% | n/a | n/a | Screener + Live |
+| 158 | **FF** | crypto-perp | $0.102890 | 2.50/11.5 | RANGE_BALANCE | BULL | 63.4 | 50.0% | n/a | n/a | Screener + Live |
+| 159 | **KAITO** | crypto-perp | $0.167600 | 2.50/11.5 | RANGE_BALANCE | NEUTRAL | 48.5 | 50.0% | n/a | n/a | Screener + Live |
+| 160 | **KITE** | crypto-perp | $0.141000 | 2.50/11.5 | RANGE_BALANCE | BULL | 64.2 | 50.0% | n/a | n/a | Screener + Live |
+| 161 | **ALT** | crypto-perp | $0.004418 | 2.50/11.5 | RANGE_BALANCE | NEUTRAL | 53.9 | 50.0% | n/a | n/a | Screener + Live |
+| 162 | **RLC** | crypto-perp | $0.320600 | 2.50/11.5 | RANGE_BALANCE | NEUTRAL | 51.3 | 50.0% | n/a | n/a | Screener + Live |
+| 163 | **RIVER** | crypto-perp | $0.638800 | 2.50/11.5 | RANGE_BALANCE | NEUTRAL | 51.5 | 50.0% | n/a | n/a | Screener + Live |
+| 164 | **CAKE** | crypto-perp | $1.58 | 2.50/11.5 | RANGE_BALANCE | BEAR | 55.1 | 50.0% | n/a | n/a | Screener + Live |
+| 165 | **WIF** | crypto-perp | $0.128400 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | 53.8 | 50.0% | n/a | n/a | Screener + Live |
+| 166 | **H** | crypto-perp | $0.013410 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | 52.2 | 50.0% | n/a | n/a | Screener + Live |
+| 167 | **AIGENSYN** | crypto-perp | $0.016380 | 2.00/11.5 | RANGE_BALANCE | BULL | 61.6 | 50.0% | n/a | n/a | Screener + Live |
+| 168 | **JUP** | crypto-perp | $0.245300 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | 56.6 | 50.0% | n/a | n/a | Screener + Live |
+| 169 | **AVAAI** | crypto-perp | $0.007591 | 2.00/11.5 | RANGE_BALANCE | BULL | 52.8 | 50.0% | n/a | n/a | Screener + Live |
+| 170 | **MASK** | crypto-perp | $0.279200 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | 60.4 | 50.0% | n/a | n/a | Screener + Live |
+| 171 | **RAVE** | crypto-perp | $0.122100 | 2.00/11.5 | RANGE_BALANCE | BEAR | 68.1 | 50.0% | n/a | n/a | Screener + Live |
+| 172 | **IOST** | crypto-perp | $0.000616 | 2.00/11.5 | RANGE_BALANCE | BEAR | 64.8 | 50.0% | n/a | n/a | Screener + Live |
+| 173 | **VANA** | crypto-perp | $0.579800 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | 55.0 | 50.0% | n/a | n/a | Screener + Live |
+| 174 | **STBL** | crypto-perp | $0.019410 | 2.00/11.5 | RANGE_BALANCE | BEAR | 69.2 | 50.0% | n/a | n/a | Screener + Live |
+| 175 | **TOWNS** | crypto-perp | $0.000918 | 2.00/11.5 | RANGE_BALANCE | NEUTRAL | 58.7 | 50.0% | n/a | n/a | Screener + Live |
+| 176 | **SIREN** | crypto-perp | $0.025520 | 2.00/11.5 | RANGE_BALANCE | BEAR | 40.9 | 50.0% | n/a | n/a | Screener + Live |
+| 177 | **QNT** | crypto-perp | $162.05 | 1.75/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+| 178 | **CROSS** | crypto-perp | $0.132110 | 1.75/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+| 179 | **TLM** | crypto-perp | $0.000934 | 1.75/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+| 180 | **MMT** | crypto-perp | $0.193100 | 1.75/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+| 181 | **S** | crypto-perp | $0.028910 | 1.75/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+| 182 | **VVV** | crypto-perp | $25.10 | 1.75/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+| 183 | **OPN** | crypto-perp | $0.031670 | 1.75/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+| 184 | **SAGA** | crypto-perp | $0.013630 | 1.75/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+| 185 | **MELANIA** | crypto-perp | $0.052680 | 1.75/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+| 186 | **BANK** | crypto-perp | $0.016080 | 1.75/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+| 187 | **PIPPIN** | crypto-perp | $0.018290 | 1.75/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+| 188 | **ORDI** | crypto-perp | $2.70 | 1.75/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+| 189 | **MON** | crypto-perp | $0.011740 | 1.75/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+| 190 | **1000FLOKI** | crypto-perp | $0.016980 | 1.75/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+| 191 | **LAYER** | crypto-perp | $0.043340 | 1.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+| 192 | **DEEP** | crypto-perp | $0.012180 | 1.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+| 193 | **BILL** | crypto-perp | $0.004185 | 1.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+| 194 | **PUMP** | crypto-perp | $0.002626 | 1.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+| 195 | **ZK** | crypto-perp | $0.007025 | 1.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+| 196 | **DOGS** | crypto-perp | $0.000026 | 1.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+| 197 | **SPX** | crypto-perp | $0.289100 | 1.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+| 198 | **AKE** | crypto-perp | $0.002466 | 1.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+| 199 | **MUBARAK** | crypto-perp | $0.026220 | 1.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+| 200 | **HIVE** | crypto-perp | $0.034720 | 1.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+| 201 | **TST** | crypto-perp | $0.010480 | 1.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+| 202 | **BIO** | crypto-perp | $0.015650 | 1.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+| 203 | **PIEVERSE** | crypto-perp | $3.66 | 1.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+| 204 | **RARE** | crypto-perp | $0.013390 | 1.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+| 205 | **GLM** | crypto-perp | $0.090620 | 1.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+| 206 | **BEAT** | crypto-perp | $0.077740 | 1.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+| 207 | **ARC** | crypto-perp | $0.028560 | 1.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+| 208 | **AIN** | crypto-perp | $0.100060 | 1.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+| 209 | **API3** | crypto-perp | $0.176600 | 1.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+| 210 | **FRAX** | crypto-perp | $0.197600 | 1.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+| 211 | **GOAT** | crypto-perp | $0.010740 | 1.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+| 212 | **SUN** | crypto-perp | $0.014815 | 1.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+| 213 | **JTO** | crypto-perp | $0.247000 | 1.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+| 214 | **MOODENG** | crypto-perp | $0.026560 | 1.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+| 215 | **MOVR** | crypto-perp | $0.875800 | 1.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+| 216 | **1000SATS** | crypto-perp | $0.000007 | 1.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+| 217 | **LIT** | crypto-perp | $2.62 | 1.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+| 218 | **STRK** | crypto-perp | $0.032620 | 1.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+| 219 | **HANA** | crypto-perp | $0.012250 | 1.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+| 220 | **SKL** | crypto-perp | $0.002946 | 1.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+| 221 | **IRYS** | crypto-perp | $0.017190 | 1.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+| 222 | **SIGN** | crypto-perp | $0.008690 | 1.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+| 223 | **EIGEN** | crypto-perp | $0.118400 | 1.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+| 224 | **FARTCOIN** | crypto-perp | $0.085000 | 1.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+| 225 | **ARK** | crypto-perp | $0.128100 | 1.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+| 226 | **PENDLE** | crypto-perp | $1.34 | 1.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+| 227 | **ACT** | crypto-perp | $0.008803 | 1.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+| 228 | **SPX500** | classic | $7,232.40 | 1.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+| 229 | **UKO** | classic | $87.50 | 1.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
+| 230 | **NDX100** | classic | $26,698.00 | 1.00/11.5 | RANGE_BALANCE | NEUTRAL | n/a | 50.0% | n/a | n/a | Screener + Live |
 
 ---
 
 ## 3. High-Confluence Candidate Deep Dives (Top Tier)
-### ICP (Confluence Score: 10.25/11.5 · Kind: crypto-perp · Crypto)
-- **Live Price**: $2.12 | **VWAP Anchor**: $2.06
-- **Market Regime**: RANGE_BALANCE | **Directional Bias**: LONG | **Execution Grade**: B
-- **Leverage Profile**: Long Share = 89.6% | Liquidation Magnet = $72k
-- **Order-Book Imbalance**: +0.0953
+### 1000PEPE (Confluence Score: 8.75/11.5 · Kind: crypto-perp · Crypto)
+- **Live Price**: $0.0035334 | **VWAP Anchor**: $0.00
+- **Market Regime**: RANGE_BALANCE | **Directional Bias**: BEAR | **Execution Grade**: WAIT
+- **Leverage Profile**: Long Share = 50.0% | Liquidation Magnet = $0k
+- **Order-Book Imbalance**: Neutral
 - **16-Point Confluence Breakdown**:
-  * Auction POC proximity: `+0.75 pts`
-  * Liquidation magnet active ($135k): `+0.25 pts`
-  * Heavy Long Skew (Squeeze Risk Down) (89.6%): `+0.75 pts`
-  * Confirmed Resting Walls (1 walls): `+0.50 pts`
-  * Orderbook Imbalance (Bid-Heavy: +0.095): `+0.50 pts`
-  * CVD Aggression (Taker Sell Dom: 43.5%): `+0.75 pts`
-  * Active CVD Divergence (29 detected): `+0.75 pts`
-  * Institutional Footprint Signals (1 active): `+1.00 pts`
-  * 7D Cumulative Delta (-2,564,126): `+1.00 pts`
+  * Day VWAP mean-reversion proximity: `+0.50 pts`
+  * Major liquidation cluster ($506.5M): `+0.75 pts`
+  * Leverage Skew (75.0%): `+0.50 pts`
+  * Orderbook Imbalance (Ask-Heavy: -1.000): `+0.50 pts`
+  * CVD Aggression (Taker Sell Dom: 36.6%): `+0.75 pts`
+  * Active CVD Divergence (25 detected): `+0.75 pts`
+  * 7D Cumulative Delta (-2,572,121,775,080): `+1.00 pts`
   * Whale / Large Order coverage verified: `+1.00 pts`
   * Funding & OI Telemetry Active: `+1.00 pts`
-  * RSI Momentum (63.4): `+0.50 pts`
+  * RSI Momentum (45.7): `+0.50 pts`
   * Multi-TF EMA stack verified: `+0.50 pts`
   * Base Structure Asymmetry verified (>= 2.0R viable): `+1.00 pts`
 
-### DOGE (Confluence Score: 10.0/11.5 · Kind: crypto-perp · Crypto)
-- **Live Price**: $0.05802 | **VWAP Anchor**: $0.06
-- **Market Regime**: RANGE_BALANCE | **Directional Bias**: NEUTRAL | **Execution Grade**: SKIP
-- **Leverage Profile**: Long Share = 73.3% | Largest Liquidation Cluster = $1.06M
-- **Order-Book Imbalance**: -0.0781
+### XLM (Confluence Score: 8.5/11.5 · Kind: crypto-perp · Crypto)
+- **Live Price**: $0.13465 | **VWAP Anchor**: $0.13
+- **Market Regime**: RANGE_BALANCE | **Directional Bias**: BEAR | **Execution Grade**: MONITOR
+- **Leverage Profile**: Long Share = 90.1% | Liquidation Magnet = $114k
+- **Order-Book Imbalance**: Neutral
 - **16-Point Confluence Breakdown**:
   * Auction Value Area boundary test: `+1.00 pts`
-  * Major liquidation cluster ($57.0M): `+0.75 pts`
-  * Leverage Skew (73.3%): `+0.50 pts`
-  * Confirmed Resting Walls (2 walls): `+0.50 pts`
-  * Orderbook Imbalance (Ask-Heavy: -0.078): `+0.50 pts`
-  * Active CVD Divergence (24 detected): `+0.75 pts`
-  * Institutional Footprint Signals (1 active): `+1.00 pts`
-  * 7D Cumulative Delta (-196,197,203): `+1.00 pts`
-  * Whale / Large Order coverage verified: `+1.00 pts`
-  * Funding & OI Telemetry Active: `+1.00 pts`
-  * RSI Momentum (56.6): `+0.50 pts`
-  * Multi-TF EMA stack verified: `+0.50 pts`
-  * Base Structure Asymmetry verified (>= 2.0R viable): `+1.00 pts`
-
-### XAU (Confluence Score: 10.0/11.5 · Kind: tradfi-perp · TradFi)
-- **Live Price**: $3,680.30 | **VWAP Anchor**: $3,636.25
-- **Market Regime**: RANGE_BALANCE | **Directional Bias**: LONG | **Execution Grade**: B
-- **Leverage Profile**: Long Share = 84.0% | Largest Liquidation Cluster = $4.86M
-- **Order-Book Imbalance**: -0.1142
-- **16-Point Confluence Breakdown**:
-  * Auction Value Area boundary test: `+1.00 pts`
-  * Significant liquidation pool ($4.9M): `+0.50 pts`
-  * Heavy Long Skew (Squeeze Risk Down) (84.0%): `+0.75 pts`
-  * Confirmed Resting Walls (8 walls): `+0.50 pts`
-  * Orderbook Imbalance (Ask-Heavy: -0.114): `+0.50 pts`
-  * Active CVD Divergence (44 detected): `+0.75 pts`
-  * Institutional Footprint Signals (1 active): `+1.00 pts`
-  * 7D Cumulative Delta (-24,202): `+1.00 pts`
-  * Whale / Large Order coverage verified: `+1.00 pts`
-  * Funding & OI Telemetry Active: `+1.00 pts`
-  * RSI Momentum (63.1): `+0.50 pts`
-  * Multi-TF EMA stack verified: `+0.50 pts`
-  * Base Structure Asymmetry verified (>= 2.0R viable): `+1.00 pts`
-
-### BTC (Confluence Score: 9.5/11.5 · Kind: crypto-perp · Crypto)
-- **Live Price**: $62,353.40 | **VWAP Anchor**: $62,438.43
-- **Market Regime**: TREND_DOWN | **Directional Bias**: SHORT | **Execution Grade**: B
-- **Leverage Profile**: Long Share = 70.8% | Largest Liquidation Cluster = $94.28M
-- **Order-Book Imbalance**: -0.0534
-- **16-Point Confluence Breakdown**:
-  * Auction Value Area boundary test: `+1.00 pts`
-  * Major liquidation cluster ($94.3M): `+0.75 pts`
-  * Leverage Skew (70.8%): `+0.50 pts`
-  * Orderbook Imbalance (Ask-Heavy: -0.053): `+0.50 pts`
-  * Active CVD Divergence (20 detected): `+0.75 pts`
-  * Institutional Footprint Signals (1 active): `+1.00 pts`
-  * 7D Cumulative Delta (-620): `+1.00 pts`
-  * Whale / Large Order coverage verified: `+1.00 pts`
-  * Funding & OI Telemetry Active: `+1.00 pts`
-  * RSI Momentum (50.4): `+0.50 pts`
-  * Multi-TF EMA stack verified: `+0.50 pts`
-  * Base Structure Asymmetry verified (>= 2.0R viable): `+1.00 pts`
-
-### LINK (Confluence Score: 9.5/11.5 · Kind: crypto-perp · Crypto)
-- **Live Price**: $9.20 | **VWAP Anchor**: $9.13
-- **Market Regime**: RANGE_BALANCE | **Directional Bias**: NEUTRAL | **Execution Grade**: SKIP
-- **Leverage Profile**: Long Share = 72.9% | Liquidation Magnet = $240k
-- **Order-Book Imbalance**: -0.1007
-- **16-Point Confluence Breakdown**:
-  * Auction Value Area boundary test: `+1.00 pts`
-  * Liquidation magnet active ($240k): `+0.25 pts`
-  * Leverage Skew (72.9%): `+0.50 pts`
-  * Confirmed Resting Walls (2 walls): `+0.50 pts`
-  * Orderbook Imbalance (Ask-Heavy: -0.101): `+0.50 pts`
-  * Active CVD Divergence (28 detected): `+0.75 pts`
-  * Institutional Footprint Signals (1 active): `+1.00 pts`
-  * 7D Cumulative Delta (-889,703): `+1.00 pts`
-  * Whale / Large Order coverage verified: `+1.00 pts`
-  * Funding & OI Telemetry Active: `+1.00 pts`
-  * RSI Momentum (54.9): `+0.50 pts`
-  * Multi-TF EMA stack verified: `+0.50 pts`
-  * Base Structure Asymmetry verified (>= 2.0R viable): `+1.00 pts`
-
-### FIL (Confluence Score: 9.5/11.5 · Kind: crypto-perp · Crypto)
-- **Live Price**: $0.5811 | **VWAP Anchor**: $0.56
-- **Market Regime**: RANGE_BALANCE | **Directional Bias**: NEUTRAL | **Execution Grade**: SKIP
-- **Leverage Profile**: Long Share = 74.0% | Liquidation Magnet = $239k
-- **Order-Book Imbalance**: -0.0651
-- **16-Point Confluence Breakdown**:
-  * Auction POC proximity: `+0.75 pts`
-  * Liquidation magnet active ($811k): `+0.25 pts`
-  * Leverage Skew (74.0%): `+0.50 pts`
-  * Orderbook Imbalance (Ask-Heavy: -0.065): `+0.50 pts`
-  * CVD Aggression (Taker Sell Dom: 43.2%): `+0.75 pts`
+  * Significant liquidation pool ($4.3M): `+0.50 pts`
+  * Heavy Long Skew (Squeeze Risk Down) (90.1%): `+0.75 pts`
+  * Confirmed Resting Walls (5 walls): `+0.50 pts`
   * Active CVD Divergence (27 detected): `+0.75 pts`
   * Institutional Footprint Signals (1 active): `+1.00 pts`
-  * 7D Cumulative Delta (-30,450,214): `+1.00 pts`
   * Whale / Large Order coverage verified: `+1.00 pts`
   * Funding & OI Telemetry Active: `+1.00 pts`
-  * RSI Extreme (Overbought: 73.4): `+0.50 pts`
+  * RSI Momentum (66.3): `+0.50 pts`
   * Multi-TF EMA stack verified: `+0.50 pts`
   * Base Structure Asymmetry verified (>= 2.0R viable): `+1.00 pts`
 
-### ARB (Confluence Score: 9.5/11.5 · Kind: crypto-perp · Crypto)
-- **Live Price**: $0.11562 | **VWAP Anchor**: $0.12
-- **Market Regime**: TREND_DOWN | **Directional Bias**: SHORT | **Execution Grade**: B
-- **Leverage Profile**: Long Share = 57.3% | Liquidation Magnet = $218k
-- **Order-Book Imbalance**: -0.0937
+### OP (Confluence Score: 8.5/11.5 · Kind: crypto-perp · Crypto)
+- **Live Price**: $0.07231 | **VWAP Anchor**: $0.07
+- **Market Regime**: RANGE_BALANCE | **Directional Bias**: NEUTRAL | **Execution Grade**: WAIT
+- **Leverage Profile**: Long Share = 50.0% | Liquidation Magnet = $0k
+- **Order-Book Imbalance**: Neutral
+- **16-Point Confluence Breakdown**:
+  * Auction POC proximity: `+0.75 pts`
+  * Significant liquidation pool ($8.8M): `+0.50 pts`
+  * Leverage Skew (75.0%): `+0.50 pts`
+  * Orderbook Imbalance (Ask-Heavy: -1.000): `+0.50 pts`
+  * CVD Aggression (Taker Sell Dom: 44.0%): `+0.75 pts`
+  * Active CVD Divergence (bearish): `+0.75 pts`
+  * Institutional Footprint Signals (1 active): `+1.00 pts`
+  * 7D Cumulative Delta (-51,618,677): `+1.00 pts`
+  * Whale Order Depth Active: `+0.75 pts`
+  * RSI Momentum (48.0): `+0.50 pts`
+  * Multi-TF EMA stack verified: `+0.50 pts`
+  * Base Structure Asymmetry verified (>= 2.0R viable): `+1.00 pts`
+
+### 1000SHIB (Confluence Score: 8.25/11.5 · Kind: crypto-perp · Crypto)
+- **Live Price**: $0.00371 | **VWAP Anchor**: $0.00
+- **Market Regime**: RANGE_BALANCE | **Directional Bias**: NEUTRAL | **Execution Grade**: SKIP
+- **Leverage Profile**: Long Share = 89.3% | Liquidation Magnet = $52k
+- **Order-Book Imbalance**: +0.0006
 - **16-Point Confluence Breakdown**:
   * Auction Value Area boundary test: `+1.00 pts`
-  * Significant liquidation pool ($5.7M): `+0.50 pts`
-  * Orderbook Imbalance (Ask-Heavy: -0.094): `+0.50 pts`
-  * CVD Aggression (Taker Sell Dom: 36.6%): `+0.75 pts`
-  * Active CVD Divergence (31 detected): `+0.75 pts`
-  * Institutional Footprint Signals (1 active): `+1.00 pts`
-  * 7D Cumulative Delta (-37,057,072): `+1.00 pts`
+  * Liquidation magnet active ($52k): `+0.25 pts`
+  * Heavy Long Skew (Squeeze Risk Down) (89.3%): `+0.75 pts`
+  * Confirmed Resting Walls (7 walls): `+0.50 pts`
+  * Active CVD Divergence (30 detected): `+0.75 pts`
+  * 7D Cumulative Delta (-401,329,414,513): `+1.00 pts`
   * Whale / Large Order coverage verified: `+1.00 pts`
   * Funding & OI Telemetry Active: `+1.00 pts`
-  * RSI Momentum (47.6): `+0.50 pts`
+  * RSI Momentum (49.3): `+0.50 pts`
   * Multi-TF EMA stack verified: `+0.50 pts`
   * Base Structure Asymmetry verified (>= 2.0R viable): `+1.00 pts`
 
-### OP (Confluence Score: 9.5/11.5 · Kind: crypto-perp · Crypto)
-- **Live Price**: $0.07321 | **VWAP Anchor**: $0.07
-- **Market Regime**: RANGE_BALANCE | **Directional Bias**: NEUTRAL | **Execution Grade**: SKIP
-- **Leverage Profile**: Long Share = 71.7% | Liquidation Magnet = $66k
-- **Order-Book Imbalance**: +0.0756
+### XAU (Confluence Score: 8.25/11.5 · Kind: tradfi-perp · TradFi)
+- **Live Price**: $3,668.91 | **VWAP Anchor**: $3,637.77
+- **Market Regime**: RANGE_BALANCE | **Directional Bias**: LONG | **Execution Grade**: B
+- **Leverage Profile**: Long Share = 83.9% | Largest Liquidation Cluster = $4.86M
+- **Order-Book Imbalance**: -0.0021
 - **16-Point Confluence Breakdown**:
-  * Significant liquidation pool ($3.1M): `+0.50 pts`
-  * Leverage Skew (71.7%): `+0.50 pts`
-  * Confirmed Resting Walls (3 walls): `+0.50 pts`
-  * Orderbook Imbalance (Bid-Heavy: +0.076): `+0.50 pts`
-  * CVD Aggression (Taker Sell Dom: 14.9%): `+0.75 pts`
-  * Active CVD Divergence (34 detected): `+0.75 pts`
-  * Institutional Footprint Signals (1 active): `+1.00 pts`
-  * 7D Cumulative Delta (-48,172,126): `+1.00 pts`
+  * Auction POC proximity: `+0.75 pts`
+  * Significant liquidation pool ($4.9M): `+0.50 pts`
+  * Heavy Long Skew (Squeeze Risk Down) (83.9%): `+0.75 pts`
+  * Confirmed Resting Walls (8 walls): `+0.50 pts`
+  * Active CVD Divergence (48 detected): `+0.75 pts`
+  * 7D Cumulative Delta (-23,823): `+1.00 pts`
   * Whale / Large Order coverage verified: `+1.00 pts`
   * Funding & OI Telemetry Active: `+1.00 pts`
-  * RSI Momentum (54.1): `+0.50 pts`
+  * RSI Momentum (55.3): `+0.50 pts`
   * Multi-TF EMA stack verified: `+0.50 pts`
   * Base Structure Asymmetry verified (>= 2.0R viable): `+1.00 pts`
 
-### XRP (Confluence Score: 9.25/11.5 · Kind: crypto-perp · Crypto)
-- **Live Price**: $0.9737 | **VWAP Anchor**: $0.97
+### NVDA (Confluence Score: 8.25/11.5 · Kind: tradfi-perp · TradFi)
+- **Live Price**: $166.46 | **VWAP Anchor**: $159.26
 - **Market Regime**: RANGE_BALANCE | **Directional Bias**: NEUTRAL | **Execution Grade**: SKIP
-- **Leverage Profile**: Long Share = 67.7% | Largest Liquidation Cluster = $3.03M
-- **Order-Book Imbalance**: -0.0629
+- **Leverage Profile**: Long Share = 60.9% | Largest Liquidation Cluster = $13.72M
+- **Order-Book Imbalance**: +0.2733
 - **16-Point Confluence Breakdown**:
-  * Auction Value Area boundary test: `+1.00 pts`
-  * Significant liquidation pool ($8.6M): `+0.50 pts`
+  * Auction POC proximity: `+0.75 pts`
+  * Major liquidation cluster ($13.7M): `+0.75 pts`
+  * Confirmed Resting Walls (4 walls): `+0.50 pts`
+  * Orderbook Imbalance (Bid-Heavy: +0.273): `+0.50 pts`
+  * Active CVD Divergence (30 detected): `+0.75 pts`
+  * 7D Cumulative Delta (-1,951,213): `+1.00 pts`
+  * Whale / Large Order coverage verified: `+1.00 pts`
+  * Funding & OI Telemetry Active: `+1.00 pts`
+  * RSI Momentum (68.7): `+0.50 pts`
+  * Multi-TF EMA stack verified: `+0.50 pts`
+  * Base Structure Asymmetry verified (>= 2.0R viable): `+1.00 pts`
+
+### XAG (Confluence Score: 8.0/11.5 · Kind: tradfi-perp · TradFi)
+- **Live Price**: $43.62 | **VWAP Anchor**: $43.01
+- **Market Regime**: RANGE_BALANCE | **Directional Bias**: LONG | **Execution Grade**: B
+- **Leverage Profile**: Long Share = 74.7% | Largest Liquidation Cluster = $4.00M
+- **Order-Book Imbalance**: -0.0398
+- **16-Point Confluence Breakdown**:
+  * Auction POC proximity: `+0.75 pts`
+  * Significant liquidation pool ($4.0M): `+0.50 pts`
+  * Leverage Skew (74.7%): `+0.50 pts`
   * Confirmed Resting Walls (1 walls): `+0.50 pts`
-  * Orderbook Imbalance (Ask-Heavy: -0.063): `+0.50 pts`
-  * Active CVD Divergence (33 detected): `+0.75 pts`
-  * Institutional Footprint Signals (1 active): `+1.00 pts`
-  * 7D Cumulative Delta (-33,089,099): `+1.00 pts`
+  * Active CVD Divergence (26 detected): `+0.75 pts`
+  * 7D Cumulative Delta (+1,566,512): `+1.00 pts`
   * Whale / Large Order coverage verified: `+1.00 pts`
   * Funding & OI Telemetry Active: `+1.00 pts`
+  * RSI Momentum (55.7): `+0.50 pts`
+  * Multi-TF EMA stack verified: `+0.50 pts`
+  * Base Structure Asymmetry verified (>= 2.0R viable): `+1.00 pts`
+
+### XRP (Confluence Score: 7.75/11.5 · Kind: crypto-perp · Crypto)
+- **Live Price**: $0.9662 | **VWAP Anchor**: $0.97
+- **Market Regime**: RANGE_BALANCE | **Directional Bias**: BEAR | **Execution Grade**: WAIT
+- **Leverage Profile**: Long Share = 50.0% | Liquidation Magnet = $0k
+- **Order-Book Imbalance**: Neutral
+- **16-Point Confluence Breakdown**:
+  * Day VWAP mean-reversion proximity: `+0.50 pts`
+  * Major liquidation cluster ($14.4M): `+0.75 pts`
+  * Leverage Skew (75.0%): `+0.50 pts`
+  * Orderbook Imbalance (Bid-Heavy: +0.070): `+0.50 pts`
+  * CVD Aggression (Taker Buy Dom: 56.0%): `+0.75 pts`
+  * Institutional Footprint Signals (1 active): `+1.00 pts`
+  * 7D Cumulative Delta (-47,477,112): `+1.00 pts`
+  * Whale Order Depth Active: `+0.75 pts`
+  * RSI Momentum (48.3): `+0.50 pts`
+  * Multi-TF EMA stack verified: `+0.50 pts`
+  * Base Structure Asymmetry verified (>= 2.0R viable): `+1.00 pts`
+
+### DOGE (Confluence Score: 7.75/11.5 · Kind: crypto-perp · Crypto)
+- **Live Price**: $0.0577 | **VWAP Anchor**: $0.06
+- **Market Regime**: RANGE_BALANCE | **Directional Bias**: NEUTRAL | **Execution Grade**: WAIT
+- **Leverage Profile**: Long Share = 50.0% | Liquidation Magnet = $0k
+- **Order-Book Imbalance**: Neutral
+- **16-Point Confluence Breakdown**:
+  * Day VWAP mean-reversion proximity: `+0.50 pts`
+  * Major liquidation cluster ($100.6M): `+0.75 pts`
+  * Leverage Skew (75.0%): `+0.50 pts`
+  * Orderbook Imbalance (Bid-Heavy: +0.130): `+0.50 pts`
+  * CVD Aggression (Taker Buy Dom: 56.0%): `+0.75 pts`
+  * Institutional Footprint Signals (1 active): `+1.00 pts`
+  * 7D Cumulative Delta (-210,932,285): `+1.00 pts`
+  * Whale Order Depth Active: `+0.75 pts`
   * RSI Momentum (51.6): `+0.50 pts`
   * Multi-TF EMA stack verified: `+0.50 pts`
   * Base Structure Asymmetry verified (>= 2.0R viable): `+1.00 pts`
 
-### ATOM (Confluence Score: 9.25/11.5 · Kind: crypto-perp · Crypto)
-- **Live Price**: $1.28 | **VWAP Anchor**: $1.23
-- **Market Regime**: RANGE_BALANCE | **Directional Bias**: LONG | **Execution Grade**: B
-- **Leverage Profile**: Long Share = 77.0% | Liquidation Magnet = $68k
-- **Order-Book Imbalance**: -0.3703
+### TRX (Confluence Score: 7.75/11.5 · Kind: crypto-perp · Crypto)
+- **Live Price**: $0.31201 | **VWAP Anchor**: $0.31
+- **Market Regime**: RANGE_BALANCE | **Directional Bias**: BEAR | **Execution Grade**: WAIT
+- **Leverage Profile**: Long Share = 50.0% | Liquidation Magnet = $0k
+- **Order-Book Imbalance**: Neutral
 - **16-Point Confluence Breakdown**:
-  * Auction Value Area boundary test: `+1.00 pts`
-  * Liquidation magnet active ($68k): `+0.25 pts`
-  * Leverage Skew (77.0%): `+0.50 pts`
-  * Confirmed Resting Walls (1 walls): `+0.50 pts`
-  * Orderbook Imbalance (Ask-Heavy: -0.370): `+0.50 pts`
-  * CVD Aggression (Taker Sell Dom: 38.7%): `+0.75 pts`
-  * Active CVD Divergence (28 detected): `+0.75 pts`
-  * 7D Cumulative Delta (-1,313,638): `+1.00 pts`
+  * Day VWAP mean-reversion proximity: `+0.50 pts`
+  * Significant liquidation pool ($4.6M): `+0.50 pts`
+  * Leverage Skew (75.0%): `+0.50 pts`
+  * Orderbook Imbalance (Ask-Heavy: -1.000): `+0.50 pts`
+  * Active CVD Divergence (33 detected): `+0.75 pts`
+  * 7D Cumulative Delta (+39,334,861): `+1.00 pts`
   * Whale / Large Order coverage verified: `+1.00 pts`
   * Funding & OI Telemetry Active: `+1.00 pts`
-  * RSI Extreme (Overbought: 76.4): `+0.50 pts`
+  * RSI Extreme (Overbought: 75.8): `+0.50 pts`
   * Multi-TF EMA stack verified: `+0.50 pts`
   * Base Structure Asymmetry verified (>= 2.0R viable): `+1.00 pts`
 
 ---
 
-## 4. Quarantined / Observe-Only / Closed Instruments (49 Assets)
+## 4. Quarantined / Observe-Only / Closed Instruments (1 Assets)
 Per Rule 9 (Universe Scope Governance & Via Negativa) and Lindy Honesty Rules, instruments without active liquid order-flow feeds, closed TradFi markets, or settling perps are quarantined:
 
 | Symbol | Kind | Category | Status / Disposition |
 | :--- | :--- | :--- | :--- |
 | **ANTHROPIC** | tradfi-perp | TradFi | UNQUOTED / OFFLINE / SETTLING |
-| **KORU** | tradfi-perp | TradFi | UNQUOTED / OFFLINE / SETTLING |
-| **JASMY** | crypto-perp | Crypto | UNQUOTED / OFFLINE / SETTLING |
-| **XPL** | crypto-perp | Crypto | UNQUOTED / OFFLINE / SETTLING |
-| **AIXBT** | crypto-perp | Crypto | UNQUOTED / OFFLINE / SETTLING |
-| **RED** | crypto-perp | Crypto | UNQUOTED / OFFLINE / SETTLING |
-| **GRIFFAIN** | crypto-perp | Crypto | UNQUOTED / OFFLINE / SETTLING |
-| **BTW** | crypto-perp | Crypto | UNQUOTED / OFFLINE / SETTLING |
-| **ALLO** | crypto-perp | Crypto | UNQUOTED / OFFLINE / SETTLING |
-| **SKYAI** | crypto-perp | Crypto | UNQUOTED / OFFLINE / SETTLING |
-| **DASH** | crypto-perp | Crypto | UNQUOTED / OFFLINE / SETTLING |
-| **PENGU** | crypto-perp | Crypto | UNQUOTED / OFFLINE / SETTLING |
-| **SAHARA** | crypto-perp | Crypto | UNQUOTED / OFFLINE / SETTLING |
-| **SOLV** | crypto-perp | Crypto | UNQUOTED / OFFLINE / SETTLING |
-| **TAC** | crypto-perp | Crypto | UNQUOTED / OFFLINE / SETTLING |
-| **DUSK** | crypto-perp | Crypto | UNQUOTED / OFFLINE / SETTLING |
-| **IOTA** | crypto-perp | Crypto | UNQUOTED / OFFLINE / SETTLING |
-| **BASED** | crypto-perp | Crypto | UNQUOTED / OFFLINE / SETTLING |
-| **ORDER** | crypto-perp | Crypto | UNQUOTED / OFFLINE / SETTLING |
-| **BR** | crypto-perp | Crypto | UNQUOTED / OFFLINE / SETTLING |
-| **XAN** | crypto-perp | Crypto | UNQUOTED / OFFLINE / SETTLING |
-| **POPCAT** | crypto-perp | Crypto | UNQUOTED / OFFLINE / SETTLING |
-| **WCT** | crypto-perp | Crypto | UNQUOTED / OFFLINE / SETTLING |
-| **BLESS** | crypto-perp | Crypto | UNQUOTED / OFFLINE / SETTLING |
-| **CHIP** | crypto-perp | Crypto | UNQUOTED / OFFLINE / SETTLING |
-| **GIGGLE** | crypto-perp | Crypto | UNQUOTED / OFFLINE / SETTLING |
-| **VIRTUAL** | crypto-perp | Crypto | UNQUOTED / OFFLINE / SETTLING |
-| **NMR** | crypto-perp | Crypto | UNQUOTED / OFFLINE / SETTLING |
-| **M** | crypto-perp | Crypto | UNQUOTED / OFFLINE / SETTLING |
-| **RSR** | crypto-perp | Crypto | UNQUOTED / OFFLINE / SETTLING |
-| **AXS** | crypto-perp | Crypto | UNQUOTED / OFFLINE / SETTLING |
-| **STX** | crypto-perp | Crypto | UNQUOTED / OFFLINE / SETTLING |
-| **ZEN** | crypto-perp | Crypto | UNQUOTED / OFFLINE / SETTLING |
-| **DOOD** | crypto-perp | Crypto | UNQUOTED / OFFLINE / SETTLING |
-| **MANA** | crypto-perp | Crypto | UNQUOTED / OFFLINE / SETTLING |
-| **LISTA** | crypto-perp | Crypto | UNQUOTED / OFFLINE / SETTLING |
-| **AIO** | crypto-perp | Crypto | UNQUOTED / OFFLINE / SETTLING |
-| **SUSHI** | crypto-perp | Crypto | UNQUOTED / OFFLINE / SETTLING |
-| **MMT** | crypto-perp | Crypto | UNQUOTED / OFFLINE / SETTLING |
-| **DEEP** | crypto-perp | Crypto | UNQUOTED / OFFLINE / SETTLING |
-| **S** | crypto-perp | Crypto | UNQUOTED / OFFLINE / SETTLING |
-| **H** | crypto-perp | Crypto | UNQUOTED / OFFLINE / SETTLING |
-| **AKE** | crypto-perp | Crypto | UNQUOTED / OFFLINE / SETTLING |
-| **PIEVERSE** | crypto-perp | Crypto | UNQUOTED / OFFLINE / SETTLING |
-| **ORDI** | crypto-perp | Crypto | UNQUOTED / OFFLINE / SETTLING |
-| **AIN** | crypto-perp | Crypto | UNQUOTED / OFFLINE / SETTLING |
-| **STBL** | crypto-perp | Crypto | UNQUOTED / OFFLINE / SETTLING |
-| **MOODENG** | crypto-perp | Crypto | UNQUOTED / OFFLINE / SETTLING |
-| **STRK** | crypto-perp | Crypto | UNQUOTED / OFFLINE / SETTLING |
