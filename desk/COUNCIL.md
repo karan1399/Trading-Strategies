@@ -2185,3 +2185,33 @@ etcode=10027: AutoTrading disabled by client on attempt; MT5 'Algo Trading' UI b
   * Resting breakdown sell limit order #1706198389 on BTCUSD active @ 60,300 (Stop 60,349.50).
 **Confidence:** VERIFIED (100% empirical evidence via live MT5 API, process daemons, and terminal API).
 **Proposal:** Maintain 4 green running positions with profit targets. Maintain supervised daemons for IV Wall (4 pos max), Fib Bounce, and Alpha360 watcher (\.50 risk).
+
+### [2026-11-23T22:00:00Z] · Antigravity · ROUND R873 · 30-MIN ORDER-FLOW & TELEMETRY WAKE REVIEW
+**Verdict:** FULL DESK OPERATIONAL ALIGNMENT & TELEMETRY INTEGRITY CONFIRMED.
+- **Telemetry Ingest & Stream Health (	ask-18117)**:
+  * Swept 39 assets across Curated universe in 106.76s at 21:55:27 UTC.
+  * Direct JSON study: 16-point asset files (data/telemetry/assets/*.json) and 7d footprint records (data/telemetry/footprint/*/signals_7d.json) updating in real-time.
+- **Value Area Development & Auction Dynamics**:
+  * BTC: Day POC 61,301.06, VAH 62,989.70, VAL 60,456.74. Price (61,195) rejected from Day POC and sliding into the lower Value Area quadrant toward Day VAL 60,456.74.
+  * ETH: Day POC 1,724.26, VAH 1,788.99, VAL 1,704.34. Price (1,720.56) rejected from POC, downward momentum toward VAL 1,704.34.
+  * SOL: Day POC 72.36, VAH 75.82, VAL 70.19. Price (72.24) compressed beneath POC.
+  * XAU: Day POC 3,626.46, VAH 3,673.09, VAL 3,606.19. Price (3,640.96) rejected from Session VAH 3,683.09, testing toward Day POC 3,626.46.
+- **Footprint Imbalances & Liquidation Magnets**:
+  * BTC Footprint reveals heavy sell absorption (bs) and seller traps (	rap) at 61,443.60 (.35M USD notional) and 61,271.30 (.85M USD notional).
+  * Net negative delta (-433.90 BTC, -22.75% delta share) confirms ongoing distribution.
+  * Atlas Wall Pressure identifies a massive .7M USD bid wall at -1.2% (60,400-60,450), aligning with Day VAL as the primary downside magnet.
+- **Execution Daemons Health Status**:
+  * 	ask-18796: lpha360_watch.py running continuously (60s loop, .50 target risk, 15 basket symbols).
+  * 	ask-18627: ivwall_pilot.py active in LIVE execution mode (Max Positions: 4, 0.5% risk).
+  * 	ask-18618: live_multicriteria_runner.py actively tracking 5M closed candles across 15 symbols.
+  * 	ask-18605: Next.js web terminal running on port 3000 (0 engine errors, green engine live).
+- **Blueberry Markets Live MT5 Blotter (#5126976)**:
+  * Equity: **,560.91 USD** | Balance: **,552.27 USD** | Total Floating Profit: **+.64 USD** (100% green basket).
+  * 1. EURUSD.pi (Ticket #20431294, BUY 0.04 lots @ 1.08932): Current 1.09029 (+.88 USD, Target 1.09260).
+  * 2. BNBUSD.p (Ticket #20432336, SELL 0.19 lots @ 560.90): Current 558.10 (+.53 USD, Target 503.43).
+  * 3. SP500.p (Ticket #20432815, BUY 0.01 lots @ 7239.41): Current 7253.58 (+.42 USD, Target 7315.00).
+  * 4. BTCUSD.pi (Ticket #20435348, SELL 0.03 lots @ 61334.66): Current 61241.00 (+.81 USD, Target 60342.67).
+- **Delta Exchange India CLOB**:
+  * Resting breakdown sell limit order #1706198389 on BTCUSD active @ 60,300 (Stop 60,349.50, Size 1).
+**Confidence:** VERIFIED (100% empirical evidence from telemetry JSONs, live MT5 API, and Delta Exchange MCP).
+**Proposal:** Maintain active 4-trade basket in profit. Let runners hit asymmetric profit targets. Keep all daemons supervised.
