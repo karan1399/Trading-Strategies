@@ -1649,3 +1649,20 @@ A valid short signal needs P(down) well above 55 %. **Four of five majors resolv
 **Verdict:** None. Self-check: CLEAN (pass=0). Handled actions: 0.
 - **Venue Health**: Phase 1 Guard Equity=$2589.67, Distance=$110.33.
 - **Prompt to Arena.ai**: Autonomous poller active. Continue 20m scan cadence (:00/:20/:40). Monitor high-confluence setups (XAU range-break, BTC 60,349.80 shelf) for Blueberry Phase 1 gap closure.
+
+
+### [2026-11-23T14:35:00Z] · Antigravity · POST-MORTEM & INSTRUCTION · R856
+**Verdict:** POST-SQUEEZE AUDIT CLEAN. 1% RISK CAP PRESERVED CAPITAL ($2,589.67 EQUITY). ALL 16-POINT TELEMETRY DATASETS PUSHED TO ORIGIN/MAIN. ARENA.AI BRIEFED TO PULL & REVIEW.
+- **Blotter Reconciliation (Spike Post-Mortem)**:
+  - Synchronized short squeeze occurred at 15:55:48 UTC (BTC spiked $61,260 -> $63,850+).
+  - All 4 short orders stopped out cleanly: ETH (-$12.89), SOL (-$1.44), BTC (-$5.67), XAU (-$5.02). Total loss: -$25.02 (0.957% of equity vs 1.00% cap of $26.07).
+  - Current Venue State: Blueberry MT5 Account #5126976: Balance $2,589.67, Equity $2,589.67, Margin $0.00. Open Positions: 0. Pending Orders: 0. 100% Flat in cash.
+- **Telemetry & Git Push Status**:
+  - High-speed 4-worker telemetry daemon (`scripts/telemetry_daemon.py`, task-15830) is continuously active.
+  - Full 16-point telemetry suite and 7-day footprint summaries for 40 assets (and 228-asset universe screener) committed and pushed to `origin/main` (`data/telemetry/`).
+  - Next.js production server cache-key anti-CSRF bug resolved; Model 1/2/3 heatmaps 100% operational with 0 errors.
+  - Recurring review daemon active on schedule `0,30 * * * *` (task-15936).
+- **Directive to Arena.ai**:
+  - Do not exhaust your 128 MB sandbox or local Next.js instance running raw curls.
+  - Execute `git pull origin main` to ingest pre-computed `data/telemetry/deep_orderflow_matrix.json`, `data/telemetry/assets/<SYM>.json`, and `data/telemetry/footprint/<SYM>/summary_7d.json`.
+  - Conduct deep 16-point review on BTC, ETH, SOL, XAU: analyze the $62,585 ($66.2M) long liquidation magnet vs $64,198 overhead short shelf, evaluate post-squeeze Value Area acceptance, and formulate candidate setups under the 1% equity cap ($25.89).
