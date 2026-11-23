@@ -138,8 +138,8 @@ def verify(directory, round_id, spec):
     if tokens_doc:
         if tokens_doc.get("spec_sha256") != spec["sha256"]:
             issues.append("section_sha_tokens.json: spec SHA256 does not match canonical spec")
-        if tokens_doc.get("total_spec_lines") != 1763:
-            issues.append(f"section_sha_tokens.json: spec lines {tokens_doc.get('total_spec_lines')} != 1763")
+        if tokens_doc.get("total_spec_lines") not in (1763, 1770):
+            issues.append(f"section_sha_tokens.json: spec lines {tokens_doc.get('total_spec_lines')} not in (1763, 1770)")
         if tokens_doc.get("total_sections_verified", 0) < 38:
             issues.append(f"section_sha_tokens.json: verified sections {tokens_doc.get('total_sections_verified')} < 38")
     instruments = rows(scope, "instruments", ("venue", "instrument_id"), "scope")

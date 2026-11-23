@@ -10,7 +10,7 @@ def walk_all(round_id="R800"):
         print(f"=== Starting Step {step} for {round_id} ===")
         while True:
             proc = subprocess.run(
-                [sys.executable, "scripts/archive/legacy-scripts/agent_wake_verification.py", "--round", round_id, "--step", str(step)],
+                [sys.executable, "scripts/agent_wake_verification.py", "--round", round_id, "--step", str(step)],
                 capture_output=True,
                 text=True,
                 encoding="utf-8",

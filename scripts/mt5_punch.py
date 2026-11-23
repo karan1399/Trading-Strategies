@@ -167,10 +167,13 @@ def main():
         if result is None:
             print(json.dumps({"ok": False, "error": f"order_send returned None: {mt5.last_error()}"}))
             sys.exit(1)
-        # unsupported filling mode -> FOK fallback (same as mt5_cg_trader)
+        # unsupported filling mode -> FOK / RETURN fallback
         if result.retcode not in (mt5.TRADE_RETCODE_DONE, mt5.TRADE_RETCODE_PLACED) and result.retcode == 10030:
             request["type_filling"] = mt5.ORDER_FILLING_FOK
             result = mt5.order_send(request)
+            if result and result.retcode not in (mt5.TRADE_RETCODE_DONE, mt5.TRADE_RETCODE_PLACED) and result.retcode == 10030:
+                request["type_filling"] = mt5.ORDER_FILLING_RETURN
+                result = mt5.order_send(request)
         if result is None:
             raise ValueError(f"order_send fill-mode retry failed: {mt5.last_error()}")
         if result.retcode not in (mt5.TRADE_RETCODE_DONE, mt5.TRADE_RETCODE_PLACED):
