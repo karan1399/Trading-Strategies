@@ -100,12 +100,15 @@ async function sh(cmd, args, opts = {}) {
 
 // ---------------- git helpers ----------------
 async function gitDeskDirty() {
-  const r = await sh("git", ["status", "--porcelain", "--", "desk/"]);
+  const r = await sh("git", ["status", "--porcelain"]);
   return r.out.trim();
 }
 async function commitDesk(msg) {
   if (!(await gitDeskDirty())) return false;
-  await sh("git", ["add", "--", "desk/"]);
+  await sh("git", ["add", "-u"]);
+  await sh("git", ["add", "desk/", "data/telemetry/", "ivwall_alpha/data/"]);
+  const st = await sh("git", ["diff", "--cached", "--quiet"]);
+  if (st.code === 0) return false;
   await sh("git", ["-c", "user.name=atg-desk-daemon", "-c", "user.email=atg-desk-daemon@local", "commit", "-q", "-m", msg]);
   return true;
 }
@@ -113,7 +116,7 @@ async function pushDesk(msg) {
   const did = await commitDesk(msg);
   let r = await sh("git", ["push", "--quiet", "origin", "main"]);
   if (r.code !== 0) {
-    const p = await sh("git", ["pull", "--rebase", "--quiet", "origin", "main"]);
+    const p = await sh("git", ["pull", "--rebase", "--autostash", "--quiet", "origin", "main"]);
     if (p.code !== 0) {
       await sh("git", ["rebase", "--abort"]);
       return `REBASE CONFLICT ABORTED: ${p.err}`;
@@ -129,7 +132,7 @@ async function gitSync() {
   const h = await sh("git", ["rev-parse", "HEAD"]);
   const o = await sh("git", ["rev-parse", "origin/main"]);
   if (h.out.trim() === o.out.trim()) return "up-to-date";
-  const p = await sh("git", ["pull", "--rebase", "--quiet", "origin", "main"]);
+  const p = await sh("git", ["pull", "--rebase", "--autostash", "--quiet", "origin", "main"]);
   if (p.code !== 0) {
     await sh("git", ["rebase", "--abort"]);
     return `pull failed (rebase aborted): ${p.err}`;
