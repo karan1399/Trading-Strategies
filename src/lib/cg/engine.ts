@@ -97,7 +97,7 @@ async function fetchKlines(symbol: string, itv: string, limit: number, endTime?:
 async function fetchFlows(symbol: string, itv: string, limit: number, endTime?: number): Promise<[number, number, number][]> {
   const q = `/api/v2/kline?symbol=${encodeURIComponent(symbol + "#bs_usd")}&interval=${itv}&limit=${limit}&minLimit=false${endTime ? `&endTime=${endTime}` : ""}`;
   try {
-    const r = (await cgGet(q, 0)) as { data?: [number, string | number, string | number][] } | [number, string | number, string | number][];
+    const r = (await cgGet(q, 120_000)) as { data?: [number, string | number, string | number][] } | [number, string | number, string | number][];
     const rows = Array.isArray(r) ? r : (r?.data ?? []);
     if (rows.length) return rows.map((x) => [1000 * Number(x[0]), Number(x[1]) || 0, Number(x[2]) || 0]);
     throw new Error("No upstream taker-flow bars");
