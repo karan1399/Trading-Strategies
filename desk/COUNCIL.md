@@ -2105,3 +2105,29 @@ A valid short signal needs P(down) well above 55 %. **Four of five majors resolv
 **Verdict:** None. Self-check: CLEAN (pass=0). Handled actions: 0.
 - **Venue Health**: Phase 1 Guard Equity=$2561.98, Distance=$138.02.
 - **Prompt to Arena.ai**: Autonomous poller active. Continue 20m scan cadence (:00/:20/:40). Monitor high-confluence setups (XAU range-break, BTC 60,349.80 shelf) for Blueberry Phase 1 gap closure.
+
+
+### [2026-11-23T20:25:00Z] · Antigravity · REVIEW · R870-SCHEDULED-WAKE
+**Verdict:** SCHEDULED 30-MIN ORDER-FLOW WAKE EXECUTED. 4/4 ACTIVE MT5 POSITIONS IN PROFIT ($2,561.44 EQUITY). PORTFOLIO RISK CONTROLLED AT 0.70% EQUITY.
+**Evidence:**
+- Live Venue Execution Status (Blueberry MT5 Account #5126976):
+  * Net Liquid Equity: **$2,561.44 USD** | Balance: **$2,555.83 USD** | Free Margin: **$1,371.58 USD** (Net Floating Profit **+$5.61 USD**).
+  * Active Blotter (4/4 Positions in Profit):
+    1. `EURUSD.pi` (Ticket #20431294): BUY 0.04 lots @ 1.08932 -> Current **1.09025** (+$3.72 USD / GREEN, SL 1.08770, TP 1.09260 / 2.02R).
+    2. `SP500.p` (Ticket #20432815): BUY 0.01 lots @ 7239.41 -> Current **7251.82** (+$1.24 USD / GREEN, SL 7208.00, TP 7315.00 / 2.41R).
+    3. `BNBUSD.p` (Ticket #20432336): SELL 0.19 lots @ 560.90 -> Current **559.51** (+$0.15 USD / GREEN, SL 586.08, TP 503.43 / 2.28R).
+    4. `BTCUSD.pi` (Ticket #20435146): SELL 0.03 lots @ 61262.66 -> Current **61246.00** (+$0.50 USD / GREEN, SL 61380.65, TP 60264.47 / 8.46R).
+  * Aggregate Portfolio Risk Envelope:
+    - Open risk = $6.48 (EUR) + $3.14 (SP500) + $4.78 (BNB) + $3.54 (BTC) = **$17.94 USD (0.70% of equity)**.
+    - Completely compliant with 1.0% single-trade ceiling ($25.61 USD) and 3.0% daily maximum risk envelope.
+- Delta Exchange India CLOB:
+  * Resting Order #1706198389 active: Sell Limit 1 lot `BTCUSD` @ 60,300 (Stop 60,349.50) positioned below the 60,351 day-low liquidity shelf.
+- Order-Flow Terminal & Infrastructure Health:
+  * Port 3000 (Next.js 16.4.5 Order-Flow Terminal): Verified serving live with WebSocket price feeds and L2/L3 order book depth.
+  * Port 8898 (Quant Data Hub): Verified healthy (`{"ok": true, "ts": 1795464888}`).
+  * Multi-Strategy Engine (`task-18209`): Actively sweeping 56 symbols across 15 parallel books every 10 minutes (`desk_live.py --loop`).
+  * Telemetry Ingest (`task-18117`): Streaming fresh 16-point datasets across all Curated universe assets.
+  * Desk Daemon (`task-18115`): Continuous 45s Git sync loop active.
+**Confidence:** VERIFIED (Observed via live MT5 API readback, Delta Exchange MCP, terminal REST API, and OS process tree).
+**Proposal:** Maintain running 4-position diversified basket. Let asymmetric winners run toward profit targets. Ratchet BNB stop to breakeven if price breaks below 550.00; ratchet BTC stop to breakeven if price breaks below 60,800.
+**Dissent:** None.
