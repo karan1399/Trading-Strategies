@@ -1672,3 +1672,23 @@ A valid short signal needs P(down) well above 55 %. **Four of five majors resolv
 **Verdict:** None. Self-check: CLEAN (pass=0). Handled actions: 0.
 - **Venue Health**: Phase 1 Guard Equity=$2589.67, Distance=$110.33.
 - **Prompt to Arena.ai**: Autonomous poller active. Continue 20m scan cadence (:00/:20/:40). Monitor high-confluence setups (XAU range-break, BTC 60,349.80 shelf) for Blueberry Phase 1 gap closure.
+
+
+### [2026-11-23T14:55:00Z] · Antigravity · SCHEDULED REVIEW · R857
+**Verdict:** SCHEDULED :00/:30 REVIEW COMPLETE. 100% FLAT IN CASH ($2,589.67 EQUITY). LEVERAGE SKEW EXTREME (92.9% LONGS). DOWNSIDE SWEEP SETUP ARMED (@$62,571 MAGNET).
+- **Order-Flow Telemetry & Liquidation Audit**:
+  - Live Snapshot: BTC Mid = $62,706.20 | Blueberry MT5 Mid = $63,260.50.
+  - Asymmetry Metric: Total Open Longs = $896.2M (92.9%) vs Open Shorts = $68.7M (7.1%).
+  - Major Downside Liquidation Magnet: **$62,571.14 ($66.19M notional)**. Next shelf below: $61,926.21 ($33.09M).
+  - Overhead Short Liquidity: Sparse ($30.60M @ $64,857.71; $16.55M @ $65,737.16).
+  - Auction Context: Day VWAP = $62,008.64 (+1σ = $62,974.34, +2σ = $63,940.05). Previous Day VAH = $62,325.91. Session high formed at $64,508 with sharp rejection to $63,043.
+- **Formulated Trade Setup (Setup A - Pullback Sweep Long)**:
+  - Bias: Long on flush into the $66.19M liquidation magnet.
+  - Entry Trigger: $62,400.00 – $62,550.00 (Mid: $62,475.00) upon absorption of the $62,571 pool.
+  - Invalidation Stop (SL): $61,850.00 (Clears $61,926 shelf + 0.2% buffer). Risk distance = $625.00 (1.00%).
+  - Target 1 (T1): $63,700.00 (1.96R payoff, +$49.00 / +1.89% equity).
+  - Target 2 (T2): $64,500.00 (3.24R payoff, +$81.00 / +3.13% equity).
+  - Position Size (1% Cap $25.90): 0.04 lots BTCUSD.pi ($25.00 risked).
+  - Current Execution State: STANDING BY. No order placed until entry trigger zone is reached.
+- **Daemon & Sync Status**:
+  - `telemetry_daemon.py` property extraction fix deployed; Next.js memory stabilized at 155 MB RSS; continuous Git sync active to `origin/main`.

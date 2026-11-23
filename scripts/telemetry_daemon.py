@@ -202,21 +202,23 @@ def harvest_single_asset(sym):
             }
 
     # Stopmap 24h & 3d
-    sm = fetch_json(f"/api/cg/stopmap?sym={sym}&model=1&mode=coin&range=24h", timeout=8)
+    sm = fetch_json(f"/api/cg/stopmap?sym={sym}&model=1&mode=coin&range=24h", timeout=15)
     if sm and sm.get("ok"):
+        sm_model = sm.get("model") or sm
         profile["liquidations"]["stopmap"]["m1_coin_24h"] = {
-            "keyLevels": sm.get("keyLevels"),
-            "overview": sm.get("overview"),
+            "keyLevels": sm_model.get("keyLevels"),
+            "overview": sm_model.get("overview"),
             "source": sm.get("source"),
             "stale": sm.get("stale")
         }
 
     if sym == "BTC":
-        sm_btc = fetch_json("/api/cg/stopmap?sym=BTC&model=1&mode=pair&range=24h", timeout=8)
+        sm_btc = fetch_json("/api/cg/stopmap?sym=BTC&model=1&mode=pair&range=24h", timeout=15)
         if sm_btc and sm_btc.get("ok"):
+            sm_btc_model = sm_btc.get("model") or sm_btc
             profile["liquidations"]["stopmap"]["m1_pair_24h"] = {
-                "keyLevels": sm_btc.get("keyLevels"),
-                "overview": sm_btc.get("overview"),
+                "keyLevels": sm_btc_model.get("keyLevels"),
+                "overview": sm_btc_model.get("overview"),
                 "source": sm_btc.get("source"),
                 "stale": sm_btc.get("stale")
             }
@@ -224,17 +226,18 @@ def harvest_single_asset(sym):
     # 8. BOOK WALLS (Futures & Spot)
     for mkt_type in ["futures", "spot"]:
         for itv in ["m15", "h1", "h4"]:
-            bw = fetch_json(f"/api/cg/bookwalls?sym={sym}&market={mkt_type}&interval={itv}&band=5")
+            bw = fetch_json(f"/api/cg/bookwalls?sym={sym}&market={mkt_type}&interval={itv}&band=5", timeout=15)
             if bw and bw.get("ok"):
+                bw_model = bw.get("model") or bw
                 profile["book_walls"][mkt_type][itv] = {
-                    "imbalance": bw.get("imbalance"),
-                    "imbalance5mAgo": bw.get("imbalance5mAgo"),
-                    "bidDepth": bw.get("bidDepth"),
-                    "askDepth": bw.get("askDepth"),
-                    "largestBid": bw.get("largestBid"),
-                    "largestAsk": bw.get("largestAsk"),
-                    "walls": bw.get("walls", [])[:8],
-                    "events": bw.get("events", [])[:5]
+                    "imbalance": bw_model.get("imbalance"),
+                    "imbalance5mAgo": bw_model.get("imbalance5mAgo"),
+                    "bidDepth": bw_model.get("bidDepth") or (bw_model.get("depth", {}).get("bidUsd") if isinstance(bw_model.get("depth"), dict) else None),
+                    "askDepth": bw_model.get("askDepth") or (bw_model.get("depth", {}).get("askUsd") if isinstance(bw_model.get("depth"), dict) else None),
+                    "largestBid": bw_model.get("largestBid"),
+                    "largestAsk": bw_model.get("largestAsk"),
+                    "walls": bw_model.get("walls", [])[:8],
+                    "events": bw_model.get("events", [])[:5]
                 }
 
     # 9. CVD (Perp, Spot, Split)
@@ -248,8 +251,8 @@ def harvest_single_asset(sym):
                     "quadrant": cv.get("quadrant")
                 }
 
-    # 10. FOOTPRINT 7-DAY TIME SERIES (672 bars at 15m) + SUMMARY
-    fp_7d = fetch_json(f"/api/cg/fp?sym={sym}&itv=m15&limit=672", timeout=12)
+    # 10. FOOTPRINT TIME SERIES (300 bars at 15m) + SUMMARY
+    fp_7d = fetch_json(f"/api/cg/fp?sym={sym}&itv=m15&limit=300", timeout=20)
     if fp_7d and fp_7d.get("ok"):
         bars = fp_7d.get("bars", [])
         sym_fp_dir = os.path.join(FOOTPRINT_DIR, sym)
