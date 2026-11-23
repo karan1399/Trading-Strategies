@@ -154,7 +154,18 @@ export default function StopmapSection({ sym = "BTC" }: { sym?: string }) {
             )}
           </>
         ) : (
-          <div className="max-w-lg">{q.error ? `Heatmap error: ${q.error}` : q.data?.reason || q.data?.error || "No data"}</div>
+          <div className="max-w-lg">
+            {q.error ? (
+              /429|rate limit/i.test(q.error) ? (
+                <div className="space-y-2">
+                  <div className="font-medium text-amber-400">Coinglass is cooling down (HTTP 429 rate limit)</div>
+                  <div className="text-xs text-neutral-400">
+                    High-speed telemetry collection is active. The terminal will automatically refresh when the cooldown clears.
+                  </div>
+                </div>
+              ) : `Heatmap error: ${q.error}`
+            ) : q.data?.reason || q.data?.error || "No data"}
+          </div>
         )}
         {q.data?.source && !q.data?.source.includes("coinglass") && (
           <div className="text-[11px] text-neutral-600">source: {q.data.source}</div>

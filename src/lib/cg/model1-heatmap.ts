@@ -150,7 +150,7 @@ export class HeatmapUpstreamError extends Error {
 // ---------------------------------------------------------------------------
 
 const g1 = globalThis as unknown as { __m1Cache?: BoundedMap<{ at: number; model: Model1Heatmap }> };
-const cache = (g1.__m1Cache ??= new BoundedMap<{ at: number; model: Model1Heatmap }>(24));
+const cache = (g1.__m1Cache ??= new BoundedMap<{ at: number; model: Model1Heatmap }>(512));
 
 function pairSymbolFor(sym: string): string {
   // classic instruments and 1000X-style tickers use their venue pair as-is;
@@ -207,6 +207,10 @@ export async function fetchModel1Heatmap(opts: {
   } catch (err) {
     if (hit) {
       return hit.model;
+    }
+    const anyHit = cache.get(ck);
+    if (anyHit) {
+      return anyHit.model;
     }
     throw err;
   }

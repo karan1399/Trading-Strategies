@@ -172,19 +172,31 @@ async function rawGet(url: string, cacheTs: string): Promise<{ status: number; h
   return { status: res.status, headers, bodyText: await res.text() };
 }
 
-async function cgGetInner(pathAndQuery: string, ttlMs: number, host: string): Promise<unknown> {
+export function normalizeCgCacheKey(url: string): string {
+  try {
+    const u = new URL(url);
+    u.searchParams.delete("data");
+    u.searchParams.delete("cacheTs");
+    u.searchParams.delete("_t");
+    return u.toString();
+  } catch {
+    return url.replace(/([?&])(data|cacheTs|_t)=[^&]*/g, "");
+  }
+}
+
+async function cgGetInner(pathAndQuery: string, ttlMs: number, host: string, normKey: string): Promise<unknown> {
   const url = `${host}${pathAndQuery}`;
-  const hit = cache.get(url);
+  const hit = cache.get(normKey);
   if (hit && Date.now() - hit.at < ttlMs) {
     // True LRU promotion: bump the recently hit entry to the tail so
     // eviction order is recency, not first insertion.
-    cache.delete(url);
-    cache.set(url, hit);
+    cache.delete(normKey);
+    cache.set(normKey, hit);
     return hit.data;
   }
 
   const staleDuringCooldown = () => {
-    const stale = cache.get(url);
+    const stale = cache.get(normKey);
     return stale && Date.now() - stale.at < 3_600_000 ? stale : null;
   };
   const cooling = () => Date.now() < (hostCooldown.get(host) ?? 0);
@@ -215,8 +227,8 @@ async function cgGetInner(pathAndQuery: string, ttlMs: number, host: string): Pr
     return duringCooldown();
   }
   if (resp.status !== 200) {
-    const stale = cache.get(url);
-    if (stale && ttlMs > 0 && Date.now() - stale.at < Math.max(10 * ttlMs, 120_000)) return stale.data;
+    const stale = cache.get(normKey);
+    if (stale && ttlMs > 0 && Date.now() - stale.at < Math.max(10 * ttlMs, 300_000)) return stale.data;
     throw new Error(`upstream HTTP ${resp.status} for ${pathAndQuery}`);
   }
   let parsed: unknown;
@@ -230,12 +242,12 @@ async function cgGetInner(pathAndQuery: string, ttlMs: number, host: string): Pr
   if (body && typeof body === "object" && "data" in body && typeof (body as { data?: unknown }).data !== "string") {
     if (body.code !== "0" && Number(body.code) !== 0) throw new Error(`upstream code ${body.code}: ${body.msg ?? ""}`);
     // ttlMs === 0 NEVER writes the cache (no pollution by engine writers)
-    if (ttlMs > 0) cacheSet(url, body.data, resp.bodyText.length);
+    if (ttlMs > 0) cacheSet(normKey, body.data, resp.bodyText.length);
     return body.data;
   }
   // Encrypted responses carry a string data field
   const data = decryptCgResponse({ status: resp.status, headers: resp.headers, bodyText: resp.bodyText }, cacheTs, url);
-  if (ttlMs > 0) cacheSet(url, data, resp.bodyText.length);
+  if (ttlMs > 0) cacheSet(normKey, data, resp.bodyText.length);
   return data;
 }
 
@@ -250,10 +262,11 @@ async function cgGetInner(pathAndQuery: string, ttlMs: number, host: string): Pr
  */
 export async function cgGet(pathAndQuery: string, ttlMs = 15_000, host: string = CAPI): Promise<unknown> {
   const url = `${host}${pathAndQuery}`;
-  const key = `${url}|${ttlMs > 0 ? 1 : 0}`;
+  const normKey = normalizeCgCacheKey(url);
+  const key = `${normKey}|${ttlMs > 0 ? 1 : 0}`;
   const running = inflight.get(key);
   if (running) return running;
-  const p = cgGetInner(pathAndQuery, ttlMs, host);
+  const p = cgGetInner(pathAndQuery, ttlMs, host, normKey);
   inflight.set(key, p);
   try {
     return await p;
