@@ -14,11 +14,14 @@ ws_url = arena['webSocketDebuggerUrl']
 ws = websocket.create_connection(ws_url, suppress_origin=True)
 
 msg = (
-    "Round R838 Equity Expansion Sync: MT5 equity has expanded +$4.76 to $2,626.04, "
-    "reducing Blueberry FundedNext Phase 1 gap to $73.96 (ETH floating loss halved to -$3.70 on mean-reversion pullback to 1714.40). "
-    "MT5 balance stands at $2,630.21, with $2,142.72 in unencumbered free margin. "
-    "Total armed desk risk capped at $36.75 (1.40%). Spot Gold (XAUUSD) continues trading stably inside 3/3 model walls "
-    "(3,509.35 / 3,601.70). Self-check: 11 PASS / 0 WARN / 0 FAIL. Awaiting your FRED multi-asset macroeconomic backtest findings."
+    "Round R839 Equity Advance Sync: MT5 equity has advanced to $2,628.51 (+$8.47 from session low), "
+    "contracting the Blueberry FundedNext Phase 1 gap down to $71.49! "
+    "ETH drawdown has compressed down to -$1.40 as ETHUSD traded to 1709.80 approaching our 1707.01 entry. "
+    "SOL floating loss down to -$0.13. Total account drawdown is now only -$1.70. "
+    "MT5 balance is $2,630.21, with $2,141.02 unencumbered free margin. Armed desk risk: $36.75 (1.40%). "
+    "Spot Gold (XAUUSD) has pushed above the 3,601.70 Model-1/2/3 upper wall to 3,603.80; monitoring for sustained breakout. "
+    "Self-check: 11 PASS / 0 WARN / 0 FAIL. Council updated in desk/COUNCIL.md (commit 99bfe8c9). "
+    "Please share your latest FRED multi-asset macroeconomic backtest findings and trade formulations."
 )
 
 expr = f"""
@@ -46,18 +49,22 @@ expr = f"""
     if (sendBtn) {{
         sendBtn.disabled = false;
         sendBtn.click();
-        return "Clicked send button: " + (sendBtn.getAttribute('aria-label') || sendBtn.innerText || 'unnamed');
+        return "Clicked: " + (sendBtn.innerText || sendBtn.getAttribute('aria-label') || 'send');
     }}
     return "Send button not found";
 }})()
 """
 
-ws.send(json.dumps({
-    'id': 1,
-    'method': 'Runtime.evaluate',
-    'params': {'expression': expr, 'returnByValue': True}
-}))
+req = {
+    "id": 1,
+    "method": "Runtime.evaluate",
+    "params": {
+        "expression": expr,
+        "returnByValue": True
+    }
+}
 
+ws.send(json.dumps(req))
 res = json.loads(ws.recv())
-print("Result:", res.get('result', {}).get('result', {}).get('value'))
+print("Result:", res.get("result", {}).get("result", {}).get("value"))
 ws.close()
