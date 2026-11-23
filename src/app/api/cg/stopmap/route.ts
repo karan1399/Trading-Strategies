@@ -68,9 +68,14 @@ async function loadStopmap(sym: string, endTime: number | undefined, ttlMs = 25_
     data: makeObeToken(),
   });
   if (endTime) q.set("endTime", String(endTime));
-  const payload = await cgGet(`/api/index/v2/liqHeatMap?${q.toString()}`, 0);
-  cache.set(ck, { at: Date.now(), body: payload });
-  return payload;
+  try {
+    const payload = await cgGet(`/api/index/v2/liqHeatMap?${q.toString()}`, 45_000);
+    cache.set(ck, { at: Date.now(), body: payload });
+    return payload;
+  } catch (err) {
+    if (hit) return hit.body;
+    throw err;
+  }
 }
 
 export async function GET(req: NextRequest) {
@@ -135,6 +140,28 @@ export async function GET(req: NextRequest) {
         updatedAt: m.updateTime,
       });
     } catch (e) {
+      // 429 / upstream error graceful degradation: fall back to rolling liquidation heatmap
+      try {
+        const rolling = await buildRollingStopModel(sym);
+        if (rolling) {
+          return NextResponse.json({
+            ok: true,
+            sym,
+            symbol: sym,
+            reference: `multi-venue:${sym}`,
+            window: { interval: "15m", bars: rolling.candles.length, from: rolling.candles[0]?.ts, to: rolling.lastTs },
+            instrument: `rolling aggregate (${rolling.source})`,
+            model: rolling,
+            dataAt: rolling.updateTime,
+            ageMs: Date.now() - rolling.updateTime,
+            stale: true,
+            source: `liq-snapshot-rolling:${rolling.source}:cooldown-fallback`,
+            updatedAt: rolling.updateTime,
+          });
+        }
+      } catch {
+        /* proceed to standard error handling */
+      }
       // cgGet's decryptCgResponse throws plain Errors ("upstream code X: …")
       // before this layer sees the payload — map those codes the same way.
       const upstreamCode = e instanceof Error ? /^upstream code (\d+)/.exec(e.message)?.[1] : undefined;
@@ -273,6 +300,27 @@ export async function GET(req: NextRequest) {
       updatedAt: Date.now(),
     });
   } catch (e) {
+    try {
+      const rolling = await buildRollingStopModel(sym);
+      if (rolling) {
+        return NextResponse.json({
+          ok: true,
+          sym,
+          symbol: sym,
+          reference: REF_SYMBOL,
+          window: { interval: "15m", bars: rolling.candles.length, from: rolling.candles[0]?.ts, to: rolling.lastTs },
+          instrument: `rolling aggregate (${rolling.source})`,
+          model: rolling,
+          dataAt: rolling.updateTime,
+          ageMs: Date.now() - rolling.updateTime,
+          stale: true,
+          source: `liq-snapshot-rolling:${rolling.source}:cooldown-fallback`,
+          updatedAt: rolling.updateTime,
+        });
+      }
+    } catch {
+      /* proceed to error response */
+    }
     return NextResponse.json(
       { ok: false, error: e instanceof Error ? e.message : "fetch failed" },
       { status: 502 }

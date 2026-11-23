@@ -185,7 +185,7 @@ async function cgGetInner(pathAndQuery: string, ttlMs: number, host: string): Pr
 
   const staleDuringCooldown = () => {
     const stale = cache.get(url);
-    return stale && ttlMs > 0 && Date.now() - stale.at < Math.max(20 * ttlMs, 600_000) ? stale : null;
+    return stale && Date.now() - stale.at < 3_600_000 ? stale : null;
   };
   const cooling = () => Date.now() < (hostCooldown.get(host) ?? 0);
   const duringCooldown = () => {

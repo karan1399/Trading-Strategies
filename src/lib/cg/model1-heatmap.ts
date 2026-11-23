@@ -198,10 +198,18 @@ export async function fetchModel1Heatmap(opts: {
   // NOTE: the `obe` header (session) is attached by cgHeaders from
   // CG_SESSION; the `data` param above must stay a FRESH anonymous token
   // even when the session is set (live-verified: session-as-data → 40001).
-  const payload = (await cgGet(`${path}?${q.toString()}`, 0, FAPI)) as LiqHeatmapPayload & {
-    code?: string;
-    msg?: string;
-  };
+  let payload: LiqHeatmapPayload & { code?: string; msg?: string };
+  try {
+    payload = (await cgGet(`${path}?${q.toString()}`, 45_000, FAPI)) as LiqHeatmapPayload & {
+      code?: string;
+      msg?: string;
+    };
+  } catch (err) {
+    if (hit) {
+      return hit.model;
+    }
+    throw err;
+  }
   // "Liquidated in 24h" (coin mode only): /api/index/liquidation24h serves
   // coin aggregates (pair-prefixed symbols read long=short=0 — live-probed
   // 2026-11-22). Short-TTL cached; failures are non-fatal (panel shows —).
