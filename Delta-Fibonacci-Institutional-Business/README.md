@@ -4,6 +4,19 @@ Institutional-grade, multi-asset algorithmic trading engine and quantitative rad
 
 ---
 
+> ## ⚠️ Independent Validation Verdict (2026-11-23): DO NOT LAUNCH
+>
+> An independent backtest/optimization cycle (`validation/` folder) re-tested this
+> system end-to-end on `historical_parquet/` with **real broker spreads charged on
+> every trade** and strict IS/OOS discipline. The registry's +30,938R champion
+> claim becomes **−38,762R (median PF 0.84)** once spreads are charged, and the
+> best disciplined variant found (15-symbol plateau portfolio) earns IS PF 1.58
+> but **OOS PF 0.96**. No variant survives out-of-sample validation under real
+> costs. Full report: [`validation/Delta_Fibonacci_Validation_Report.pdf`](validation/Delta_Fibonacci_Validation_Report.pdf)
+> — re-runnable in ~15 minutes: [`validation/README.md`](validation/README.md).
+
+---
+
 ## 1. Minimal Repository Architecture
 
 The codebase is engineered with strict adherence to the **Karpathy Simplicity Standards** and the **Ponytail Minimal Code Protocol**: exactly 1 data dump folder and 3 primary core files.
