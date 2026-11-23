@@ -19847,3 +19847,8 @@ analysis script rc=1
 3. Restarted terminal. Coverage before: **only BTC 24h**. Coverage after: **BTC/ETH/SOL/XAU/HYPE × 24h/3d/7d/30d all ok**.
 4. Found `50001 upstream rate-limited` under burst; **35 s cooldown + 12 s spacing clears it**. Not a permission failure — record this so future sweeps don't misread it as unsupported.
 5. **PIT-16 now AVAILABLE** (was UNAVAILABLE since R825). First read on ETH: liq 1731.45, nearest short cluster **1737.69 ($32.1 M) at +1.31 %**, then 1748/1754/1769. $51.6 M at 1769.36. No wall between liq and cluster ⇒ the naked short is squeezed-long before TP 1536.15 is reachable.
+
+## ROUND FAILED · 2026-11-23 11:45 UTC · zai-desk
+
+analysis script rc=1
+
