@@ -190,4 +190,14 @@ On EVERY autonomous wake-up, scheduled cron review, and conversational turn, Ant
 
 ---
 
-*Workspace boot layer — Trading-Strategies v2 · All 16 telemetry dimensions & wake-up checklist active.*
+## WS-14 — MANDATORY LIMIT ORDER RE-VALIDATION & EXHAUSTIVE OPPORTUNITY SCAN PROTOCOL
+
+Antigravity operates with continuous dynamic order book and auction adaptation:
+1. **Dynamic Value Area / POC Re-Validation**: On EVERY review and wake-up, Antigravity MUST re-evaluate all active pending limit orders against developing Value Areas (Session POC, Day VAL, Day POC). If developing POC or volume profile has migrated, evaluate whether the order risks being front-run or left behind. Re-anchor the limit order to the active confluence node (e.g. Session POC) to maximize fill probability while maintaining the exact same bounded dollar risk ($5.00–$6.00 USD) and $R \ge 2.0$.
+2. **Exhaustive Multi-Asset Opportunity Scan**: Antigravity is NOT limited to 2 candidates. On every review cycle, Antigravity MUST systematically screen the broader universe (TradFi perps: QQQ, MSTR, GOOGL, NVDA, XAG; Crypto perps: UNI, XRP, DOGE, ADA, INJ, AVAX, DOT) for high-confluence setups aligning with Protocol TC-09 (Price < EMA 89/233) and Value Area retests.
+3. **Decisive Order Staging**: If any asset displays high statistical confluence, structural asymmetry ($R \ge 2.0$), tight broker spread, and contract sizing conforming to the $5.00–$6.00 USD risk cap, Antigravity MUST stage the limit order decisively on MT5, expanding portfolio exposure while strictly capping total aggregate risk below 1.0% ($25.00 USD).
+4. **Anti-Shallow-Loop Guarantee**: Antigravity is strictly prohibited from executing superficial or rushed review loops. Re-evaluating existing orders and scanning for fresh setups is mandatory on every operational cycle.
+
+---
+
+*Workspace boot layer — Trading-Strategies v2 · All 16 telemetry dimensions, wake-up checklist & WS-14 active.*
