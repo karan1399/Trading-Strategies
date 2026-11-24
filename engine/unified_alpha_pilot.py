@@ -685,7 +685,7 @@ def run_loop(cfg: dict, mode: str, loop_seconds: int | None = None):
                     continue
                 magic = int(s["magic"])
                 for sym in (list(s.get("symbols", {}).keys()) if isinstance(s.get("symbols"), dict)
-                            else s.get("symbols", [])):
+                            else (s.get("symbols") or ([s["symbol"]] if "symbol" in s else []))):
                     params = s["symbols"][sym] if isinstance(s.get("symbols"), dict) else s
                     key = f"{sname}:{sym}"
                     raw = bridge.rates(sym, s["tf"], bars_back)
@@ -703,7 +703,7 @@ def run_loop(cfg: dict, mode: str, loop_seconds: int | None = None):
                     # ---- signal
                     htf_c4 = None
                     if sname == "orb_nas":
-                        r4 = bridge.rates(s.get("htf_tf", "H4"), "H4", 400)
+                        r4 = bridge.rates(sym, s.get("htf_tf", "H4"), 400)
                         if r4 is not None:
                             htf_c4 = r4["close"].astype(float)[:-1]
                     sig = build_signal(sname, closed, s, params, htf_c4)
