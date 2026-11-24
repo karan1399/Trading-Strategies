@@ -1,0 +1,87 @@
+MISSION BRIEF: 4-STRATEGY QUANTITATIVE AUDIT & UNIFIED MT5 LIVE PRODUCTION ENGINE
+
+Repository: karan1399/Trading-Strategies (branch main)
+Active Broker: Blueberry Markets MT5 Account #5126976 (Equity: ~$2,555 USD)
+Historical Store: historical_parquet/ (15M, 1H, 4H, 5M; 151 symbols, Jan 2023 - Nov 2026)
+Execution Target: MetaTrader 5 Python API (terminal64.exe)
+
+================================================================================
+1. CONTEXT & CURRENT STATUS
+================================================================================
+Your evolved engines for ORB and Volatility Compression have been merged into main:
+- ORB/orb_evolved.py (NAS100 15M OR30 @ 14:30 UTC & BTCUSD 15M Asian Range)
+- Volatility_compression/volatility_compression_evolved.py (XAUUSD 4H Squeeze + Fixed 4R)
+
+We now have 4 mechanical quantitative strategies in the repository:
+1. htf_ema_rejection/ (HTF EMA 89/233 Rejection on H4/H1)
+2. ivwall_alpha/ (Session-anchored 2.0 SD IV-Wall Fade on M15)
+3. Volatility_compression/ (TTM Squeeze BB inside KC Breakout)
+4. ORB/ (Multi-variant Opening Range Breakout)
+
+We need you to perform a complete red-team audit of the remaining two strategies (htf_ema_rejection and ivwall_alpha), extract only the genuinely viable sleeves across all 4, and build the final unified live execution engine directly on GitHub.
+
+================================================================================
+2. PART 1: QUANTITATIVE AUDIT ON HISTORICAL PARQUET DATA
+================================================================================
+Subject htf_ema_rejection and ivwall_alpha to the exact same rigorous red-team audit standards you applied to ORB and VC:
+
+1. Cost & Precision Sanity:
+   - Inferred digits per asset class (no hardcoded 2-decimal fallback on 5-decimal FX).
+   - Realistic two-sided spread accounting (entry + exit).
+   - Discard degenerate FX bars with zero spread.
+
+2. True Out-of-Sample Pre-Registration:
+   - Chronological 70/30 split by session days.
+   - Parameters selected in-sample only; evaluate OOS exactly once.
+   - Deflated t-statistics calculated against the full configuration search space.
+
+3. Sleeve Viability Decisions:
+   - For htf_ema_rejection: Which of the 15 basket pairs (Gold crosses, Crypto, JPY crosses) retain true statistical edge after real spreads?
+   - For ivwall_alpha: Which of the 20 M15 FX pairs survive when non-zero retail spreads are enforced?
+   - Document the findings in desk/STRATEGY_SUITE_QUANT_AUDIT.md.
+
+================================================================================
+3. PART 2: UNIFIED LIVE PRODUCTION ENGINE (engine/unified_alpha_pilot.py)
+================================================================================
+Build and commit a single, production-grade multi-strategy execution daemon:
+File Path: engine/unified_alpha_pilot.py (with engine/config.json)
+
+Core Architectural Requirements:
+
+1. Fixed Dollar Risk Budget ($5.00 - $6.00 USD per trade):
+   - Dynamic lot sizing querying live MT5 symbol properties:
+     * SOLUSD.p: Contract size 100.0, MinLot 0.01 = 1 SOL ($5.00 stop = $5.00 risk).
+     * BTCUSD.pi / ETHUSD.pi: Contract size 1.0, MinLot 0.01.
+     * XAUUSD.pi: Contract size 100.0 (or 1.0), MinLot 0.01 = 1 oz ($5.00 stop = $5.00 risk).
+     * FX Majors (100k contract): MinLot 0.01 = $0.10/pip (50-pip stop = $5.00 risk).
+     * NAS100.p (Contract size 10.0): MinLot 0.01 = 0.1 index point (50 pt stop = $5.00 risk).
+   - If the required structural stop loss results in risk > $6.00 at minimum lot (volume_min), reject the trade. Do not compress the stop loss into noise.
+
+2. Hard Server-Side Brackets at Entry:
+   - Every order MUST carry server-side sl and tp attached directly in mt5.order_send().
+   - Take Profit must enforce >= 2.0R minimum (Gold 4H Squeeze uses Fixed 4.0R).
+   - Zero naked positions.
+
+3. Global Concurrency & Risk Governor:
+   - Maximum 2 concurrent active positions across the entire portfolio.
+   - Maximum 1 position per strategy sleeve.
+   - Distinct MT5 Magic Numbers:
+     * 42001: CG Terminal / Order-Flow
+     * 42002: IV-Wall Alpha
+     * 42003: HTF EMA Rejection
+     * 42004: Volatility Compression (Squeeze)
+     * 42005: ORB Evolved
+
+4. Execution Loop & State Persistence:
+   - Multi-timeframe polling (15M, 1H, 4H).
+   - Signals evaluated strictly on closed bars; execution at open of next bar.
+   - Automated breakeven lock at +1.0R excursion.
+   - Continuous state logging in engine/data/unified_state.json and engine/data/unified_journal.csv.
+
+================================================================================
+4. PART 3: DELIVERY & GITHUB COMMIT
+================================================================================
+1. Run internal self-tests across all integrated strategy modules to ensure 100% causal determinism.
+2. Commit directly to main branch on GitHub with message:
+   "feat(engine): deploy unified multi-strategy production engine (EMA, IVWall, VC, ORB) with fixed $5-6 MT5 risk governor"
+3. Push directly to GitHub so we can pull it locally and launch the live engine.
