@@ -1,0 +1,123 @@
+{
+  "_meta": {
+    "comment": "Unified multi-strategy MT5 pilot — sleeve parameters frozen from the red-team audit (desk/STRATEGY_SUITE_QUANT_AUDIT.md, 2026-11-24). Signals on closed bars only; entries at next bar open; server-side SL/TP on every order.",
+    "audit_doc": "desk/STRATEGY_SUITE_QUANT_AUDIT.md"
+  },
+  "account": {
+    "login": null,
+    "password": null,
+    "server": null,
+    "terminal_path": null,
+    "broker_utc_offset": 2,
+    "equity_floor_usd": 1800.0,
+    "deviation_points": 20
+  },
+  "governor": {
+    "max_global_positions": 2,
+    "max_per_sleeve": 1,
+    "gold_cluster_max_positions": 1,
+    "gold_cluster_magics": [42003, 42004],
+    "risk_usd_target": 5.5,
+    "risk_usd_min": 5.0,
+    "risk_usd_max": 6.0,
+    "min_tp_r": 2.0,
+    "be_lock_trigger_r": 1.0,
+    "be_lock_buffer_r": 0.05
+  },
+  "runtime": {
+    "poll_seconds": 5,
+    "bars_back": 700,
+    "journal_csv": "engine/data/unified_journal.csv",
+    "state_json": "engine/data/unified_state.json"
+  },
+  "sleeves": {
+    "htf_gold": {
+      "magic": 42003,
+      "enabled": true,
+      "mode": "live-eligible",
+      "audit_verdict": "CONDITIONAL PASS — gold cluster only (OOS +165.8R, t=+3.29, cost-robust x3); ex-gold members dropped (t=-1.97)",
+      "tf": "H4",
+      "cooldown_bars": 6,
+      "comment": "P4 cluster-stall at EMA233; treat ALL gold members as ONE risk unit",
+      "symbols": {
+        "XAUUSD.pi": { "ema_period": 233, "pattern": "P4_cluster", "slope_gate": false, "regime_gate": false, "exit_r": 2.0, "priority": 1 },
+        "XAUAUD.pi": { "ema_period": 233, "pattern": "P4_cluster", "slope_gate": true,  "regime_gate": false, "exit_r": 4.0, "priority": 2 },
+        "XAUEUR.pi": { "ema_period": 233, "pattern": "P4_cluster", "slope_gate": true,  "regime_gate": false, "exit_r": 2.0, "priority": 3 },
+        "XAUSGD.pi": { "ema_period": 233, "pattern": "P4_cluster", "slope_gate": true,  "regime_gate": false, "exit_r": 3.5, "priority": 4 },
+        "XAUGBP.pi": { "ema_period": 233, "pattern": "P4_cluster", "slope_gate": false, "regime_gate": false, "exit_r": 2.5, "priority": 5 },
+        "XAUCNH.pi": { "ema_period": 233, "pattern": "P4_cluster", "slope_gate": false, "regime_gate": true,  "exit_r": 2.5, "priority": 6 },
+        "GAUUSD.pi": { "ema_period": 233, "pattern": "P4_cluster", "slope_gate": false, "regime_gate": false, "exit_r": 2.5, "priority": 7 },
+        "GAUCNH.pi": { "ema_period": 233, "pattern": "P4_cluster", "slope_gate": false, "regime_gate": false, "exit_r": 3.5, "priority": 8 }
+      }
+    },
+    "ivwall": {
+      "magic": 42002,
+      "enabled": true,
+      "mode": "micro-risk pilot",
+      "audit_verdict": "CONDITIONAL — raw OOS +29.8R PF 2.16 survives x2 spread stress, but deflated(96)=-1.69 and block-bootstrap P(profit)=0.78 on a 53-day window; majors only, exotics excluded (USDZAR/USDNOK/EURHKD), live-spread guard on",
+      "tf": "M15",
+      "strategy": "fade_touch",
+      "vol_estimator": "ewma_cc",
+      "vol_lam": 0.94,
+      "sd_wall": 2.0,
+      "target_m": 0.5,
+      "buffer_atr": 1.0,
+      "stop_cap_em": 1.2,
+      "min_rr": 0.3,
+      "max_trades_session": 2,
+      "cooldown_bars": 6,
+      "skip_first_bars": 1,
+      "spread_frac_atr_max": 1.0,
+      "spread_model_mult": 1.5,
+      "spread_median_pips": {
+        "CADJPY.pi": 7.0, "EURUSD.pi": 1.0, "EURGBP.pi": 1.0, "NZDCAD.pi": 5.0,
+        "AUDSGD.pi": 4.0, "CADCHF.pi": 4.0, "USDCHF.pi": 3.0, "NZDCHF.pi": 1.0,
+        "USDSGD.pi": 2.0, "GBPAUD.pi": 6.0, "GBPNZD.pi": 7.0, "NZDSGD.pi": 4.0, "AUDNZD.pi": 5.0
+      },
+      "symbols": ["CADJPY.pi", "EURUSD.pi", "EURGBP.pi", "NZDCAD.pi", "AUDSGD.pi",
+                  "CADCHF.pi", "USDCHF.pi", "NZDCHF.pi", "USDSGD.pi", "GBPAUD.pi",
+                  "GBPNZD.pi", "NZDSGD.pi", "AUDNZD.pi"],
+      "flat_before_broker_day_end_min": 15
+    },
+    "vc_gold": {
+      "magic": 42004,
+      "enabled": true,
+      "mode": "paper-eligible micro-risk",
+      "audit_verdict": "XAUUSD 4H blueprint sleeve only (OOS +25.96R PF 2.85 t=2.10; IS t=0.92 — regime bet); fixed 4R TP, NO trailing",
+      "tf": "H4",
+      "cooldown_bars": 6,
+      "symbols": {
+        "XAUUSD.pi": { "bb_len": 20, "bb_dev": 2.0, "kc_len": 20, "kc_mult": 1.5,
+                        "min_squeeze_bars": 3, "trend_ema": 200, "sl_basis": true,
+                        "sl_atr_floor": 1.2, "exit_r": 4.0 }
+      }
+    },
+    "orb_nas": {
+      "magic": 42005,
+      "enabled": true,
+      "mode": "monitor — smallest size (OOS base is only 13 trades, deflated_t=-2.31)",
+      "audit_verdict": "PAPER/MONITOR ONLY — do not size up",
+      "tf": "M15",
+      "symbol": "NAS100.p",
+      "anchor_utc": "14:30",
+      "or_minutes": 30,
+      "signal_window_hours": 6.0,
+      "htf_trend": true,
+      "htf_tf": "H4",
+      "htf_ema": 200,
+      "sl_mode": "midpoint",
+      "exit_r": 2.0,
+      "eod_utc": "20:55",
+      "max_trades_day": 1
+    }
+  },
+  "symbol_specs_fallback": {
+    "_comment": "used by --selftest only; live mode always reads MT5 symbol_info",
+    "SOLUSD.p":  { "digits": 3, "contract_size": 100.0, "tick_value": 1.0, "tick_size": 0.01, "vol_min": 0.01, "vol_step": 0.01 },
+    "BTCUSD.pi": { "digits": 2, "contract_size": 1.0,  "tick_value": 1.0, "tick_size": 0.01, "vol_min": 0.01, "vol_step": 0.01 },
+    "ETHUSD.pi": { "digits": 2, "contract_size": 1.0,  "tick_value": 1.0, "tick_size": 0.01, "vol_min": 0.01, "vol_step": 0.01 },
+    "XAUUSD.pi": { "digits": 2, "contract_size": 100.0, "tick_value": 1.0, "tick_size": 0.01, "vol_min": 0.01, "vol_step": 0.01 },
+    "EURUSD.pi": { "digits": 5, "contract_size": 100000.0, "tick_value": 1.0, "tick_size": 0.00001, "vol_min": 0.01, "vol_step": 0.01 },
+    "NAS100.p":  { "digits": 2, "contract_size": 10.0, "tick_value": 1.0, "tick_size": 0.1, "vol_min": 0.01, "vol_step": 0.01 }
+  }
+}
