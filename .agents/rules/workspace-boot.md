@@ -102,4 +102,14 @@ All tools verified available. Use tool calls, never prose approximations.
 
 ---
 
+## WS-08 — MANDATORY TELEMETRY & FOOTPRINT INGESTION INVARIANT
+
+Before formulating any market opinion, trade candidate, or risk assessment, Antigravity MUST physically ingest live telemetry:
+1. **Deterministic Telemetry Reader**: Execute `python scripts/telemetry_reader.py <SYM>` (or `--all`) on every turn to read `data/telemetry/assets/<SYM>.json` and `data/telemetry/footprint/<SYM>/signals_7d.json`.
+2. **Freshness Invariant**: Telemetry file age must be $\le 600$ seconds. If `is_fresh == false`, the asset is vetoed as STALE data.
+3. **Footprint Confirmation**: Verify the latest footprint tape prints (absorption `abs`, trapped buyers/sellers `trap`, or volume exhaustion `exh`) and Level-2 limit order book imbalance before validating any trade setup.
+4. **Broker Microstructure Verification**: Verify live broker spread and min lot crossing cost via MT5 API before punching any order. If broker crossing cost $> \$6.00$, reject immediately.
+
+---
+
 *Workspace boot layer — Trading-Strategies v2 · All 16 telemetry dimensions active.*
