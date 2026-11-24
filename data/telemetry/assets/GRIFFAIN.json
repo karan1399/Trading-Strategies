@@ -1,27 +1,129 @@
 {
   "symbol": "GRIFFAIN",
   "feed_type": "coinglass_perp",
-  "updated_at": "2026-11-24T21:46:45.926862+00:00",
-  "updated_epoch": 1795556805.9268723,
+  "updated_at": "2026-11-24T22:08:39.213479+00:00",
+  "updated_epoch": 1795558119.2134924,
   "mt5": null,
-  "ticker": null,
-  "market_structure": null,
+  "ticker": {
+    "price": 0.009381,
+    "dir": "flat",
+    "source": "binance-fapi",
+    "updatedAt": null
+  },
+  "market_structure": {
+    "price": {
+      "last": 0.009381,
+      "prevDayClose": 0.009755,
+      "chgDayPct": -3.833931317273186,
+      "dayHigh": 0.009906,
+      "dayLow": 0.009308,
+      "dayVolBase": 76220893
+    },
+    "auction": {
+      "session": {
+        "poc": 0.009553541666666667,
+        "vah": 0.009581208333333334,
+        "val": 0.009373708333333333,
+        "high": 0.009723,
+        "low": 0.009308,
+        "volume": 22078582.999999996,
+        "bins": 60
+      },
+      "day": {
+        "poc": 0.00965185,
+        "vah": 0.009821283333333333,
+        "val": 0.009542216666666667,
+        "high": 0.009906,
+        "low": 0.009308,
+        "volume": 76220892.99999999,
+        "bins": 60
+      },
+      "week": {
+        "poc": 0.009726666666666666,
+        "vah": 0.009992444444444444,
+        "val": 0.009588,
+        "high": 0.01016,
+        "low": 0.00912,
+        "volume": 243139912,
+        "bins": 90
+      },
+      "month": {
+        "poc": 0.0097674125,
+        "vah": 0.011125512499999999,
+        "val": 0.0089374625,
+        "high": 0.012842,
+        "low": 0.008315,
+        "volume": 3212180693.9999995,
+        "bins": 120
+      }
+    },
+    "vwap": {
+      "anchorTs": 1795478400000,
+      "vwap": 0.009667471236362099,
+      "bands": {
+        "sd1": 0.0001270392637392393,
+        "sd2": 0.0002540785274784786,
+        "sd3": 0.0003811177912177179
+      },
+      "open": 0.009751,
+      "high": 0.009906,
+      "low": 0.009308,
+      "bars": 89
+    },
+    "emas": {
+      "m15": {
+        "e13": 0.009437314371016702,
+        "e89": 0.009612261498993522,
+        "e233": 0.009569920855172817
+      },
+      "h1": {
+        "e13": 0.009536130323663888,
+        "e89": 0.00952351281011116,
+        "e233": 0.009610208452845328
+      },
+      "h4": {
+        "e13": 0.009555011999036292,
+        "e89": 0.009864348641565436,
+        "e233": 0.011280099686185378
+      },
+      "d1": {
+        "e13": 0.009702284202718289,
+        "e89": 0.012284077483316122,
+        "e233": 0.013472478967678688
+      }
+    },
+    "rsi": {
+      "m15": 32.3309293477751,
+      "h1": 36.45699330048867,
+      "h4": 46.62982133295425,
+      "d1": 38.34048371261125
+    }
+  },
   "narrative_engine": {
-    "regime": "RANGE_BALANCE",
-    "activeModel": "NO_TRADE",
-    "direction": "NEUTRAL",
-    "grade": "SKIP",
-    "confidence": 0,
-    "thesis": "No live market snapshot is available for GRIFFAIN right now \u2014 the narrative engine refuses to trade blind.",
+    "regime": "TREND_DOWN",
+    "activeModel": "WAIT_PULLBACK",
+    "direction": "SHORT",
+    "grade": "B",
+    "confidence": 45,
+    "thesis": "trend down regime (H4 stack down \u00b7 D1 stack down \u00b7 EMA spread -2.27 ATR \u00b7 price holds below Day VWAP), but price sits 2.25\u03c3 from the Day VWAP \u2014 chasing here pays no edge. Working limit order at the trend-side band 0.009413-0.009540; the offer is earned when footprint absorption or a strong divergence prints at the zone.",
     "plan": {
-      "entryZone": null,
-      "triggerRule": "n/a",
-      "stop": null,
-      "invalidation": "no data",
-      "targets": [],
+      "entryZone": [
+        0.00941339270888362,
+        0.00954043197262286
+      ],
+      "triggerRule": "limit fill at the zone + bearish footprint confirmation (absorption / strong divergence / trap)",
+      "stop": 0.010048589027579817,
+      "invalidation": "Day VWAP 0\u03c3 lost (regime flip)",
+      "targets": [
+        {
+          "level": 0.009108671847992859,
+          "label": "trend continuation leg (2 ATR)",
+          "rMultiple": null
+        }
+      ],
       "bestR": null,
       "vetoes": [
-        "market feed unavailable"
+        "chase guard: > 2.0\u03c3 VWAP extension \u2014 wait for the pullback"
       ]
     },
     "probabilities": {
@@ -33,17 +135,17 @@
     }
   },
   "athena_oracle": {
-    "score": 50,
-    "verdict": "Neutral equilibrium 50/100 \u2014 signals mixed, no dominant driver",
-    "regime": null,
+    "score": 38,
+    "verdict": "Cautious bearish lean 38/100 \u2014 trend broken",
+    "regime": "squeeze",
     "factors": [
       {
         "id": "apollo",
         "name": "Trend & Momentum",
         "icon": "sun",
-        "score": 50,
+        "score": 2,
         "weight": 0.25,
-        "detail": "source unavailable"
+        "detail": "EMA20<50<200, RSI 32, EMA50 -0.87%/3h"
       },
       {
         "id": "poseidon",
@@ -87,11 +189,9 @@
       }
     ],
     "partial": [
-      "apollo",
       "poseidon",
       "hades",
-      "zeus",
-      "regime"
+      "zeus"
     ]
   },
   "microstructure_l2_l3": {
@@ -106,13 +206,12 @@
       "venues": [
         {
           "venue": "binance",
-          "ok": false,
-          "bid": null,
-          "ask": null,
-          "mid": null,
-          "spreadBps": null,
-          "reason": "fapi IP ban active until 2026-11-24T21:47:01.804Z",
-          "at": 1795556807888
+          "ok": true,
+          "bid": 0.009382,
+          "ask": 0.009383,
+          "mid": 0.0093825,
+          "spreadBps": 1.066,
+          "at": 1795558120775
         },
         {
           "venue": "okx",
@@ -122,16 +221,16 @@
           "mid": null,
           "spreadBps": null,
           "reason": "OKX code 51001: Instrument ID, Instrument ID code, or Spread ID doesn't exist.",
-          "at": 1795556808032
+          "at": 1795558120717
         },
         {
           "venue": "bybit",
           "ok": true,
-          "bid": 0.009376,
-          "ask": 0.009388,
-          "mid": 0.009382,
-          "spreadBps": 12.79,
-          "at": 1795556808044
+          "bid": 0.009364,
+          "ask": 0.009366,
+          "mid": 0.009365,
+          "spreadBps": 2.136,
+          "at": 1795558120723
         },
         {
           "venue": "coinbase",
@@ -141,25 +240,23 @@
           "mid": null,
           "spreadBps": null,
           "reason": "not applicable \u2014 Coinbase spot ticker is mapped for BTC/ETH/SOL/DOGE/XRP/LINK only",
-          "at": 1795556807888
+          "at": 1795558120571
         }
       ],
       "best": {
-        "venue": "bybit",
-        "bid": 0.009376,
-        "ask": 0.009388,
-        "mid": 0.009382,
-        "spreadBps": 12.79
+        "venue": "binance",
+        "bid": 0.009382,
+        "ask": 0.009383,
+        "mid": 0.0093825,
+        "spreadBps": 1.066
       },
       "missingVenues": [
-        "binance",
         "okx",
         "coinbase"
       ],
-      "at": 1795556808044
+      "at": 1795558120775
     },
     "missingVenues": [
-      "binance",
       "okx",
       "coinbase"
     ]
@@ -167,22 +264,79 @@
   "quant_positioning": {
     "lsRatios": {
       "15m": {
-        "global": null,
-        "topAccounts": null,
-        "topPositions": null,
-        "taker": null
+        "global": {
+          "ratio": 3.2212,
+          "longPct": 76.31,
+          "shortPct": 23.69,
+          "chgPct": 1.22
+        },
+        "topAccounts": {
+          "ratio": 2.6523,
+          "longPct": 72.62,
+          "shortPct": 27.38,
+          "chgPct": 0.35
+        },
+        "topPositions": {
+          "ratio": 1.4366,
+          "longPct": 58.96,
+          "shortPct": 41.04,
+          "chgPct": -0.22
+        },
+        "taker": {
+          "buySellRatio": 1.9994,
+          "buyVolUsd": 5197,
+          "sellVolUsd": 2599
+        }
       },
       "1h": {
-        "global": null,
-        "topAccounts": null,
-        "topPositions": null,
-        "taker": null
+        "global": {
+          "ratio": 3.2212,
+          "longPct": 76.31,
+          "shortPct": 23.69,
+          "chgPct": 1.05
+        },
+        "topAccounts": {
+          "ratio": 2.6523,
+          "longPct": 72.62,
+          "shortPct": 27.38,
+          "chgPct": 0
+        },
+        "topPositions": {
+          "ratio": 1.4366,
+          "longPct": 58.96,
+          "shortPct": 41.04,
+          "chgPct": -0.07
+        },
+        "taker": {
+          "buySellRatio": 0.9827,
+          "buyVolUsd": 9193,
+          "sellVolUsd": 9355
+        }
       },
       "4h": {
-        "global": null,
-        "topAccounts": null,
-        "topPositions": null,
-        "taker": null
+        "global": {
+          "ratio": 3.1859,
+          "longPct": 76.11,
+          "shortPct": 23.89,
+          "chgPct": 0.06
+        },
+        "topAccounts": {
+          "ratio": 2.6496,
+          "longPct": 72.6,
+          "shortPct": 27.4,
+          "chgPct": 0.7
+        },
+        "topPositions": {
+          "ratio": 1.4422,
+          "longPct": 59.05,
+          "shortPct": 40.95,
+          "chgPct": 0.29
+        },
+        "taker": {
+          "buySellRatio": 0.8888,
+          "buyVolUsd": 46395,
+          "sellVolUsd": 52201
+        }
       }
     },
     "oiQuadrant": {
@@ -212,7 +366,7 @@
           "name": "KuCoin",
           "rate": 0.005,
           "rate8h": 0.01,
-          "nextFundingTime": 1795564785271,
+          "nextFundingTime": 1795564785602,
           "fundingIntervalHours": 4
         },
         {
@@ -276,7 +430,7 @@
     "basis": {
       "spotPair": "GRIFFAINUSDT",
       "spotPrice": null,
-      "perpPrice": null,
+      "perpPrice": 0.009381,
       "basisPct": null,
       "fundingImpliedAprPct": 10.4025,
       "coinbasePremiumBps": null,
@@ -284,7 +438,6 @@
       "coinbaseReason": "Coinbase premium tracked for BTC/ETH/SOL only"
     },
     "notes": [
-      "lsRatios: all Binance /futures/data endpoints failed for this pair",
       "taker buyVolUsd/sellVolUsd = Binance base-asset taker volume converted at the perp last price",
       "funding: no per-venue OI available \u2014 oiWeightedRate8h is the equal-weight mean",
       "funding rates are percent per interval; annualizedAprPct = oiWeightedRate8h(%) x 3 x 365",
@@ -300,10 +453,10 @@
   "book_walls": {
     "futures": {
       "m15": {
-        "imbalance": 0.187778628574509,
-        "imbalance5mAgo": 0.16414458513999575,
-        "bidDepth": 96432.70193000001,
-        "askDepth": 65942.17098000001,
+        "imbalance": 0.04693321796045314,
+        "imbalance5mAgo": 0.18105386712962027,
+        "bidDepth": 95479.25675,
+        "askDepth": 86918.73217999999,
         "largestBid": null,
         "largestAsk": null,
         "walls": [],
@@ -351,53 +504,53 @@
         ]
       },
       "h1": {
-        "imbalance": 0.013341892306037455,
-        "imbalance5mAgo": 0.185616789973773,
-        "bidDepth": 83192.18938000001,
-        "askDepth": 81001.53439999999,
+        "imbalance": 0.09333404074663383,
+        "imbalance5mAgo": 0.1614279633857889,
+        "bidDepth": 99876.98422,
+        "askDepth": 82824.69797,
         "largestBid": null,
         "largestAsk": null,
         "walls": [],
         "events": [
           {
-            "t": 1795536000000,
+            "t": 1795255200000,
             "type": "fill",
             "side": "b",
-            "p": 0.009600000000000001,
-            "usd": 26983.4385,
-            "qty": 2503483
+            "p": 0.009000000000000001,
+            "usd": 35996.779030000005,
+            "qty": 2666419
           },
           {
-            "t": 1795503600000,
-            "type": "fill",
-            "side": "a",
-            "p": 0.009800000000000001,
-            "usd": 26403.37956,
-            "qty": 2235355
-          },
-          {
-            "t": 1795496400000,
+            "t": 1795244400000,
             "type": "add",
             "side": "a",
-            "p": 0.01,
-            "usd": 20885.23437,
-            "qty": 2086437
+            "p": 0.0094,
+            "usd": 24767.29879,
+            "qty": 2632019
           },
           {
-            "t": 1795496400000,
+            "t": 1795244400000,
             "type": "add",
             "side": "b",
-            "p": 0.009600000000000001,
-            "usd": 24645.46004,
-            "qty": 2564564
+            "p": 0.009000000000000001,
+            "usd": 24024.43519,
+            "qty": 2666419
           },
           {
-            "t": 1795489200000,
+            "t": 1795179600000,
+            "type": "fill",
+            "side": "b",
+            "p": 0.009260000000000001,
+            "usd": 31957.184790000003,
+            "qty": 2967352
+          },
+          {
+            "t": 1795140000000,
             "type": "add",
-            "side": "a",
-            "p": 0.009800000000000001,
-            "usd": 21928.832550000003,
-            "qty": 2235355
+            "side": "b",
+            "p": 0.009260000000000001,
+            "usd": 24730.93242,
+            "qty": 2667846
           }
         ]
       }
@@ -438,7 +591,7 @@
           "spotSell": 0,
           "perpCvd": 0,
           "spotCvd": 0,
-          "buyRatio": 45.6,
+          "buyRatio": 46.4,
           "quadrant": "spot-bid",
           "latestDiv": {
             "type": "bull",
@@ -458,9 +611,9 @@
             "priceB": 0.010375,
             "priceC": 0.010471,
             "bars": [
-              48,
-              86,
-              91
+              44,
+              82,
+              87
             ],
             "ret12": -1.21,
             "hit": false
@@ -472,9 +625,9 @@
             "priceB": 0.01061,
             "priceC": 0.010137,
             "bars": [
-              121,
-              131,
-              136
+              117,
+              127,
+              132
             ],
             "ret12": -1.16,
             "hit": true
@@ -486,9 +639,9 @@
             "priceB": 0.01015,
             "priceC": 0.010218,
             "bars": [
-              228,
-              234,
-              239
+              224,
+              230,
+              235
             ],
             "ret12": -1.34,
             "hit": false
@@ -500,9 +653,9 @@
             "priceB": 0.009721,
             "priceC": 0.009749,
             "bars": [
-              267,
-              281,
-              286
+              263,
+              277,
+              282
             ],
             "ret12": 0.76,
             "hit": true
@@ -514,9 +667,9 @@
             "priceB": 0.009464,
             "priceC": 0.009617,
             "bars": [
-              300,
-              315,
-              320
+              296,
+              311,
+              316
             ],
             "ret12": 0.98,
             "hit": true
@@ -528,9 +681,9 @@
             "priceB": 0.009448,
             "priceC": 0.009575,
             "bars": [
-              452,
-              464,
-              469
+              448,
+              460,
+              465
             ],
             "ret12": 1.14,
             "hit": true
@@ -542,9 +695,9 @@
             "priceB": 0.009443,
             "priceC": 0.009684,
             "bars": [
-              464,
-              490,
-              495
+              460,
+              486,
+              491
             ],
             "ret12": -1.89,
             "hit": false
@@ -556,9 +709,9 @@
             "priceB": 0.009237,
             "priceC": 0.009521,
             "bars": [
-              490,
-              512,
-              517
+              486,
+              508,
+              513
             ],
             "ret12": 1.43,
             "hit": true
@@ -570,9 +723,9 @@
             "priceB": 0.01027,
             "priceC": 0.009404,
             "bars": [
-              518,
-              525,
-              530
+              514,
+              521,
+              526
             ],
             "ret12": -2.07,
             "hit": true
@@ -584,9 +737,9 @@
             "priceB": 0.00953,
             "priceC": 0.009324,
             "bars": [
-              552,
-              564,
-              569
+              548,
+              560,
+              565
             ],
             "ret12": -0.76,
             "hit": true
@@ -598,9 +751,9 @@
             "priceB": 0.009597,
             "priceC": 0.009253,
             "bars": [
-              564,
-              576,
-              581
+              560,
+              572,
+              577
             ],
             "ret12": 4.09,
             "hit": false
@@ -612,9 +765,9 @@
             "priceB": 0.009661,
             "priceC": 0.009631,
             "bars": [
-              576,
-              592,
-              597
+              572,
+              588,
+              593
             ],
             "ret12": -3.17,
             "hit": true
@@ -626,9 +779,9 @@
             "priceB": 0.009231,
             "priceC": 0.009341,
             "bars": [
-              609,
-              626,
-              631
+              605,
+              622,
+              627
             ],
             "ret12": 1.74,
             "hit": true
@@ -640,9 +793,9 @@
             "priceB": 0.010057,
             "priceC": 0.009944,
             "bars": [
-              691,
-              706,
-              711
+              687,
+              702,
+              707
             ],
             "ret12": -1.27,
             "hit": true
@@ -654,9 +807,9 @@
             "priceB": 0.010112,
             "priceC": 0.009866,
             "bars": [
-              706,
-              713,
-              718
+              702,
+              709,
+              714
             ],
             "ret12": -0.78,
             "hit": true
@@ -668,9 +821,9 @@
             "priceB": 0.009948,
             "priceC": 0.00976,
             "bars": [
-              789,
-              802,
-              807
+              785,
+              798,
+              803
             ],
             "ret12": -0.29,
             "hit": true
@@ -682,9 +835,9 @@
             "priceB": 0.00971,
             "priceC": 0.00982,
             "bars": [
-              850,
-              859,
-              864
+              846,
+              855,
+              860
             ],
             "ret12": 2.55,
             "hit": true
@@ -696,9 +849,9 @@
             "priceB": 0.010309,
             "priceC": 0.010164,
             "bars": [
-              880,
-              890,
-              895
+              876,
+              886,
+              891
             ],
             "ret12": -3.26,
             "hit": true
@@ -710,9 +863,9 @@
             "priceB": 0.009628,
             "priceC": 0.009874,
             "bars": [
-              930,
-              943,
-              948
+              926,
+              939,
+              944
             ],
             "ret12": 1.01,
             "hit": true
@@ -724,9 +877,9 @@
             "priceB": 0.009992,
             "priceC": 0.009926,
             "bars": [
-              937,
-              953,
-              958
+              933,
+              949,
+              954
             ],
             "ret12": 0.12,
             "hit": false
@@ -738,9 +891,9 @@
             "priceB": 0.009778,
             "priceC": 0.009907,
             "bars": [
-              970,
-              984,
-              989
+              966,
+              980,
+              985
             ],
             "ret12": -2.16,
             "hit": false
@@ -752,9 +905,9 @@
             "priceB": 0.009448,
             "priceC": 0.009788,
             "bars": [
-              984,
-              1003,
-              1008
+              980,
+              999,
+              1004
             ],
             "ret12": -2.96,
             "hit": false
@@ -766,9 +919,9 @@
             "priceB": 0.009317,
             "priceC": 0.009452,
             "bars": [
-              1020,
-              1038,
-              1043
+              1016,
+              1034,
+              1039
             ],
             "ret12": 0.08,
             "hit": true
@@ -780,9 +933,9 @@
             "priceB": 0.009307,
             "priceC": 0.009418,
             "bars": [
-              1038,
-              1056,
-              1061
+              1034,
+              1052,
+              1057
             ],
             "ret12": -0.55,
             "hit": false
@@ -794,9 +947,9 @@
             "priceB": 0.008315,
             "priceC": 0.008645,
             "bars": [
-              1133,
-              1143,
-              1148
+              1129,
+              1139,
+              1144
             ],
             "ret12": 4.35,
             "hit": true
@@ -808,9 +961,9 @@
             "priceB": 0.009338,
             "priceC": 0.009158,
             "bars": [
-              1173,
-              1183,
-              1188
+              1169,
+              1179,
+              1184
             ],
             "ret12": 0.32,
             "hit": false
@@ -822,9 +975,9 @@
             "priceB": 0.009244,
             "priceC": 0.009163,
             "bars": [
-              1196,
-              1209,
-              1214
+              1192,
+              1205,
+              1210
             ],
             "ret12": 0.25,
             "hit": false
@@ -836,9 +989,9 @@
             "priceB": 0.009906,
             "priceC": 0.009792,
             "bars": [
-              1433,
-              1444,
-              1449
+              1429,
+              1440,
+              1445
             ],
             "ret12": -1.01,
             "hit": true
@@ -850,9 +1003,9 @@
             "priceB": 0.009608,
             "priceC": 0.009736,
             "bars": [
-              1444,
-              1460,
-              1465
+              1440,
+              1456,
+              1461
             ],
             "ret12": -2.24,
             "hit": false
@@ -871,7 +1024,7 @@
           "spotSell": 0,
           "perpCvd": 0,
           "spotCvd": 0,
-          "buyRatio": 45.8,
+          "buyRatio": 48.2,
           "quadrant": "spot-bid",
           "latestDiv": {
             "type": "bear",
@@ -891,9 +1044,9 @@
             "priceB": 0.014488,
             "priceC": 0.014984,
             "bars": [
-              8,
-              23,
-              28
+              7,
+              22,
+              27
             ],
             "ret12": 1.83,
             "hit": true
@@ -905,9 +1058,9 @@
             "priceB": 0.018296,
             "priceC": 0.017515,
             "bars": [
-              46,
-              71,
-              76
+              45,
+              70,
+              75
             ],
             "ret12": -1.79,
             "hit": true
@@ -919,9 +1072,9 @@
             "priceB": 0.018082,
             "priceC": 0.016959,
             "bars": [
-              94,
-              108,
-              113
+              93,
+              107,
+              112
             ],
             "ret12": -4.61,
             "hit": true
@@ -933,9 +1086,9 @@
             "priceB": 0.016033,
             "priceC": 0.016353,
             "bars": [
-              119,
-              151,
-              156
+              118,
+              150,
+              155
             ],
             "ret12": 0.35,
             "hit": true
@@ -947,9 +1100,9 @@
             "priceB": 0.01583,
             "priceC": 0.016202,
             "bars": [
-              151,
-              172,
-              177
+              150,
+              171,
+              176
             ],
             "ret12": 1.28,
             "hit": true
@@ -961,9 +1114,9 @@
             "priceB": 0.016853,
             "priceC": 0.016293,
             "bars": [
-              185,
-              208,
-              213
+              184,
+              207,
+              212
             ],
             "ret12": -0.34,
             "hit": true
@@ -975,9 +1128,9 @@
             "priceB": 0.016025,
             "priceC": 0.016532,
             "bars": [
-              203,
-              217,
-              222
+              202,
+              216,
+              221
             ],
             "ret12": 2.7,
             "hit": true
@@ -989,9 +1142,9 @@
             "priceB": 0.017289,
             "priceC": 0.01641,
             "bars": [
-              220,
-              237,
-              242
+              219,
+              236,
+              241
             ],
             "ret12": 2.6,
             "hit": false
@@ -1003,9 +1156,9 @@
             "priceB": 0.018599,
             "priceC": 0.0178,
             "bars": [
-              251,
-              262,
-              267
+              250,
+              261,
+              266
             ],
             "ret12": -2.63,
             "hit": true
@@ -1017,9 +1170,9 @@
             "priceB": 0.019932,
             "priceC": 0.019608,
             "bars": [
-              262,
-              296,
-              301
+              261,
+              295,
+              300
             ],
             "ret12": 0.48,
             "hit": false
@@ -1031,9 +1184,9 @@
             "priceB": 0.02909,
             "priceC": 0.025376,
             "bars": [
-              302,
-              319,
-              324
+              301,
+              318,
+              323
             ],
             "ret12": -6.98,
             "hit": true
@@ -1045,9 +1198,9 @@
             "priceB": 0.018727,
             "priceC": 0.017887,
             "bars": [
-              364,
-              381,
-              386
+              363,
+              380,
+              385
             ],
             "ret12": 14.03,
             "hit": false
@@ -1059,9 +1212,9 @@
             "priceB": 0.0215,
             "priceC": 0.019845,
             "bars": [
-              381,
-              396,
-              401
+              380,
+              395,
+              400
             ],
             "ret12": -11.31,
             "hit": true
@@ -1073,9 +1226,9 @@
             "priceB": 0.0155,
             "priceC": 0.016491,
             "bars": [
-              452,
-              470,
-              475
+              451,
+              469,
+              474
             ],
             "ret12": -1.92,
             "hit": false
@@ -1087,9 +1240,9 @@
             "priceB": 0.015211,
             "priceC": 0.015535,
             "bars": [
-              479,
-              503,
-              508
+              478,
+              502,
+              507
             ],
             "ret12": -3.53,
             "hit": false
@@ -1101,9 +1254,9 @@
             "priceB": 0.015953,
             "priceC": 0.015582,
             "bars": [
-              525,
-              549,
-              554
+              524,
+              548,
+              553
             ],
             "ret12": -1.02,
             "hit": true
@@ -1115,9 +1268,9 @@
             "priceB": 0.014367,
             "priceC": 0.01489,
             "bars": [
-              559,
-              587,
-              592
+              558,
+              586,
+              591
             ],
             "ret12": -3.23,
             "hit": false
@@ -1129,9 +1282,9 @@
             "priceB": 0.015544,
             "priceC": 0.015076,
             "bars": [
-              655,
-              677,
-              682
+              654,
+              676,
+              681
             ],
             "ret12": -2.63,
             "hit": true
@@ -1143,9 +1296,9 @@
             "priceB": 0.014079,
             "priceC": 0.01413,
             "bars": [
-              693,
-              705,
-              710
+              692,
+              704,
+              709
             ],
             "ret12": -0.17,
             "hit": false
@@ -1157,9 +1310,9 @@
             "priceB": 0.014385,
             "priceC": 0.013899,
             "bars": [
-              727,
-              742,
-              747
+              726,
+              741,
+              746
             ],
             "ret12": -0.88,
             "hit": true
@@ -1171,9 +1324,9 @@
             "priceB": 0.0145,
             "priceC": 0.014054,
             "bars": [
-              758,
-              775,
-              780
+              757,
+              774,
+              779
             ],
             "ret12": -2.76,
             "hit": true
@@ -1185,9 +1338,9 @@
             "priceB": 0.013211,
             "priceC": 0.013722,
             "bars": [
-              795,
-              818,
-              823
+              794,
+              817,
+              822
             ],
             "ret12": -0.75,
             "hit": false
@@ -1199,9 +1352,9 @@
             "priceB": 0.013984,
             "priceC": 0.013007,
             "bars": [
-              833,
-              839,
-              844
+              832,
+              838,
+              843
             ],
             "ret12": -1.99,
             "hit": true
@@ -1213,9 +1366,9 @@
             "priceB": 0.01278,
             "priceC": 0.013566,
             "bars": [
-              818,
-              844,
-              849
+              817,
+              843,
+              848
             ],
             "ret12": -5.3,
             "hit": false
@@ -1227,9 +1380,9 @@
             "priceB": 0.01252,
             "priceC": 0.012847,
             "bars": [
-              844,
-              856,
-              861
+              843,
+              855,
+              860
             ],
             "ret12": 7.5,
             "hit": true
@@ -1241,9 +1394,9 @@
             "priceB": 0.011783,
             "priceC": 0.012215,
             "bars": [
-              878,
-              885,
-              890
+              877,
+              884,
+              889
             ],
             "ret12": -0.67,
             "hit": false
@@ -1255,9 +1408,9 @@
             "priceB": 0.011406,
             "priceC": 0.012093,
             "bars": [
-              885,
-              896,
-              901
+              884,
+              895,
+              900
             ],
             "ret12": 0.89,
             "hit": true
@@ -1269,9 +1422,9 @@
             "priceB": 0.012842,
             "priceC": 0.012192,
             "bars": [
-              919,
-              936,
-              941
+              918,
+              935,
+              940
             ],
             "ret12": -1.74,
             "hit": true
@@ -1283,9 +1436,9 @@
             "priceB": 0.011044,
             "priceC": 0.012015,
             "bars": [
-              969,
-              982,
-              987
+              968,
+              981,
+              986
             ],
             "ret12": -4.29,
             "hit": false
@@ -1297,9 +1450,9 @@
             "priceB": 0.012067,
             "priceC": 0.011717,
             "bars": [
-              962,
-              987,
-              992
+              961,
+              986,
+              991
             ],
             "ret12": 1.02,
             "hit": false
@@ -1311,9 +1464,9 @@
             "priceB": 0.012327,
             "priceC": 0.01181,
             "bars": [
-              1005,
-              1013,
-              1018
+              1004,
+              1012,
+              1017
             ],
             "ret12": 0.58,
             "hit": false
@@ -1325,9 +1478,9 @@
             "priceB": 0.009926,
             "priceC": 0.010404,
             "bars": [
-              1161,
-              1173,
-              1178
+              1160,
+              1172,
+              1177
             ],
             "ret12": -5.02,
             "hit": false
@@ -1339,9 +1492,9 @@
             "priceB": 0.00958,
             "priceC": 0.009753,
             "bars": [
-              1173,
-              1189,
-              1194
+              1172,
+              1188,
+              1193
             ],
             "ret12": -0.46,
             "hit": false
@@ -1353,9 +1506,9 @@
             "priceB": 0.009464,
             "priceC": 0.009717,
             "bars": [
-              1189,
-              1203,
-              1208
+              1188,
+              1202,
+              1207
             ],
             "ret12": 1.62,
             "hit": true
@@ -1367,9 +1520,9 @@
             "priceB": 0.009389,
             "priceC": 0.00972,
             "bars": [
-              1203,
-              1217,
-              1222
+              1202,
+              1216,
+              1221
             ],
             "ret12": 2.81,
             "hit": true
@@ -1381,9 +1534,9 @@
             "priceB": 0.009237,
             "priceC": 0.009368,
             "bars": [
-              1240,
-              1252,
-              1257
+              1239,
+              1251,
+              1256
             ],
             "ret12": -1.67,
             "hit": false
@@ -1395,9 +1548,9 @@
             "priceB": 0.01027,
             "priceC": 0.009072,
             "bars": [
-              1248,
-              1255,
-              1260
+              1247,
+              1254,
+              1259
             ],
             "ret12": 5.81,
             "hit": false
@@ -1409,9 +1562,9 @@
             "priceB": 0.010112,
             "priceC": 0.009816,
             "bars": [
-              1273,
-              1302,
-              1307
+              1272,
+              1301,
+              1306
             ],
             "ret12": -0.55,
             "hit": true
@@ -1423,9 +1576,9 @@
             "priceB": 0.009973,
             "priceC": 0.009742,
             "bars": [
-              1324,
-              1333,
-              1338
+              1323,
+              1332,
+              1337
             ],
             "ret12": 1.09,
             "hit": false
@@ -1437,9 +1590,9 @@
             "priceB": 0.010309,
             "priceC": 0.009863,
             "bars": [
-              1333,
-              1346,
-              1351
+              1332,
+              1345,
+              1350
             ],
             "ret12": 0.64,
             "hit": false
@@ -1451,9 +1604,9 @@
             "priceB": 0.009448,
             "priceC": 0.009588,
             "bars": [
-              1360,
-              1375,
-              1380
+              1359,
+              1374,
+              1379
             ],
             "ret12": -2.93,
             "hit": false
@@ -1465,9 +1618,9 @@
             "priceB": 0.008315,
             "priceC": 0.009009,
             "bars": [
-              1398,
-              1410,
-              1415
+              1397,
+              1409,
+              1414
             ],
             "ret12": 1.71,
             "hit": true
@@ -1479,9 +1632,9 @@
             "priceB": 0.009338,
             "priceC": 0.0092,
             "bars": [
-              1412,
-              1420,
-              1425
+              1411,
+              1419,
+              1424
             ],
             "ret12": -2.01,
             "hit": true
@@ -1493,9 +1646,9 @@
             "priceB": 0.009265,
             "priceC": 0.009217,
             "bars": [
-              1440,
-              1446,
-              1451
+              1439,
+              1445,
+              1450
             ],
             "ret12": 5.67,
             "hit": false
@@ -1507,9 +1660,9 @@
             "priceB": 0.01016,
             "priceC": 0.009878,
             "bars": [
-              1458,
-              1468,
-              1473
+              1457,
+              1467,
+              1472
             ],
             "ret12": -0.9,
             "hit": true
@@ -1530,7 +1683,7 @@
           "spotSell": 0,
           "perpCvd": 0,
           "spotCvd": 0,
-          "buyRatio": 45.6,
+          "buyRatio": 46.4,
           "quadrant": "spot-bid",
           "latestDiv": null,
           "hitRate": null
@@ -1549,7 +1702,7 @@
           "spotSell": 0,
           "perpCvd": 0,
           "spotCvd": 0,
-          "buyRatio": 45.8,
+          "buyRatio": 48.2,
           "quadrant": "spot-bid",
           "latestDiv": null,
           "hitRate": null
@@ -1566,9 +1719,9 @@
     "signals": {
       "all": {
         "counts": {
-          "all": 0,
-          "bullish": 0,
-          "bearish": 0
+          "all": 65,
+          "bullish": 26,
+          "bearish": 39
         },
         "thresholds": {
           "vol": 1,
@@ -1578,7 +1731,661 @@
           {
             "bt": "time",
             "label": "15m",
-            "sigs": []
+            "sigs": [
+              {
+                "i": 5,
+                "t": "div",
+                "side": "sell",
+                "p": 0.009234,
+                "r": -0.49988852672460304,
+                "ts": 1795292100,
+                "bt": "time"
+              },
+              {
+                "i": 8,
+                "t": "div",
+                "side": "buy",
+                "p": 0.009175,
+                "r": 0.16189630662800475,
+                "ts": 1795294800,
+                "bt": "time"
+              },
+              {
+                "i": 17,
+                "t": "div",
+                "side": "sell",
+                "p": 0.009139,
+                "r": -0.5381133166542059,
+                "ts": 1795302900,
+                "bt": "time"
+              },
+              {
+                "i": 21,
+                "t": "exh",
+                "side": "sell",
+                "p": 0.009231,
+                "ts": 1795306500,
+                "bt": "time"
+              },
+              {
+                "i": 28,
+                "t": "abs",
+                "side": "sell",
+                "p": 0.009161,
+                "q": 234107,
+                "u": 2140.0891405,
+                "lo": 0.009154,
+                "hi": 0.009162,
+                "ts": 1795312800,
+                "bt": "time"
+              },
+              {
+                "i": 32,
+                "t": "abs",
+                "side": "sell",
+                "p": 0.009047,
+                "q": 868218,
+                "u": 7807.884474,
+                "lo": 0.009026000000000001,
+                "hi": 0.009048,
+                "ts": 1795316400,
+                "bt": "time"
+              },
+              {
+                "i": 39,
+                "t": "abs",
+                "side": "buy",
+                "p": 0.008955,
+                "q": 194418,
+                "u": 1747.2345659999996,
+                "lo": 0.008955,
+                "hi": 0.008968,
+                "ts": 1795322700,
+                "bt": "time"
+              },
+              {
+                "i": 43,
+                "t": "abs",
+                "side": "buy",
+                "p": 0.008917,
+                "q": 290905,
+                "u": 2601.7088675,
+                "lo": 0.008914,
+                "hi": 0.008925,
+                "ts": 1795326300,
+                "bt": "time"
+              },
+              {
+                "i": 44,
+                "t": "div",
+                "side": "sell",
+                "p": 0.008983,
+                "r": -0.5027655975920665,
+                "ts": 1795327200,
+                "bt": "time"
+              },
+              {
+                "i": 53,
+                "t": "exh",
+                "side": "sell",
+                "p": 0.009168,
+                "ts": 1795335300,
+                "bt": "time"
+              },
+              {
+                "i": 54,
+                "t": "exh",
+                "side": "sell",
+                "p": 0.009177,
+                "ts": 1795336200,
+                "bt": "time"
+              },
+              {
+                "i": 61,
+                "t": "div",
+                "side": "buy",
+                "p": 0.00914,
+                "r": 0.2838232985489945,
+                "ts": 1795342500,
+                "bt": "time"
+              },
+              {
+                "i": 70,
+                "t": "exh",
+                "side": "buy",
+                "p": 0.009017,
+                "ts": 1795350600,
+                "bt": "time"
+              },
+              {
+                "i": 99,
+                "t": "div",
+                "side": "buy",
+                "p": 0.009169,
+                "r": 0.28802423568147817,
+                "ts": 1795376700,
+                "bt": "time"
+              },
+              {
+                "i": 104,
+                "t": "div",
+                "side": "buy",
+                "p": 0.009186,
+                "r": 0.1707421183320994,
+                "ts": 1795381200,
+                "bt": "time"
+              },
+              {
+                "i": 108,
+                "t": "abs",
+                "side": "buy",
+                "p": 0.009188,
+                "q": 713854,
+                "u": 6591.727835999999,
+                "lo": 0.009187,
+                "hi": 0.009206,
+                "ts": 1795384800,
+                "bt": "time"
+              },
+              {
+                "i": 118,
+                "t": "exh",
+                "side": "sell",
+                "p": 0.009285,
+                "ts": 1795393800,
+                "bt": "time"
+              },
+              {
+                "i": 120,
+                "t": "exh",
+                "side": "sell",
+                "p": 0.009295,
+                "ts": 1795395600,
+                "bt": "time"
+              },
+              {
+                "i": 120,
+                "t": "sdiv",
+                "side": "sell",
+                "p": 0.009295,
+                "i0": 108,
+                "p0": 0.00928,
+                "dc": -428621,
+                "ts": 1795395600,
+                "bt": "time"
+              },
+              {
+                "i": 130,
+                "t": "exh",
+                "side": "sell",
+                "p": 0.009511,
+                "ts": 1795404600,
+                "bt": "time"
+              },
+              {
+                "i": 132,
+                "t": "div",
+                "side": "sell",
+                "p": 0.009405,
+                "r": -0.16124298461835226,
+                "ts": 1795406400,
+                "bt": "time"
+              },
+              {
+                "i": 133,
+                "t": "div",
+                "side": "sell",
+                "p": 0.0095,
+                "r": -0.1782297830522132,
+                "ts": 1795407300,
+                "bt": "time"
+              },
+              {
+                "i": 151,
+                "t": "sdiv",
+                "side": "sell",
+                "p": 0.00985,
+                "i0": 145,
+                "p0": 0.009846,
+                "dc": -2211972,
+                "ts": 1795423500,
+                "bt": "time"
+              },
+              {
+                "i": 161,
+                "t": "div",
+                "side": "sell",
+                "p": 0.009728,
+                "r": -0.434415671450218,
+                "ts": 1795432500,
+                "bt": "time"
+              },
+              {
+                "i": 162,
+                "t": "div",
+                "side": "sell",
+                "p": 0.009784,
+                "r": -0.43121968681139733,
+                "ts": 1795433400,
+                "bt": "time"
+              },
+              {
+                "i": 169,
+                "t": "abs",
+                "side": "buy",
+                "p": 0.009687,
+                "q": 186446,
+                "u": 1811.695782,
+                "lo": 0.009687,
+                "hi": 0.009699,
+                "ts": 1795439700,
+                "bt": "time"
+              },
+              {
+                "i": 172,
+                "t": "abs",
+                "side": "buy",
+                "p": 0.009876,
+                "q": 1122937,
+                "u": 11213.0874135,
+                "lo": 0.009866,
+                "hi": 0.009911999999999999,
+                "ts": 1795442400,
+                "bt": "time"
+              },
+              {
+                "i": 175,
+                "t": "div",
+                "side": "sell",
+                "p": 0.010086,
+                "r": -0.28951089486684534,
+                "ts": 1795445100,
+                "bt": "time"
+              },
+              {
+                "i": 179,
+                "t": "div",
+                "side": "sell",
+                "p": 0.010095,
+                "r": -0.6188640928950916,
+                "ts": 1795448700,
+                "bt": "time"
+              },
+              {
+                "i": 181,
+                "t": "div",
+                "side": "buy",
+                "p": 0.010012,
+                "r": 0.37972064254249877,
+                "ts": 1795450500,
+                "bt": "time"
+              },
+              {
+                "i": 198,
+                "t": "sdiv",
+                "side": "sell",
+                "p": 0.009945,
+                "i0": 193,
+                "p0": 0.009923,
+                "dc": -838050,
+                "ts": 1795465800,
+                "bt": "time"
+              },
+              {
+                "i": 201,
+                "t": "abs",
+                "side": "sell",
+                "p": 0.009877,
+                "q": 242504,
+                "u": 2383.0868079999996,
+                "lo": 0.009849,
+                "hi": 0.009878,
+                "ts": 1795468500,
+                "bt": "time"
+              },
+              {
+                "i": 204,
+                "t": "abs",
+                "side": "sell",
+                "p": 0.009836,
+                "q": 146691,
+                "u": 1438.451946,
+                "lo": 0.009822000000000001,
+                "hi": 0.009837,
+                "ts": 1795471200,
+                "bt": "time"
+              },
+              {
+                "i": 205,
+                "t": "abs",
+                "side": "sell",
+                "p": 0.009795,
+                "q": 167126,
+                "u": 1629.9798779999999,
+                "lo": 0.009779,
+                "hi": 0.009796,
+                "ts": 1795472100,
+                "bt": "time"
+              },
+              {
+                "i": 206,
+                "t": "div",
+                "side": "sell",
+                "p": 0.00975,
+                "r": -0.2523636951117867,
+                "ts": 1795473000,
+                "bt": "time"
+              },
+              {
+                "i": 206,
+                "t": "abs",
+                "side": "buy",
+                "p": 0.009703,
+                "q": 208711,
+                "u": 2030.0275414999999,
+                "lo": 0.009703,
+                "hi": 0.009715,
+                "ts": 1795473000,
+                "bt": "time"
+              },
+              {
+                "i": 213,
+                "t": "div",
+                "side": "sell",
+                "p": 0.009764,
+                "r": -0.31171757448653387,
+                "ts": 1795479300,
+                "bt": "time"
+              },
+              {
+                "i": 216,
+                "t": "trap",
+                "side": "sell",
+                "p": 0.009822,
+                "j": 219,
+                "q": 252151,
+                "u": 2462.8848924999998,
+                "lo": 0.009798,
+                "hi": 0.009823,
+                "ts": 1795482000,
+                "bt": "time"
+              },
+              {
+                "i": 216,
+                "t": "sdiv",
+                "side": "sell",
+                "p": 0.009822,
+                "i0": 211,
+                "p0": 0.009764,
+                "dc": -827619,
+                "ts": 1795482000,
+                "bt": "time"
+              },
+              {
+                "i": 219,
+                "t": "div",
+                "side": "buy",
+                "p": 0.00968,
+                "r": 0.16258449459870877,
+                "ts": 1795484700,
+                "bt": "time"
+              },
+              {
+                "i": 220,
+                "t": "div",
+                "side": "sell",
+                "p": 0.009733,
+                "r": -0.2036818432220063,
+                "ts": 1795485600,
+                "bt": "time"
+              },
+              {
+                "i": 234,
+                "t": "div",
+                "side": "sell",
+                "p": 0.00986,
+                "r": -0.48844080471635354,
+                "ts": 1795498200,
+                "bt": "time"
+              },
+              {
+                "i": 241,
+                "t": "exh",
+                "side": "sell",
+                "p": 0.009906,
+                "ts": 1795504500,
+                "bt": "time"
+              },
+              {
+                "i": 241,
+                "t": "sdiv",
+                "side": "sell",
+                "p": 0.009906,
+                "i0": 230,
+                "p0": 0.009902,
+                "dc": -3234462,
+                "ts": 1795504500,
+                "bt": "time"
+              },
+              {
+                "i": 245,
+                "t": "div",
+                "side": "buy",
+                "p": 0.00978,
+                "r": 0.501462747143633,
+                "ts": 1795508100,
+                "bt": "time"
+              },
+              {
+                "i": 250,
+                "t": "div",
+                "side": "sell",
+                "p": 0.00973,
+                "r": -0.49362531358744033,
+                "ts": 1795512600,
+                "bt": "time"
+              },
+              {
+                "i": 254,
+                "t": "div",
+                "side": "buy",
+                "p": 0.009645,
+                "r": 0.5413414734334244,
+                "ts": 1795516200,
+                "bt": "time"
+              },
+              {
+                "i": 255,
+                "t": "div",
+                "side": "sell",
+                "p": 0.009682,
+                "r": -0.2445174614352916,
+                "ts": 1795517100,
+                "bt": "time"
+              },
+              {
+                "i": 256,
+                "t": "div",
+                "side": "buy",
+                "p": 0.009637,
+                "r": 0.44209012467406644,
+                "ts": 1795518000,
+                "bt": "time"
+              },
+              {
+                "i": 257,
+                "t": "abs",
+                "side": "buy",
+                "p": 0.009608,
+                "q": 231455,
+                "u": 2233.07784,
+                "lo": 0.009608,
+                "hi": 0.009624,
+                "ts": 1795518900,
+                "bt": "time"
+              },
+              {
+                "i": 257,
+                "t": "trap",
+                "side": "buy",
+                "p": 0.009608,
+                "j": 258,
+                "q": 231455,
+                "u": 2233.07784,
+                "lo": 0.009608,
+                "hi": 0.009624,
+                "ts": 1795518900,
+                "bt": "time"
+              },
+              {
+                "i": 257,
+                "t": "sdiv",
+                "side": "buy",
+                "p": 0.009608,
+                "i0": 250,
+                "p0": 0.009632,
+                "dc": 1540548,
+                "ts": 1795518900,
+                "bt": "time"
+              },
+              {
+                "i": 261,
+                "t": "div",
+                "side": "sell",
+                "p": 0.009758,
+                "r": -0.611289925803849,
+                "ts": 1795522500,
+                "bt": "time"
+              },
+              {
+                "i": 263,
+                "t": "sdiv",
+                "side": "sell",
+                "p": 0.009765,
+                "i0": 259,
+                "p0": 0.009764,
+                "dc": -1278684,
+                "ts": 1795524300,
+                "bt": "time"
+              },
+              {
+                "i": 270,
+                "t": "div",
+                "side": "buy",
+                "p": 0.009614,
+                "r": 0.5097359757345303,
+                "ts": 1795530600,
+                "bt": "time"
+              },
+              {
+                "i": 272,
+                "t": "abs",
+                "side": "sell",
+                "p": 0.00968,
+                "q": 122107,
+                "u": 1173.326163,
+                "lo": 0.009649,
+                "hi": 0.009681,
+                "ts": 1795532400,
+                "bt": "time"
+              },
+              {
+                "i": 273,
+                "t": "abs",
+                "side": "buy",
+                "p": 0.009445,
+                "q": 609731,
+                "u": 5794.273693000001,
+                "lo": 0.009443,
+                "hi": 0.009467,
+                "ts": 1795533300,
+                "bt": "time"
+              },
+              {
+                "i": 273,
+                "t": "trap",
+                "side": "buy",
+                "p": 0.009445,
+                "j": 275,
+                "q": 609731,
+                "u": 5794.273693000001,
+                "lo": 0.009443,
+                "hi": 0.009467,
+                "ts": 1795533300,
+                "bt": "time"
+              },
+              {
+                "i": 275,
+                "t": "abs",
+                "side": "buy",
+                "p": 0.009488,
+                "q": 158478,
+                "u": 1510.374579,
+                "lo": 0.009482,
+                "hi": 0.009500000000000001,
+                "ts": 1795535100,
+                "bt": "time"
+              },
+              {
+                "i": 282,
+                "t": "trap",
+                "side": "sell",
+                "p": 0.009666,
+                "j": 284,
+                "q": 226846,
+                "u": 2187.5894009999997,
+                "lo": 0.009656999999999999,
+                "hi": 0.009667,
+                "ts": 1795541400,
+                "bt": "time"
+              },
+              {
+                "i": 287,
+                "t": "abs",
+                "side": "sell",
+                "p": 0.009581,
+                "q": 244199,
+                "u": 2330.0247584999997,
+                "lo": 0.009564000000000001,
+                "hi": 0.009582,
+                "ts": 1795545900,
+                "bt": "time"
+              },
+              {
+                "i": 288,
+                "t": "div",
+                "side": "buy",
+                "p": 0.009472,
+                "r": 0.15909502016894886,
+                "ts": 1795546800,
+                "bt": "time"
+              },
+              {
+                "i": 288,
+                "t": "exh",
+                "side": "buy",
+                "p": 0.009472,
+                "ts": 1795546800,
+                "bt": "time"
+              },
+              {
+                "i": 290,
+                "t": "exh",
+                "side": "buy",
+                "p": 0.009438,
+                "ts": 1795548600,
+                "bt": "time"
+              },
+              {
+                "i": 296,
+                "t": "div",
+                "side": "sell",
+                "p": 0.009468,
+                "r": -0.7593715102481284,
+                "ts": 1795554000,
+                "bt": "time"
+              }
+            ]
           },
           {
             "bt": "vol",
@@ -1594,9 +2401,9 @@
       },
       "time": {
         "counts": {
-          "all": 0,
-          "bullish": 0,
-          "bearish": 0
+          "all": 65,
+          "bullish": 26,
+          "bearish": 39
         },
         "thresholds": {
           "vol": 1,
@@ -1606,15 +2413,669 @@
           {
             "bt": "time",
             "label": "15m",
-            "sigs": []
+            "sigs": [
+              {
+                "i": 5,
+                "t": "div",
+                "side": "sell",
+                "p": 0.009234,
+                "r": -0.49988852672460304,
+                "ts": 1795292100,
+                "bt": "time"
+              },
+              {
+                "i": 8,
+                "t": "div",
+                "side": "buy",
+                "p": 0.009175,
+                "r": 0.16189630662800475,
+                "ts": 1795294800,
+                "bt": "time"
+              },
+              {
+                "i": 17,
+                "t": "div",
+                "side": "sell",
+                "p": 0.009139,
+                "r": -0.5381133166542059,
+                "ts": 1795302900,
+                "bt": "time"
+              },
+              {
+                "i": 21,
+                "t": "exh",
+                "side": "sell",
+                "p": 0.009231,
+                "ts": 1795306500,
+                "bt": "time"
+              },
+              {
+                "i": 28,
+                "t": "abs",
+                "side": "sell",
+                "p": 0.009161,
+                "q": 234107,
+                "u": 2140.0891405,
+                "lo": 0.009154,
+                "hi": 0.009162,
+                "ts": 1795312800,
+                "bt": "time"
+              },
+              {
+                "i": 32,
+                "t": "abs",
+                "side": "sell",
+                "p": 0.009047,
+                "q": 868218,
+                "u": 7807.884474,
+                "lo": 0.009026000000000001,
+                "hi": 0.009048,
+                "ts": 1795316400,
+                "bt": "time"
+              },
+              {
+                "i": 39,
+                "t": "abs",
+                "side": "buy",
+                "p": 0.008955,
+                "q": 194418,
+                "u": 1747.2345659999996,
+                "lo": 0.008955,
+                "hi": 0.008968,
+                "ts": 1795322700,
+                "bt": "time"
+              },
+              {
+                "i": 43,
+                "t": "abs",
+                "side": "buy",
+                "p": 0.008917,
+                "q": 290905,
+                "u": 2601.7088675,
+                "lo": 0.008914,
+                "hi": 0.008925,
+                "ts": 1795326300,
+                "bt": "time"
+              },
+              {
+                "i": 44,
+                "t": "div",
+                "side": "sell",
+                "p": 0.008983,
+                "r": -0.5027655975920665,
+                "ts": 1795327200,
+                "bt": "time"
+              },
+              {
+                "i": 53,
+                "t": "exh",
+                "side": "sell",
+                "p": 0.009168,
+                "ts": 1795335300,
+                "bt": "time"
+              },
+              {
+                "i": 54,
+                "t": "exh",
+                "side": "sell",
+                "p": 0.009177,
+                "ts": 1795336200,
+                "bt": "time"
+              },
+              {
+                "i": 61,
+                "t": "div",
+                "side": "buy",
+                "p": 0.00914,
+                "r": 0.2838232985489945,
+                "ts": 1795342500,
+                "bt": "time"
+              },
+              {
+                "i": 70,
+                "t": "exh",
+                "side": "buy",
+                "p": 0.009017,
+                "ts": 1795350600,
+                "bt": "time"
+              },
+              {
+                "i": 99,
+                "t": "div",
+                "side": "buy",
+                "p": 0.009169,
+                "r": 0.28802423568147817,
+                "ts": 1795376700,
+                "bt": "time"
+              },
+              {
+                "i": 104,
+                "t": "div",
+                "side": "buy",
+                "p": 0.009186,
+                "r": 0.1707421183320994,
+                "ts": 1795381200,
+                "bt": "time"
+              },
+              {
+                "i": 108,
+                "t": "abs",
+                "side": "buy",
+                "p": 0.009188,
+                "q": 713854,
+                "u": 6591.727835999999,
+                "lo": 0.009187,
+                "hi": 0.009206,
+                "ts": 1795384800,
+                "bt": "time"
+              },
+              {
+                "i": 118,
+                "t": "exh",
+                "side": "sell",
+                "p": 0.009285,
+                "ts": 1795393800,
+                "bt": "time"
+              },
+              {
+                "i": 120,
+                "t": "exh",
+                "side": "sell",
+                "p": 0.009295,
+                "ts": 1795395600,
+                "bt": "time"
+              },
+              {
+                "i": 120,
+                "t": "sdiv",
+                "side": "sell",
+                "p": 0.009295,
+                "i0": 108,
+                "p0": 0.00928,
+                "dc": -428621,
+                "ts": 1795395600,
+                "bt": "time"
+              },
+              {
+                "i": 130,
+                "t": "exh",
+                "side": "sell",
+                "p": 0.009511,
+                "ts": 1795404600,
+                "bt": "time"
+              },
+              {
+                "i": 132,
+                "t": "div",
+                "side": "sell",
+                "p": 0.009405,
+                "r": -0.16124298461835226,
+                "ts": 1795406400,
+                "bt": "time"
+              },
+              {
+                "i": 133,
+                "t": "div",
+                "side": "sell",
+                "p": 0.0095,
+                "r": -0.1782297830522132,
+                "ts": 1795407300,
+                "bt": "time"
+              },
+              {
+                "i": 151,
+                "t": "sdiv",
+                "side": "sell",
+                "p": 0.00985,
+                "i0": 145,
+                "p0": 0.009846,
+                "dc": -2211972,
+                "ts": 1795423500,
+                "bt": "time"
+              },
+              {
+                "i": 161,
+                "t": "div",
+                "side": "sell",
+                "p": 0.009728,
+                "r": -0.434415671450218,
+                "ts": 1795432500,
+                "bt": "time"
+              },
+              {
+                "i": 162,
+                "t": "div",
+                "side": "sell",
+                "p": 0.009784,
+                "r": -0.43121968681139733,
+                "ts": 1795433400,
+                "bt": "time"
+              },
+              {
+                "i": 169,
+                "t": "abs",
+                "side": "buy",
+                "p": 0.009687,
+                "q": 186446,
+                "u": 1811.695782,
+                "lo": 0.009687,
+                "hi": 0.009699,
+                "ts": 1795439700,
+                "bt": "time"
+              },
+              {
+                "i": 172,
+                "t": "abs",
+                "side": "buy",
+                "p": 0.009876,
+                "q": 1122937,
+                "u": 11213.0874135,
+                "lo": 0.009866,
+                "hi": 0.009911999999999999,
+                "ts": 1795442400,
+                "bt": "time"
+              },
+              {
+                "i": 175,
+                "t": "div",
+                "side": "sell",
+                "p": 0.010086,
+                "r": -0.28951089486684534,
+                "ts": 1795445100,
+                "bt": "time"
+              },
+              {
+                "i": 179,
+                "t": "div",
+                "side": "sell",
+                "p": 0.010095,
+                "r": -0.6188640928950916,
+                "ts": 1795448700,
+                "bt": "time"
+              },
+              {
+                "i": 181,
+                "t": "div",
+                "side": "buy",
+                "p": 0.010012,
+                "r": 0.37972064254249877,
+                "ts": 1795450500,
+                "bt": "time"
+              },
+              {
+                "i": 198,
+                "t": "sdiv",
+                "side": "sell",
+                "p": 0.009945,
+                "i0": 193,
+                "p0": 0.009923,
+                "dc": -838050,
+                "ts": 1795465800,
+                "bt": "time"
+              },
+              {
+                "i": 201,
+                "t": "abs",
+                "side": "sell",
+                "p": 0.009877,
+                "q": 242504,
+                "u": 2383.0868079999996,
+                "lo": 0.009849,
+                "hi": 0.009878,
+                "ts": 1795468500,
+                "bt": "time"
+              },
+              {
+                "i": 204,
+                "t": "abs",
+                "side": "sell",
+                "p": 0.009836,
+                "q": 146691,
+                "u": 1438.451946,
+                "lo": 0.009822000000000001,
+                "hi": 0.009837,
+                "ts": 1795471200,
+                "bt": "time"
+              },
+              {
+                "i": 205,
+                "t": "abs",
+                "side": "sell",
+                "p": 0.009795,
+                "q": 167126,
+                "u": 1629.9798779999999,
+                "lo": 0.009779,
+                "hi": 0.009796,
+                "ts": 1795472100,
+                "bt": "time"
+              },
+              {
+                "i": 206,
+                "t": "div",
+                "side": "sell",
+                "p": 0.00975,
+                "r": -0.2523636951117867,
+                "ts": 1795473000,
+                "bt": "time"
+              },
+              {
+                "i": 206,
+                "t": "abs",
+                "side": "buy",
+                "p": 0.009703,
+                "q": 208711,
+                "u": 2030.0275414999999,
+                "lo": 0.009703,
+                "hi": 0.009715,
+                "ts": 1795473000,
+                "bt": "time"
+              },
+              {
+                "i": 213,
+                "t": "div",
+                "side": "sell",
+                "p": 0.009764,
+                "r": -0.31171757448653387,
+                "ts": 1795479300,
+                "bt": "time"
+              },
+              {
+                "i": 216,
+                "t": "trap",
+                "side": "sell",
+                "p": 0.009822,
+                "j": 219,
+                "q": 252151,
+                "u": 2462.8848924999998,
+                "lo": 0.009798,
+                "hi": 0.009823,
+                "ts": 1795482000,
+                "bt": "time"
+              },
+              {
+                "i": 216,
+                "t": "sdiv",
+                "side": "sell",
+                "p": 0.009822,
+                "i0": 211,
+                "p0": 0.009764,
+                "dc": -827619,
+                "ts": 1795482000,
+                "bt": "time"
+              },
+              {
+                "i": 219,
+                "t": "div",
+                "side": "buy",
+                "p": 0.00968,
+                "r": 0.16258449459870877,
+                "ts": 1795484700,
+                "bt": "time"
+              },
+              {
+                "i": 220,
+                "t": "div",
+                "side": "sell",
+                "p": 0.009733,
+                "r": -0.2036818432220063,
+                "ts": 1795485600,
+                "bt": "time"
+              },
+              {
+                "i": 234,
+                "t": "div",
+                "side": "sell",
+                "p": 0.00986,
+                "r": -0.48844080471635354,
+                "ts": 1795498200,
+                "bt": "time"
+              },
+              {
+                "i": 241,
+                "t": "exh",
+                "side": "sell",
+                "p": 0.009906,
+                "ts": 1795504500,
+                "bt": "time"
+              },
+              {
+                "i": 241,
+                "t": "sdiv",
+                "side": "sell",
+                "p": 0.009906,
+                "i0": 230,
+                "p0": 0.009902,
+                "dc": -3234462,
+                "ts": 1795504500,
+                "bt": "time"
+              },
+              {
+                "i": 245,
+                "t": "div",
+                "side": "buy",
+                "p": 0.00978,
+                "r": 0.501462747143633,
+                "ts": 1795508100,
+                "bt": "time"
+              },
+              {
+                "i": 250,
+                "t": "div",
+                "side": "sell",
+                "p": 0.00973,
+                "r": -0.49362531358744033,
+                "ts": 1795512600,
+                "bt": "time"
+              },
+              {
+                "i": 254,
+                "t": "div",
+                "side": "buy",
+                "p": 0.009645,
+                "r": 0.5413414734334244,
+                "ts": 1795516200,
+                "bt": "time"
+              },
+              {
+                "i": 255,
+                "t": "div",
+                "side": "sell",
+                "p": 0.009682,
+                "r": -0.2445174614352916,
+                "ts": 1795517100,
+                "bt": "time"
+              },
+              {
+                "i": 256,
+                "t": "div",
+                "side": "buy",
+                "p": 0.009637,
+                "r": 0.44209012467406644,
+                "ts": 1795518000,
+                "bt": "time"
+              },
+              {
+                "i": 257,
+                "t": "abs",
+                "side": "buy",
+                "p": 0.009608,
+                "q": 231455,
+                "u": 2233.07784,
+                "lo": 0.009608,
+                "hi": 0.009624,
+                "ts": 1795518900,
+                "bt": "time"
+              },
+              {
+                "i": 257,
+                "t": "trap",
+                "side": "buy",
+                "p": 0.009608,
+                "j": 258,
+                "q": 231455,
+                "u": 2233.07784,
+                "lo": 0.009608,
+                "hi": 0.009624,
+                "ts": 1795518900,
+                "bt": "time"
+              },
+              {
+                "i": 257,
+                "t": "sdiv",
+                "side": "buy",
+                "p": 0.009608,
+                "i0": 250,
+                "p0": 0.009632,
+                "dc": 1540548,
+                "ts": 1795518900,
+                "bt": "time"
+              },
+              {
+                "i": 261,
+                "t": "div",
+                "side": "sell",
+                "p": 0.009758,
+                "r": -0.611289925803849,
+                "ts": 1795522500,
+                "bt": "time"
+              },
+              {
+                "i": 263,
+                "t": "sdiv",
+                "side": "sell",
+                "p": 0.009765,
+                "i0": 259,
+                "p0": 0.009764,
+                "dc": -1278684,
+                "ts": 1795524300,
+                "bt": "time"
+              },
+              {
+                "i": 270,
+                "t": "div",
+                "side": "buy",
+                "p": 0.009614,
+                "r": 0.5097359757345303,
+                "ts": 1795530600,
+                "bt": "time"
+              },
+              {
+                "i": 272,
+                "t": "abs",
+                "side": "sell",
+                "p": 0.00968,
+                "q": 122107,
+                "u": 1173.326163,
+                "lo": 0.009649,
+                "hi": 0.009681,
+                "ts": 1795532400,
+                "bt": "time"
+              },
+              {
+                "i": 273,
+                "t": "abs",
+                "side": "buy",
+                "p": 0.009445,
+                "q": 609731,
+                "u": 5794.273693000001,
+                "lo": 0.009443,
+                "hi": 0.009467,
+                "ts": 1795533300,
+                "bt": "time"
+              },
+              {
+                "i": 273,
+                "t": "trap",
+                "side": "buy",
+                "p": 0.009445,
+                "j": 275,
+                "q": 609731,
+                "u": 5794.273693000001,
+                "lo": 0.009443,
+                "hi": 0.009467,
+                "ts": 1795533300,
+                "bt": "time"
+              },
+              {
+                "i": 275,
+                "t": "abs",
+                "side": "buy",
+                "p": 0.009488,
+                "q": 158478,
+                "u": 1510.374579,
+                "lo": 0.009482,
+                "hi": 0.009500000000000001,
+                "ts": 1795535100,
+                "bt": "time"
+              },
+              {
+                "i": 282,
+                "t": "trap",
+                "side": "sell",
+                "p": 0.009666,
+                "j": 284,
+                "q": 226846,
+                "u": 2187.5894009999997,
+                "lo": 0.009656999999999999,
+                "hi": 0.009667,
+                "ts": 1795541400,
+                "bt": "time"
+              },
+              {
+                "i": 287,
+                "t": "abs",
+                "side": "sell",
+                "p": 0.009581,
+                "q": 244199,
+                "u": 2330.0247584999997,
+                "lo": 0.009564000000000001,
+                "hi": 0.009582,
+                "ts": 1795545900,
+                "bt": "time"
+              },
+              {
+                "i": 288,
+                "t": "div",
+                "side": "buy",
+                "p": 0.009472,
+                "r": 0.15909502016894886,
+                "ts": 1795546800,
+                "bt": "time"
+              },
+              {
+                "i": 288,
+                "t": "exh",
+                "side": "buy",
+                "p": 0.009472,
+                "ts": 1795546800,
+                "bt": "time"
+              },
+              {
+                "i": 290,
+                "t": "exh",
+                "side": "buy",
+                "p": 0.009438,
+                "ts": 1795548600,
+                "bt": "time"
+              },
+              {
+                "i": 296,
+                "t": "div",
+                "side": "sell",
+                "p": 0.009468,
+                "r": -0.7593715102481284,
+                "ts": 1795554000,
+                "bt": "time"
+              }
+            ]
           }
         ]
       },
       "vol": {
         "counts": {
-          "all": 0,
-          "bullish": 0,
-          "bearish": 0
+          "all": 65,
+          "bullish": 26,
+          "bearish": 39
         },
         "thresholds": {
           "vol": 1,
@@ -1630,9 +3091,9 @@
       },
       "range": {
         "counts": {
-          "all": 0,
-          "bullish": 0,
-          "bearish": 0
+          "all": 65,
+          "bullish": 26,
+          "bearish": 39
         },
         "thresholds": {
           "vol": 1,
@@ -1646,6 +3107,340 @@
           }
         ]
       }
+    },
+    "history_7d": {
+      "bars_count": 300,
+      "cum_delta_7d": 0.0,
+      "summary_file": "data/telemetry/footprint/GRIFFAIN/summary_7d.json",
+      "recent_bars_tail": [
+        {
+          "ts": 1795551300000,
+          "o": 0.009425,
+          "h": 0.009445,
+          "l": 0.009369,
+          "c": 0.00937,
+          "buy_vol": 0.0,
+          "sell_vol": 0.0,
+          "delta": 0.0,
+          "delta_pct": 0.0,
+          "cum_delta": 0.0,
+          "poc_price": null,
+          "poc_vol": 0.0,
+          "top_bid": null,
+          "top_ask": null,
+          "bot_bid": null,
+          "bot_ask": null,
+          "finished_high": false,
+          "finished_low": false
+        },
+        {
+          "ts": 1795552200000,
+          "o": 0.009378,
+          "h": 0.009415,
+          "l": 0.009378,
+          "c": 0.00941,
+          "buy_vol": 0.0,
+          "sell_vol": 0.0,
+          "delta": 0.0,
+          "delta_pct": 0.0,
+          "cum_delta": 0.0,
+          "poc_price": null,
+          "poc_vol": 0.0,
+          "top_bid": null,
+          "top_ask": null,
+          "bot_bid": null,
+          "bot_ask": null,
+          "finished_high": false,
+          "finished_low": false
+        },
+        {
+          "ts": 1795553100000,
+          "o": 0.009416,
+          "h": 0.009454,
+          "l": 0.009409,
+          "c": 0.009435,
+          "buy_vol": 0.0,
+          "sell_vol": 0.0,
+          "delta": 0.0,
+          "delta_pct": 0.0,
+          "cum_delta": 0.0,
+          "poc_price": null,
+          "poc_vol": 0.0,
+          "top_bid": null,
+          "top_ask": null,
+          "bot_bid": null,
+          "bot_ask": null,
+          "finished_high": false,
+          "finished_low": false
+        },
+        {
+          "ts": 1795554000000,
+          "o": 0.009443,
+          "h": 0.009468,
+          "l": 0.009433,
+          "c": 0.009444,
+          "buy_vol": 0.0,
+          "sell_vol": 0.0,
+          "delta": 0.0,
+          "delta_pct": 0.0,
+          "cum_delta": 0.0,
+          "poc_price": null,
+          "poc_vol": 0.0,
+          "top_bid": null,
+          "top_ask": null,
+          "bot_bid": null,
+          "bot_ask": null,
+          "finished_high": false,
+          "finished_low": false
+        },
+        {
+          "ts": 1795554900000,
+          "o": 0.009449,
+          "h": 0.009451,
+          "l": 0.009428,
+          "c": 0.009433,
+          "buy_vol": 0.0,
+          "sell_vol": 0.0,
+          "delta": 0.0,
+          "delta_pct": 0.0,
+          "cum_delta": 0.0,
+          "poc_price": null,
+          "poc_vol": 0.0,
+          "top_bid": null,
+          "top_ask": null,
+          "bot_bid": null,
+          "bot_ask": null,
+          "finished_high": false,
+          "finished_low": false
+        },
+        {
+          "ts": 1795555800000,
+          "o": 0.009427,
+          "h": 0.009432,
+          "l": 0.00937,
+          "c": 0.009389,
+          "buy_vol": 0.0,
+          "sell_vol": 0.0,
+          "delta": 0.0,
+          "delta_pct": 0.0,
+          "cum_delta": 0.0,
+          "poc_price": null,
+          "poc_vol": 0.0,
+          "top_bid": null,
+          "top_ask": null,
+          "bot_bid": null,
+          "bot_ask": null,
+          "finished_high": false,
+          "finished_low": false
+        },
+        {
+          "ts": 1795556700000,
+          "o": 0.009386,
+          "h": 0.009402,
+          "l": 0.00936,
+          "c": 0.009383,
+          "buy_vol": 0.0,
+          "sell_vol": 0.0,
+          "delta": 0.0,
+          "delta_pct": 0.0,
+          "cum_delta": 0.0,
+          "poc_price": null,
+          "poc_vol": 0.0,
+          "top_bid": null,
+          "top_ask": null,
+          "bot_bid": null,
+          "bot_ask": null,
+          "finished_high": false,
+          "finished_low": false
+        },
+        {
+          "ts": 1795557600000,
+          "o": 0.009382,
+          "h": 0.009384,
+          "l": 0.009308,
+          "c": 0.009332,
+          "buy_vol": 0.0,
+          "sell_vol": 0.0,
+          "delta": 0.0,
+          "delta_pct": 0.0,
+          "cum_delta": 0.0,
+          "poc_price": null,
+          "poc_vol": 0.0,
+          "top_bid": null,
+          "top_ask": null,
+          "bot_bid": null,
+          "bot_ask": null,
+          "finished_high": false,
+          "finished_low": false
+        }
+      ]
+    },
+    "history_1h": {
+      "bars_count": 300,
+      "cum_delta_1h": 0.0,
+      "summary_file": "data/telemetry/footprint/GRIFFAIN/summary_1h.json",
+      "recent_bars_tail": [
+        {
+          "ts": 1795532400000,
+          "o": 0.009663,
+          "h": 0.00968,
+          "l": 0.009445,
+          "c": 0.009549,
+          "buy_vol": 0.0,
+          "sell_vol": 0.0,
+          "delta": 0.0,
+          "delta_pct": 0.0,
+          "cum_delta": 0.0,
+          "poc_price": null,
+          "poc_vol": 0.0,
+          "top_bid": null,
+          "top_ask": null,
+          "bot_bid": null,
+          "bot_ask": null,
+          "finished_high": false,
+          "finished_low": false
+        },
+        {
+          "ts": 1795536000000,
+          "o": 0.009547,
+          "h": 0.009589,
+          "l": 0.009496,
+          "c": 0.009571,
+          "buy_vol": 0.0,
+          "sell_vol": 0.0,
+          "delta": 0.0,
+          "delta_pct": 0.0,
+          "cum_delta": 0.0,
+          "poc_price": null,
+          "poc_vol": 0.0,
+          "top_bid": null,
+          "top_ask": null,
+          "bot_bid": null,
+          "bot_ask": null,
+          "finished_high": false,
+          "finished_low": false
+        },
+        {
+          "ts": 1795539600000,
+          "o": 0.009561,
+          "h": 0.009666,
+          "l": 0.00954,
+          "c": 0.009646,
+          "buy_vol": 0.0,
+          "sell_vol": 0.0,
+          "delta": 0.0,
+          "delta_pct": 0.0,
+          "cum_delta": 0.0,
+          "poc_price": null,
+          "poc_vol": 0.0,
+          "top_bid": null,
+          "top_ask": null,
+          "bot_bid": null,
+          "bot_ask": null,
+          "finished_high": false,
+          "finished_low": false
+        },
+        {
+          "ts": 1795543200000,
+          "o": 0.009643,
+          "h": 0.009661,
+          "l": 0.009502,
+          "c": 0.009512,
+          "buy_vol": 0.0,
+          "sell_vol": 0.0,
+          "delta": 0.0,
+          "delta_pct": 0.0,
+          "cum_delta": 0.0,
+          "poc_price": null,
+          "poc_vol": 0.0,
+          "top_bid": null,
+          "top_ask": null,
+          "bot_bid": null,
+          "bot_ask": null,
+          "finished_high": false,
+          "finished_low": false
+        },
+        {
+          "ts": 1795546800000,
+          "o": 0.009504,
+          "h": 0.009528,
+          "l": 0.009438,
+          "c": 0.009446,
+          "buy_vol": 0.0,
+          "sell_vol": 0.0,
+          "delta": 0.0,
+          "delta_pct": 0.0,
+          "cum_delta": 0.0,
+          "poc_price": null,
+          "poc_vol": 0.0,
+          "top_bid": null,
+          "top_ask": null,
+          "bot_bid": null,
+          "bot_ask": null,
+          "finished_high": false,
+          "finished_low": false
+        },
+        {
+          "ts": 1795550400000,
+          "o": 0.009441,
+          "h": 0.009454,
+          "l": 0.009369,
+          "c": 0.009435,
+          "buy_vol": 0.0,
+          "sell_vol": 0.0,
+          "delta": 0.0,
+          "delta_pct": 0.0,
+          "cum_delta": 0.0,
+          "poc_price": null,
+          "poc_vol": 0.0,
+          "top_bid": null,
+          "top_ask": null,
+          "bot_bid": null,
+          "bot_ask": null,
+          "finished_high": false,
+          "finished_low": false
+        },
+        {
+          "ts": 1795554000000,
+          "o": 0.009443,
+          "h": 0.009468,
+          "l": 0.00936,
+          "c": 0.009383,
+          "buy_vol": 0.0,
+          "sell_vol": 0.0,
+          "delta": 0.0,
+          "delta_pct": 0.0,
+          "cum_delta": 0.0,
+          "poc_price": null,
+          "poc_vol": 0.0,
+          "top_bid": null,
+          "top_ask": null,
+          "bot_bid": null,
+          "bot_ask": null,
+          "finished_high": false,
+          "finished_low": false
+        },
+        {
+          "ts": 1795557600000,
+          "o": 0.009382,
+          "h": 0.009384,
+          "l": 0.009308,
+          "c": 0.009332,
+          "buy_vol": 0.0,
+          "sell_vol": 0.0,
+          "delta": 0.0,
+          "delta_pct": 0.0,
+          "cum_delta": 0.0,
+          "poc_price": null,
+          "poc_vol": 0.0,
+          "top_bid": null,
+          "top_ask": null,
+          "bot_bid": null,
+          "bot_ask": null,
+          "finished_high": false,
+          "finished_low": false
+        }
+      ]
     }
   },
   "large_orders": {
@@ -1872,7 +3667,7 @@
         "rate": 0.005,
         "rate8h": 0.01,
         "fundingIntervalHours": 4,
-        "nextFundingTime": 1795564785271,
+        "nextFundingTime": 1795564785602,
         "status": 1
       },
       {
@@ -2003,6 +3798,12 @@
         "status": 0
       }
     ],
-    "open_interest": []
+    "open_interest": [
+      {
+        "name": "Binance",
+        "oiUsd": 2558687,
+        "sharePct": 100
+      }
+    ]
   }
 }
