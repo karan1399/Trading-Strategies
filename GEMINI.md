@@ -46,3 +46,4 @@ On every turn without exception, Antigravity MUST:
 4. Ground all empirical claims directly from tool outputs.
 5. Execute the full in-memory statistical telemetry scan (VWAP Z-Score, Value Area Imbalance, Footprint Abs/Trap/Exh, and Composite Quant Score) under WS-11 on every wake up and review with zero intermediate files (WS-10). Dropping quality over time is strictly prohibited.
 6. Ingest and analyze all 16 canonical telemetry parameters under WS-12 (Ticker, Market Structure, Narrative Engine, Athena Oracle, Microstructure L2/L3, Quant Positioning, Options Deribit, Liquidations, Book Walls, CVD, Footprint, Large Orders, Playbook Cards, Backtest Metrics, COT Report, Funding & OI) by default on every market formulation.
+7. Explicitly emit and verify the 9-point Physical Wake-Up Verification Checklist under WS-13 (Skills, Plugins, In-Memory Telemetry JSONs, 16 Parameters, MT5 Blotter, TC-09, Bounded Risk, Daemons, Kaizen) on every turn.

@@ -174,4 +174,20 @@ Antigravity operates with institutional-grade 360° order-flow telemetry. On eve
 
 ---
 
-*Workspace boot layer — Trading-Strategies v2 · All 16 telemetry dimensions active.*
+## WS-13 — MANDATORY WAKE-UP PHYSICAL VERIFICATION CHECKLIST
+
+On EVERY autonomous wake-up, scheduled cron review, and conversational turn, Antigravity MUST explicitly emit and verify this structured Wake-Up Verification Checklist:
+
+- [ ] **1. Physical SKILL.md Loading**: Physical `read_file` calls executed on the 6 governing skill bibles (`gravitas`, `quant-analyst`, `pre-trade-check`, `risk-reward-sanity-check`, `verification-before-completion`, `kaizen-agent`).
+- [ ] **2. Plugin Grounding & Confirmation**: Operational status confirmed for the 4 governing bibles (`gravitas-native`, `superpowers`, `coderabbit`, `trading-skills`).
+- [ ] **3. In-Memory Telemetry JSON Ingestion**: Direct in-memory parsing of `data/telemetry/assets/<SYM>.json`, `data/telemetry/footprint/<SYM>/signals_7d.json`, and `universe_overview.json` with zero intermediate scratch files (`WS-10`).
+- [ ] **4. 16-Parameter Telemetry Audit**: Institutional analysis across all 16 parameters under `WS-12` (Ticker, Market Structure, Narrative Engine, Athena Oracle, Microstructure L2/L3, Quant Positioning, Options Deribit, Liquidations, Book Walls, CVD, Footprint, Large Orders, Playbook Cards, Backtest Metrics, COT Report, Funding & OI).
+- [ ] **5. MT5 Live Blotter & Concurrency Reconciliation**: Real-time readback of Blueberry account `#5126976`, open positions, pending orders, balance, and floating PnL.
+- [ ] **6. Trend Protocol Adherence (TC-09)**: Strict $\text{Price} < \text{EMA 233}$ short-only regime; immediate purge of any counter-trend orders.
+- [ ] **7. Asymmetric Bounded Risk**: Dollar risk strictly bounded to $\$5.00–\$6.00$ USD per trade, reward $\ge 2.0R$, total book risk $< 1.0\%$ (\$25.00 cap).
+- [ ] **8. Background Daemons Health**: Verify continuous uptime of `task-20346` (telemetry), `task-20953` (unified engine), `task-21217` (terminal), and `task-21661` (cron).
+- [ ] **9. Kaizen 4-Pillar Self-Optimization**: Complete response with Benchmark, 5-Whys, Surgical Fix, and Anti-Regression Ledger.
+
+---
+
+*Workspace boot layer — Trading-Strategies v2 · All 16 telemetry dimensions & wake-up checklist active.*
