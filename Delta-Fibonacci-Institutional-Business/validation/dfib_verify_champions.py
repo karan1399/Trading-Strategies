@@ -10,11 +10,17 @@ import sys
 import numpy as np
 import pandas as pd
 
-sys.path.insert(0, "/home/z/my-project/scripts")
-from dfib_engine import load_symbol, precompute_signals, simulate, SimCfg, metrics, split_is_oos
+from pathlib import Path
+validation_dir = Path(__file__).resolve().parent
+REPO = str(validation_dir.parent)
+repo_root = str(validation_dir.parent.parent)
+OUT = str(validation_dir / "results")
+os.makedirs(OUT, exist_ok=True)
 
-REPO = "/home/z/my-project/repos/karan-ts/Delta-Fibonacci-Institutional-Business"
-OUT = "/home/z/my-project/dfib_results"
+sys.path.insert(0, str(validation_dir))
+sys.path.insert(0, REPO)
+sys.path.insert(0, repo_root)
+from dfib_engine import load_symbol, precompute_signals, simulate, SimCfg, metrics, split_is_oos
 
 champs = json.load(open(os.path.join(REPO, "audit", "expanded_multidim_champions.json")))
 print("symbols in their champions file:", len(champs))

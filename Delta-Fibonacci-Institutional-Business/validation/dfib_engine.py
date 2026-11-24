@@ -25,7 +25,8 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-REPO = "/home/z/my-project/repos/karan-ts"
+from pathlib import Path
+REPO = str(Path(__file__).resolve().parents[2])
 PARQUET_ROOT = os.path.join(REPO, "historical_parquet")
 
 import sys

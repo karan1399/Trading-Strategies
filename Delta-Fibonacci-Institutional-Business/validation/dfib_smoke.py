@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 """Smoke test the dfib engine: one symbol, with vs without real spreads."""
 import sys, time
-sys.path.insert(0, "/home/z/my-project/scripts")
+from pathlib import Path
+validation_dir = Path(__file__).resolve().parent
+repo_root = validation_dir.parent.parent
+sys.path.insert(0, str(validation_dir))
+sys.path.insert(0, str(validation_dir.parent))
+sys.path.insert(0, str(repo_root))
 from dfib_engine import load_symbol, precompute_signals, simulate, SimCfg, metrics, split_is_oos
 
 t0 = time.time()
