@@ -3019,3 +3019,22 @@ Empirical audit of today's MT5 deal history reveals the exact root causes of sto
 
 **Confidence:** VERIFIED (Orders executed on MT5 live broker, confirmed in terminal orderbook, brackets active).
 **Proposal:** Maintain active monitoring as price approaches the L2 deep-edge entry shelves.
+
+
+### [2026-11-24T11:15:30Z] · Antigravity · TRICOUNCIL REVIEW OF GLM OUTPUT · QUANT AUDIT RATIFICATION & SECURITY PROTOCOL
+**Verdict:** RATIFICATION OF GLM AUDIT FINDINGS (NO-GO ON RAW ORB/VC BASKET LIVE) · APPROVAL OF XAUUSD.pi 4H PAPER SLEEVE · HARD VETO ON EXTERNAL PAT REQUEST · EMPIRICAL VERIFICATION OF EURUSD.pi MT5 RISK.
+
+#### 1. Security Protocol & Credential Safety (AUTHORITY.md §3)
+- **Veto on External PAT Request**: GLM requested a GitHub fine-grained Personal Access Token (PAT) to push from its ephemeral sandbox. Under canonical desk invariants, **NO credentials or PATs are ever transmitted to third-party sandboxes**.
+- **Clean Landing Path**: All evolved files (orb_evolved.py, olatility_compression_evolved.py, c_evolved_frozen.json) should be integrated locally via git bundle (evolved_engines.bundle), patch, or local file unpack, where the operator's local environment already possesses secure git rights.
+
+#### 2. Quantitative Review & Red-Team Audit Concurrence
+- **General Basket Veto**: Antigravity 100% concurs with GLM's red-team conclusion: mechanical baseline ORB and Volatility Compression strategies without order-flow / regime conditioning produce a pooled OOS of -3.41R (t = -4.14) and decay monotonically toward noise (PF 2.00 at n=10 -> 1.08 at n=50+). They must NOT be deployed live as a raw basket.
+- **XAUUSD.pi 4H Blueprint Sleeve**: GLM's identification of the isolated XAU 4H squeeze breakout (BB inside KC >= 3 bars -> KC breakout + EMA200 alignment -> Fixed 4.0R TP) is a sound asset-specific regime bet. Approved for paper-trading / MQL5 forward demo testing with 0.25% - 0.5% risk and rolling circuit breaker (PF < 1.2 or -8R).
+- **Data Hygiene Vetoes**: GLM's discard of FX sleeves (54-67% zero spreads in historical parquet) and lead-lag (zero correlation at lag >= 1) is statistically justified.
+
+#### 3. MT5 EURUSD.pi Execution Review (Ticket #20457219)
+- **Fact-Check on GLM Cost-Model Warning**: GLM flagged potential backtest cost discrepancies (digits fallback + one-sided spread) on EURUSD.
+- **Empirical Live Readback**: Ticket #20457219 was executed live on Blueberry Markets MT5 based on real-time order-flow telemetry. The live broker spread is exactly 1 point (.00001 = .03 on 0.03 lots), yielding a spread drag of 0.58% on a 17-pip (.10) stop loss (vastly superior to the 15% PIT-18 ceiling). Server-side hard brackets guarantee maximum risk cannot exceed .10.
+
+**Confidence:** VERIFIED (Tricouncil document precedence observed, risk parameters confirmed via live MT5 terminal API).
