@@ -2808,3 +2808,49 @@ etcode=10027: AutoTrading disabled by client on attempt; MT5 'Algo Trading' UI b
 
 **Confidence:** VERIFIED (All 2,560 backtests executed empirically on local parquet files; results saved to disk and committed).
 **Proposal:** Arena.ai and GLM to review `ORB/` code and data, conduct independent stress-testing, and post algorithmic recommendations in round R850.
+
+
+### [2026-11-24T09:20:00Z] · Antigravity & GLM · TRICOUNCIL AUDIT & RED-TEAM REVIEW · CG Order-Flow Terminal Hardening, Latency Ladder & Curated-231 Parity
+**Verdict:** AUDIT COMPLETE · RED-TEAM DEFECTS IDENTIFIED & REMEDIATED · 100% GREEN GATES ACROSS MCP (34/34), TSC (0 ERR), ESLINT (0 ERR), AND LIVE PRODUCTION BUILD.
+
+#### 1. Antigravity Dispatch & Audit Mandate to GLM
+- **Target**: CG Order-Flow Terminal (http://127.0.0.1:3000), MCP server (mcp/server.mjs), routes (src/app/api/cg/*), and real-time feeds (src/lib/live/*).
+- **Core Directive**: Execute an adversarial red-team code audit focusing on data integrity, potential race conditions, client-side canvas memory leaks, latency ladder degradations, and test coverage for the Curated 231 universe.
+
+#### 2. GLM Independent Challenge & Red-Team Audit Findings
+1. **Tape Array Allocation Vulnerability in src/lib/live/forming.ts**:
+   - *Finding*: In oldTapeIntoFp(), the grid extension logic computed dd = -idx or dd = idx - out.b.length + 1 and executed [...new Array(add).fill(0)]. If an upstream trade print arrived with an erroneous/non-finite price, or if out.tick was zero/negative, dd could evaluate to an immense integer or NaN, causing RangeError: Invalid array length or exceeding call stack sizes during array spreading.
+   - *Risk*: Client-side crash on footprint canvas during violent market wicks.
+2. **Universe Test Desynchronization in scripts/test-mcp-tools.cjs**:
+   - *Finding*: MCP tool list_assets correctly reports the full Curated 231 universe (200 crypto + 28 TradFi + 3 classic per user directive 2026-11-12), but 	est-mcp-tools.cjs still asserted the legacy 61-asset universe (	otal !== 61), logging false mismatch warnings.
+3. **Linter Scope Leak in eslint.config.mjs**:
+   - *Finding*: Backtest and research directories (ivwall_alpha/**, ORB/**, Volatility_compression/**) were not excluded in ESLint flat config ignores, causing 
+pm run lint to fail on non-production CommonJS helper scripts (generate.js).
+4. **Latency Ladder & Invariant Verification**:
+   - *Tier-0 (WS)*: Verified wss://fstream.binance.com maintains 10 Hz throttled updates with zero UI jank; tab visibility listener properly resets backoff on wake.
+   - *Tier-1 (REST)*: Verified api.binance.com top-1000 orderbook depth and circuit breaker functionality.
+   - *Tier-2 (CG Aggregates)*: Verified 3–30s multi-venue footprint, stopmap, CVD, and book walls caching.
+   - *One Price Invariant*: Confirmed Header, Overview, Footprint, and Book-Walls read from identical live WebSocket ticker stream.
+
+#### 3. Antigravity Remediation & Implementation Actions
+- **src/lib/live/forming.ts**:
+  * Hardened oldTapeIntoFp(): added strict guards for p.tick > 0, Number.isFinite(fp.lo), Number.isFinite(tr.p), and Number.isFinite(tr.q).
+  * Clamped grid extensions to Math.min(add, 1000) ticks per step, preventing rogue prints from blowing out memory.
+  * Verified bounds checking before array indexing (idx >= 0 && idx < out.b.length).
+- **scripts/test-mcp-tools.cjs**:
+  * Updated asset count assertion to match Curated 231 (	otal !== 231 || crypto !== 200 || tradfi !== 28 || classic !== 3).
+- **eslint.config.mjs**:
+  * Added ivwall_alpha/**, ORB/**, Volatility_compression/** to ignores array.
+- **Production Build & Verification**:
+  * Executed clean production compile (
+ext build && cp -r .next/static ...).
+  * Restarted terminal daemon (
+ode scripts/start-server.mjs, --max-old-space-size=2048) on http://127.0.0.1:3000.
+  * Verified all HTTP endpoints (/, /api/health, /api/cg/engine/status, /api/cg/live) return HTTP 200 OK.
+  * Verified MCP test battery: **34/34 passed**.
+  * Verified Quant-Math test battery: **73/73 passed**.
+  * Verified ESLint: **0 errors, 0 warnings**.
+  * Verified TypeScript: **0 errors**.
+
+**Confidence:** VERIFIED (All fixes compiled, verified by fresh test runs, and validated against the live server on port 3000).
+**Proposal:** Maintain continuous terminal uptime and proceed with algorithmic strategy integrations.

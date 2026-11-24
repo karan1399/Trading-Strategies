@@ -84,9 +84,9 @@ function record(name, ok, note) {
     const m = t.split("\n")[0].match(/(\d+) assets: (\d+) crypto perps \+ (\d+) TradFi perps \+ (\d+) classic/);
     if (!m) return "header mismatch: " + t.split("\n")[0].slice(0, 90);
     const [_, total, crypto, tradfi, classic] = m.map(Number);
-    if (total !== 61 || crypto !== 30 || tradfi !== 28 || classic !== 3) return `expected 61=30+28+3, got ${total}=${crypto}+${tradfi}+${classic}`;
-    return "61 = 30 crypto + 28 TradFi + 3 classic";
-  }, "list_assets full curated-61");
+    if (total !== 231 || crypto !== 200 || tradfi !== 28 || classic !== 3) return `expected 231=200+28+3, got ${total}=${crypto}+${tradfi}+${classic}`;
+    return "231 = 200 crypto + 28 TradFi + 3 classic";
+  }, "list_assets full curated-231");
   await expectOk("market_snapshot", { sym: "BTC" }, (t) => t.split("\n")[0].slice(0, 90));
   await expectOk("live_price", { sym: "BTC" }, (t) => t.slice(0, 80));
   await expectOk("signals", { sym: "BTC", bt: "all" }, (t) => t.split("\n")[0].slice(0, 90));

@@ -148,6 +148,9 @@ export function foldTapeIntoFp(
   tape: { t: number; p: number; q: number; buy: boolean }[],
   cutoffMs: number
 ): { tick: number; lo: number; b: number[]; s: number[]; bc: number[]; sc: number[] } {
+  if (!fp || !(fp.tick > 0) || !Number.isFinite(fp.lo) || !Array.isArray(fp.b)) {
+    return fp;
+  }
   const out = {
     tick: fp.tick,
     lo: fp.lo,
@@ -157,32 +160,37 @@ export function foldTapeIntoFp(
     sc: [...fp.sc],
   };
   for (const tr of tape) {
-    if (tr.t < cutoffMs) continue;
+    if (tr.t < cutoffMs || !Number.isFinite(tr.p) || !(tr.p > 0) || !Number.isFinite(tr.q)) continue;
     let idx = Math.floor((tr.p - out.lo) / out.tick);
+    if (!Number.isFinite(idx)) continue;
     if (idx < 0) {
       // price BELOW the aggregate grid (new low while aggregate is 8s old):
-      // extend the grid downward
-      const add = -idx;
+      // extend the grid downward (bounded to max 1000 ticks to guard against rogue spikes)
+      const add = Math.min(-idx, 1000);
+      if (add <= 0) continue;
       out.b = [...new Array(add).fill(0), ...out.b];
       out.s = [...new Array(add).fill(0), ...out.s];
       out.bc = [...new Array(add).fill(0), ...out.bc];
       out.sc = [...new Array(add).fill(0), ...out.sc];
       out.lo -= add * out.tick;
-      idx = 0;
+      idx = Math.max(0, Math.floor((tr.p - out.lo) / out.tick));
     } else if (idx >= out.b.length) {
-      // price ABOVE the grid: extend upward
-      const add = idx - out.b.length + 1;
+      // price ABOVE the grid: extend upward (bounded to max 1000 ticks)
+      const add = Math.min(idx - out.b.length + 1, 1000);
+      if (add <= 0) continue;
       out.b = [...out.b, ...new Array(add).fill(0)];
       out.s = [...out.s, ...new Array(add).fill(0)];
       out.bc = [...out.bc, ...new Array(add).fill(0)];
       out.sc = [...out.sc, ...new Array(add).fill(0)];
     }
-    if (tr.buy) {
-      out.b[idx] += tr.q;
-      out.bc[idx] += 1;
-    } else {
-      out.s[idx] += tr.q;
-      out.sc[idx] += 1;
+    if (idx >= 0 && idx < out.b.length) {
+      if (tr.buy) {
+        out.b[idx] += tr.q;
+        out.bc[idx] += 1;
+      } else {
+        out.s[idx] += tr.q;
+        out.sc[idx] += 1;
+      }
     }
   }
   return out;
