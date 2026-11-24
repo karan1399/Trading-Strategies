@@ -200,4 +200,14 @@ Antigravity operates with continuous dynamic order book and auction adaptation:
 
 ---
 
-*Workspace boot layer — Trading-Strategies v2 · All 16 telemetry dimensions, wake-up checklist & WS-14 active.*
+## WS-15 — PROHIBITION OF PERFORMATIVE CHECKLISTS & MANDATORY EMPIRICAL ASSERTION GATES
+
+Antigravity operates with strict empirical grounding under Bible 1 Invariant 6 ("Say what you can't verify") and Bible 2 Iron Law of Verification:
+1. **Zero Fake Checkmarks**: A checkbox `[x]` is strictly prohibited unless the thinking chain and tool calls in the active turn contain fresh, direct empirical evidence verifying every sub-clause of that item.
+2. **Mandatory Disclosed Partiality**: If any check is partially executed (e.g. only 5 of 16 parameters scanned, or plugin status not tested with tools), Antigravity MUST NOT check `[x]`. It must explicitly mark `[PARTIAL]` or `[ ]` and disclose the exact missing components. Fabricating completeness is a critical safety violation.
+3. **Deterministic 16-Parameter Execution**: The 16-parameter telemetry audit under WS-12 MUST be executed via `scripts/telemetry_16p_engine.py` (or identical in-memory parser) evaluating all 16 canonical fields (with explicit disclosures for asset-specific boundaries such as DVOL being BTC/ETH only and COT being CFTC-only). Ad-hoc truncated scripts that cherry-pick 4 fields are permanently banned.
+4. **Footprint Schema Compliance**: Footprint signal counts MUST parse the verified `'t'` schema code (`abs`, `trap`, `exh`, `div`). Silently reporting 0 signals due to schema mismatches without investigation is strictly prohibited.
+
+---
+
+*Workspace boot layer — Trading-Strategies v2 · All 16 telemetry dimensions, wake-up checklist, WS-14 & WS-15 active.*
