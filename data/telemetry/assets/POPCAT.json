@@ -1,28 +1,156 @@
 {
   "symbol": "POPCAT",
   "feed_type": "coinglass_perp",
-  "updated_at": "2026-11-24T22:54:45.721640+00:00",
-  "updated_epoch": 1795560885.7216506,
+  "updated_at": "2026-11-24T23:07:47.748811+00:00",
+  "updated_epoch": 1795561667.748823,
   "mt5": null,
-  "ticker": null,
-  "market_structure": null,
+  "ticker": {
+    "price": 0.02462,
+    "dir": "flat",
+    "source": "binance-fapi",
+    "updatedAt": null
+  },
+  "market_structure": {
+    "price": {
+      "last": 0.02462,
+      "prevDayClose": 0.02592,
+      "chgDayPct": -5.015432098765428,
+      "dayHigh": 0.0262,
+      "dayLow": 0.02437,
+      "dayVolBase": 65984298
+    },
+    "auction": {
+      "session": {
+        "poc": 0.024674833333333333,
+        "vah": 0.024767833333333333,
+        "val": 0.024406166666666666,
+        "high": 0.02499,
+        "low": 0.02437,
+        "volume": 15432548.000000002,
+        "bins": 60
+      },
+      "day": {
+        "poc": 0.02505625,
+        "vah": 0.02560525,
+        "val": 0.02438525,
+        "high": 0.0262,
+        "low": 0.02437,
+        "volume": 65984298,
+        "bins": 60
+      },
+      "week": {
+        "poc": 0.025820555555555555,
+        "vah": 0.026127,
+        "val": 0.024419666666666666,
+        "high": 0.0279,
+        "low": 0.02396,
+        "volume": 157116169.0000001,
+        "bins": 90
+      },
+      "month": {
+        "poc": 0.028107874999999997,
+        "vah": 0.032825375,
+        "val": 0.022918624999999998,
+        "high": 0.04171,
+        "low": 0.02284,
+        "volume": 1259634838.000001,
+        "bins": 120
+      }
+    },
+    "vwap": {
+      "anchorTs": 1795478400000,
+      "vwap": 0.02521023626671505,
+      "bands": {
+        "sd1": 0.0005178994568933792,
+        "sd2": 0.0010357989137867584,
+        "sd3": 0.0015536983706801377
+      },
+      "open": 0.02591,
+      "high": 0.0262,
+      "low": 0.02437,
+      "bars": 93
+    },
+    "emas": {
+      "m15": {
+        "e13": 0.024684195882964836,
+        "e89": 0.025061289219118866,
+        "e233": 0.02522033953850244
+      },
+      "h1": {
+        "e13": 0.024831473316696787,
+        "e89": 0.025330608527391715,
+        "e233": 0.02689065661156502
+      },
+      "h4": {
+        "e13": 0.02512213858634949,
+        "e89": 0.028532895339182816,
+        "e233": 0.03494957539699234
+      },
+      "d1": {
+        "e13": 0.02776532818035512,
+        "e89": 0.04091856426186878,
+        "e233": 0.058052018390008855
+      }
+    },
+    "rsi": {
+      "m15": 44.56130678888375,
+      "h1": 40.414728284521885,
+      "h4": 42.35505202890935,
+      "d1": 26.693837807160605
+    }
+  },
   "narrative_engine": {
-    "regime": "RANGE_BALANCE",
-    "activeModel": "NO_TRADE",
-    "direction": "NEUTRAL",
-    "grade": "SKIP",
-    "confidence": 0,
-    "thesis": "No live market snapshot is available for POPCAT right now \u2014 the narrative engine refuses to trade blind.",
+    "regime": "TREND_DOWN",
+    "activeModel": "M1_TREND_PULLBACK",
+    "direction": "SHORT",
+    "grade": "B",
+    "confidence": 85,
+    "thesis": "trend down context (H4 stack down \u00b7 D1 stack down \u00b7 EMA spread -9.51 ATR \u00b7 price holds below Day VWAP) set the SHORT bias. Price pulled back into the confluence zone 0.02478-0.02524 (VWAP band \u00b7 POC \u00b7 EMA pocket \u00b7 PDH/PDL flip) \u2014 the trigger is still pending. Risk is defined beyond 0.02625; the first objective pays 1.37R at 0.02439.",
     "plan": {
-      "entryZone": null,
-      "triggerRule": "n/a",
-      "stop": null,
-      "invalidation": "no data",
-      "targets": [],
-      "bestR": null,
-      "vetoes": [
-        "market feed unavailable"
-      ]
+      "entryZone": [
+        0.024782004009397104,
+        0.02524094132781628
+      ],
+      "ladder": [
+        {
+          "level": 0.02505625,
+          "weightPct": 40,
+          "label": "L1 \u00b7 40% at POC"
+        },
+        {
+          "level": 0.02572813572360843,
+          "weightPct": 40,
+          "label": "L2 \u00b7 40% at +1\u03c3 VWAP band"
+        },
+        {
+          "level": 0.02572813572360843,
+          "weightPct": 20,
+          "label": "L3 \u00b7 20% at zone ceiling"
+        }
+      ],
+      "compositeEntry": 0.025459381434165054,
+      "triggerRule": "await bearish footprint confirmation (absorption / strong divergence / trap) or wall+CVD confluence at 0.02478-0.02524",
+      "stop": 0.02624603518050181,
+      "invalidation": "structure beyond 0.02625 (signal zone / \u00b12\u03c3 VWAP / 0.5 ATR buffer)",
+      "targets": [
+        {
+          "level": 0.02438525,
+          "label": "T1 \u00b7 Day VAH/VAL or \u00b11.5\u03c3",
+          "rMultiple": 1.3654437408669433
+        },
+        {
+          "level": 0.022918624999999998,
+          "label": "T2 \u00b7 same-direction liquidation cluster",
+          "rMultiple": 3.22982817535251
+        },
+        {
+          "level": 0.02399,
+          "label": "T3 \u00b7 whale wall / PWH-PWL",
+          "rMultiple": 1.8678884337710042
+        }
+      ],
+      "bestR": 3.22982817535251,
+      "vetoes": []
     },
     "probabilities": {
       "pFill": null,
@@ -33,17 +161,17 @@
     }
   },
   "athena_oracle": {
-    "score": 50,
-    "verdict": "Neutral equilibrium 50/100 \u2014 signals mixed, no dominant driver",
-    "regime": null,
+    "score": 38,
+    "verdict": "Cautious bearish lean 38/100 \u2014 trend broken",
+    "regime": "squeeze",
     "factors": [
       {
         "id": "apollo",
         "name": "Trend & Momentum",
         "icon": "sun",
-        "score": 50,
+        "score": 2,
         "weight": 0.25,
-        "detail": "source unavailable"
+        "detail": "EMA20<50<200, RSI 45, EMA50 -0.49%/3h"
       },
       {
         "id": "poseidon",
@@ -73,9 +201,9 @@
         "id": "atlas",
         "name": "Wall Pressure",
         "icon": "mountain",
-        "score": 51,
+        "score": 53,
         "weight": 0.15,
-        "detail": "bid wall $77k -1.2% \u00b7 ask wall $72k +1.2%"
+        "detail": "bid wall $103k -1.2% \u00b7 ask wall $90k +0.4%"
       },
       {
         "id": "nemesis",
@@ -87,11 +215,9 @@
       }
     ],
     "partial": [
-      "apollo",
       "poseidon",
       "hades",
-      "zeus",
-      "regime"
+      "zeus"
     ]
   },
   "microstructure_l2_l3": {
@@ -107,29 +233,29 @@
         {
           "venue": "binance",
           "ok": true,
-          "bid": 0.0247,
-          "ask": 0.02471,
-          "mid": 0.024705,
-          "spreadBps": 4.048,
-          "at": 1795560888275
+          "bid": 0.02461,
+          "ask": 0.02462,
+          "mid": 0.024615,
+          "spreadBps": 4.063,
+          "at": 1795561669102
         },
         {
           "venue": "okx",
           "ok": true,
-          "bid": 0.0247,
-          "ask": 0.02471,
-          "mid": 0.024705,
-          "spreadBps": 4.048,
-          "at": 1795560888183
+          "bid": 0.02461,
+          "ask": 0.02462,
+          "mid": 0.024615,
+          "spreadBps": 4.063,
+          "at": 1795561669040
         },
         {
           "venue": "bybit",
           "ok": true,
-          "bid": 0.02469,
-          "ask": 0.02471,
-          "mid": 0.0247,
-          "spreadBps": 8.097,
-          "at": 1795560888195
+          "bid": 0.02459,
+          "ask": 0.02461,
+          "mid": 0.0246,
+          "spreadBps": 8.13,
+          "at": 1795561669334
         },
         {
           "venue": "coinbase",
@@ -139,20 +265,20 @@
           "mid": null,
           "spreadBps": null,
           "reason": "not applicable \u2014 Coinbase spot ticker is mapped for BTC/ETH/SOL/DOGE/XRP/LINK only",
-          "at": 1795560888015
+          "at": 1795561668896
         }
       ],
       "best": {
         "venue": "binance",
-        "bid": 0.0247,
-        "ask": 0.02471,
-        "mid": 0.024705,
-        "spreadBps": 4.048
+        "bid": 0.02461,
+        "ask": 0.02462,
+        "mid": 0.024615,
+        "spreadBps": 4.063
       },
       "missingVenues": [
         "coinbase"
       ],
-      "at": 1795560888275
+      "at": 1795561669334
     },
     "missingVenues": [
       "coinbase"
@@ -162,52 +288,52 @@
     "lsRatios": {
       "15m": {
         "global": {
-          "ratio": 3.0306,
-          "longPct": 75.19,
-          "shortPct": 24.81,
-          "chgPct": 0.27
+          "ratio": 3.0064,
+          "longPct": 75.04,
+          "shortPct": 24.96,
+          "chgPct": -0.8
         },
         "topAccounts": {
-          "ratio": 2.8911,
-          "longPct": 74.3,
-          "shortPct": 25.7,
-          "chgPct": 0.32
+          "ratio": 2.885,
+          "longPct": 74.26,
+          "shortPct": 25.74,
+          "chgPct": -0.21
         },
         "topPositions": {
-          "ratio": 1.0125,
-          "longPct": 50.31,
-          "shortPct": 49.69,
-          "chgPct": 0.23
+          "ratio": 1.0116,
+          "longPct": 50.29,
+          "shortPct": 49.71,
+          "chgPct": -0.09
         },
         "taker": {
-          "buySellRatio": 0.7762,
-          "buyVolUsd": 2469,
-          "sellVolUsd": 3181
+          "buySellRatio": 0.2154,
+          "buyVolUsd": 896,
+          "sellVolUsd": 4160
         }
       },
       "1h": {
         "global": {
-          "ratio": 2.992,
-          "longPct": 74.95,
-          "shortPct": 25.05,
-          "chgPct": -1.38
+          "ratio": 3.0064,
+          "longPct": 75.04,
+          "shortPct": 24.96,
+          "chgPct": 0.48
         },
         "topAccounts": {
-          "ratio": 2.858,
-          "longPct": 74.08,
-          "shortPct": 25.92,
-          "chgPct": -0.47
+          "ratio": 2.885,
+          "longPct": 74.26,
+          "shortPct": 25.74,
+          "chgPct": 0.94
         },
         "topPositions": {
-          "ratio": 1.0108,
-          "longPct": 50.27,
-          "shortPct": 49.73,
-          "chgPct": -0.32
+          "ratio": 1.0116,
+          "longPct": 50.29,
+          "shortPct": 49.71,
+          "chgPct": 0.08
         },
         "taker": {
-          "buySellRatio": 0.783,
-          "buyVolUsd": 11192,
-          "sellVolUsd": 14293
+          "buySellRatio": 0.7871,
+          "buyVolUsd": 9295,
+          "sellVolUsd": 11810
         }
       },
       "4h": {
@@ -231,8 +357,8 @@
         },
         "taker": {
           "buySellRatio": 0.974,
-          "buyVolUsd": 103636,
-          "sellVolUsd": 106406
+          "buyVolUsd": 103301,
+          "sellVolUsd": 106061
         }
       }
     },
@@ -270,7 +396,7 @@
           "name": "KuCoin",
           "rate": 0.005,
           "rate8h": 0.01,
-          "nextFundingTime": 1795564740404,
+          "nextFundingTime": 1795564755398,
           "fundingIntervalHours": 4
         },
         {
@@ -291,7 +417,7 @@
           "name": "Hyperliquid",
           "rate": 0.00125,
           "rate8h": 0.01,
-          "nextFundingTime": 1795561200000,
+          "nextFundingTime": 1795564800000,
           "fundingIntervalHours": 1
         },
         {
@@ -341,7 +467,7 @@
     "basis": {
       "spotPair": "POPCATUSDT",
       "spotPrice": null,
-      "perpPrice": 0.0247,
+      "perpPrice": 0.02462,
       "basisPct": null,
       "fundingImpliedAprPct": 10.4573,
       "coinbasePremiumBps": null,
@@ -2406,7 +2532,7 @@
         "rate": 0.005,
         "rate8h": 0.01,
         "fundingIntervalHours": 4,
-        "nextFundingTime": 1795564740404,
+        "nextFundingTime": 1795564755398,
         "status": 1
       },
       {
@@ -2426,11 +2552,11 @@
       },
       {
         "name": "Kraken",
-        "rate": -0.004809,
-        "rate8h": -0.038468,
+        "rate": -0.005483,
+        "rate8h": -0.043864,
         "fundingIntervalHours": 1,
-        "predictedRate": -0.004892,
-        "nextFundingTime": 1795561200000,
+        "predictedRate": -0.001014,
+        "nextFundingTime": 1795564800000,
         "status": 2
       },
       {
@@ -2462,8 +2588,8 @@
         "rate": -0.043369,
         "rate8h": -0.34695,
         "fundingIntervalHours": 1,
-        "predictedRate": 0.081103,
-        "nextFundingTime": 1795561200000,
+        "predictedRate": 0.080223,
+        "nextFundingTime": 1795564800000,
         "status": 2
       },
       {
@@ -2471,7 +2597,7 @@
         "rate": 0.00125,
         "rate8h": 0.01,
         "fundingIntervalHours": 1,
-        "nextFundingTime": 1795561200000,
+        "nextFundingTime": 1795564800000,
         "status": 1
       },
       {
@@ -2544,7 +2670,7 @@
     "open_interest": [
       {
         "name": "Binance",
-        "oiUsd": 1176254,
+        "oiUsd": 1171825,
         "sharePct": 100
       }
     ]
