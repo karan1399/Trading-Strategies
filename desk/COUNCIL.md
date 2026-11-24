@@ -2854,3 +2854,32 @@ ode scripts/start-server.mjs, --max-old-space-size=2048) on http://127.0.0.1:300
 
 **Confidence:** VERIFIED (All fixes compiled, verified by fresh test runs, and validated against the live server on port 3000).
 **Proposal:** Maintain continuous terminal uptime and proceed with algorithmic strategy integrations.
+
+
+### [2026-11-24T09:31:00Z] · Antigravity · LIVE DEPLOYMENT · IV Wall Alpha & HTF EMA Rejection MT5 Auto-Execution Bridges Armed (.00 Risk Cap)
+**Verdict:** DUAL DAEMONS ARMED LIVE ON BLUEBERRY MARKETS MT5 (#5126976) · FIXED .00 RISK PER TRADE · PRE-FLIGHT SCAN CLEAN (0 ACTIVE TRIGGERS AT LAUNCH).
+
+#### 1. Deployment Specification & Operator Directive
+- **Directive**: Arm ivwall_alpha (15M 2.0 SD Wall Fade) and htf_ema_rejection (4H/1H 89/233 Fibonacci EMA Rejection) for live autonomous MT5 order punching with exact **.00 USD risk per trade**.
+- **Broker Account**: Blueberry Markets MT5 (#5126976, Balance: ,542.77 USD, Equity: ,555.33 USD).
+- **Risk Analysis**: .00 risk corresponds to **0.196% of equity**, comfortably inside the canonical 1.0% (.00) risk ceiling.
+- **Order Invariants**: Server-side hard brackets (SL & TP >= 2.0R) enforced on entry; automated trailing stop management active.
+
+#### 2. Pre-Flight Market State (Launch Scan)
+- **IV Wall Alpha (20 Validated Pairs on M15)**:
+  * Scanned: CADJPY, EURGBP, EURCAD, USDSGD, NZDCHF, EURUSD, EURHKD, USDZAR, AUDSGD, GBPNZD, CNHJPY, NZDSGD, NZDCAD, GBPAUD, AUDNZD, EURNZD, GBPUSD, USDNOK, CADCHF, USDCHF.
+  * Status: **0 Active Wall Touch Triggers** (All 20 pairs holding within their daily +/-2.0 SD expected move bands).
+- **HTF EMA Rejection (15 Basket Pairs on 4H/1H)**:
+  * Scanned: XAUAUD, XAUCNH, XAUUSD, XAUEUR, XAUSGD, XAUGBP, GAUUSD, GAUCNH, BTCUSD, CHFJPY, GBPJPY, USDJPY, EURJPY, CADJPY, DJ30.
+  * Status: **0 Active Pattern Rejection Triggers** (Gold crosses holding -5% to -9% below H4 233 EMA; JPY crosses -0.6% to -1.8% away).
+
+#### 3. Active Background Daemons
+1. **IV Wall Alpha Pilot** (	ask-20284):
+   - Command: python ivwall_alpha/code/ivwall_pilot.py --live
+   - Magic: 42002 | Risk: $5.00 USD | Scan Cadence: 20s | Trailing: Chandelier 2.0R
+2. **HTF EMA Rejection Pilot** (	ask-20286):
+   - Command: python htf_ema_rejection/htf_ema_pilot.py --live --risk-usd 5.0
+   - Magic: 42003 | Risk: $5.00 USD | Scan Cadence: 30s | Trailing: +1.0R BE Lock / 1.5R Chandelier
+
+**Confidence:** VERIFIED (Both daemons running in background, connected to live MT5 terminal, and logging continuous scans).
+**Proposal:** Maintain active background monitoring. When a completed candle confirms a qualified setup, orders will punch automatically with server-side brackets.

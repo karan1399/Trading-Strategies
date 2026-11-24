@@ -38,7 +38,8 @@ CONFIG_PATH = os.path.join(DATA_DIR, "mt5_ivwall_config.json")
 os.makedirs(DATA_DIR, exist_ok=True)
 
 DEFAULTS = {
-    "risk_pct": 0.5,             # 0.5% equity per trade
+    "risk_usd": 5.0,             # $5.00 fixed USD risk per trade (operator directive)
+    "risk_pct": 0.2,             # 0.2% equity fallback
     "max_positions": 2,          # Max 2 concurrent positions (hard desk concurrency ceiling)
     "min_tp_rr": 2.0,            # 2R minimum Take Profit
     "trail_r": 2.0,              # Chandelier trail distance in R
@@ -106,7 +107,11 @@ def size_lots(mt_sym: str, entry: float, sl: float) -> float:
     loss_per_lot = abs(entry - sl) / tick_size * tick_val
     if loss_per_lot <= 0:
         return 0.01
-    lots = eq * float(CFG["risk_pct"]) / 100.0 / loss_per_lot
+    risk_usd = float(CFG.get("risk_usd", 0.0))
+    if risk_usd > 0:
+        lots = risk_usd / loss_per_lot
+    else:
+        lots = eq * float(CFG["risk_pct"]) / 100.0 / loss_per_lot
     step = info.volume_step or 0.01
     lots = math.floor(lots / step) * step
     min_vol = info.volume_min or 0.01
