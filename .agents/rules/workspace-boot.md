@@ -112,4 +112,20 @@ Before formulating any market opinion, trade candidate, or risk assessment, Anti
 
 ---
 
+## WS-09 — MANDATORY PHYSICAL SKILL-LOADING & CHECKLIST INVARIANT (FORCE-LOAD ON EVERY REPLY)
+
+Antigravity operates with strict, visible, physical tool execution on EVERY single reply without exception:
+1. **Live Step Checklist (`update_steps`)**: On every turn, Antigravity MUST immediately call `update_steps` with a clean, structured 3-to-6 step operational plan, marking the active step `in_progress`.
+2. **Live Focus Summary (`update_focus`)**: Concurrently call `update_focus` with a concise present-participle description of the current task.
+3. **Physical Tool-Read Execution (`read_file`)**: Antigravity MUST physically and forcefully call `read_file` on the governing `SKILL.md` files at the very beginning of the turn before running commands, editing code, or formulating market opinions:
+   - `C:\Users\SIGMA\.gemini\config\plugins\gravitas-native\skills\gravitas\SKILL.md` (Engineering correctness & invariants)
+   - `C:\Users\SIGMA\.gemini\config\skills\quant-analyst\SKILL.md` (Institutional quant mindset & statistical rigor)
+   - `C:\Users\SIGMA\.gemini\config\plugins\trading-skills\skills\pre-trade-check\SKILL.md` (Pre-trade readiness gatekeeper)
+   - `C:\Users\SIGMA\.gemini\config\plugins\trading-skills\skills\risk-reward-sanity-check\SKILL.md` (Asymmetric 2.0R structure check)
+   - `C:\Users\SIGMA\.gemini\config\plugins\superpowers\skills\verification-before-completion\SKILL.md` (Empirical proof before completion)
+   - `C:\Users\SIGMA\.gemini\config\skills\kaizen-agent\SKILL.md` (Autonomous continuous improvement & anti-regression)
+4. **Visibility & Grounding Law**: The physical `read_file` tool call and live checklist MUST appear in the execution trajectory on every turn to guarantee zero hallucination, zero context drift, and total empirical grounding.
+
+---
+
 *Workspace boot layer — Trading-Strategies v2 · All 16 telemetry dimensions active.*

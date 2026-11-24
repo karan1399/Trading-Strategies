@@ -35,3 +35,12 @@ Every response concludes with the `/kaizen-agent` Self-Optimization block:
 2. **5-Whys Triage**: Root cause of any error or deviation.
 3. **Surgical Refinement**: Minimal action taken to improve state.
 4. **Anti-Regression Rule**: Concrete lesson logged to prevent recurrence.
+
+---
+
+## 4. Mandatory Physical Skill Loading on Every Reply
+On every turn without exception, Antigravity MUST:
+1. Display a live `update_steps` checklist.
+2. Concurrently update `update_focus`.
+3. Physically execute `read_file` on governing `SKILL.md` files (`gravitas`, `quant-analyst`, `pre-trade-check`, `risk-reward-sanity-check`, `verification-before-completion`, `kaizen-agent`).
+4. Ground all empirical claims directly from tool outputs.
