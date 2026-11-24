@@ -128,4 +128,14 @@ Antigravity operates with strict, visible, physical tool execution on EVERY sing
 
 ---
 
+## WS-10 — ZERO-INTERMEDIATE-FILE INVARIANT (DIRECT IN-MEMORY JSON STREAMING)
+
+Antigravity and all execution daemons operate with strict read-only in-memory telemetry ingestion:
+1. **Direct In-Memory Reading**: All telemetry (`data/telemetry/assets/<SYM>.json`, `data/telemetry/footprint/<SYM>/signals_7d.json`, `data/telemetry/universe_overview.json`) MUST be read directly into memory via native `read_file` tool calls or in-memory Python streams (`json.load` / `orjson.loads`).
+2. **Zero Intermediate Files**: Creating scratch scripts, temporary files (`scratch_*.py`, `temp_*.json`), or intermediate staging dumps is strictly prohibited. No intermediate files may be created on disk during telemetry analysis.
+3. **Single-Writer Authority**: Only `scripts/telemetry_daemon.py` (task-20346) holds write authority to `data/telemetry/`. All other agents, tools, and execution processes are strictly read-only consumers.
+4. **Zero Repository Pollution**: The working tree must remain permanently clean; all telemetry parsing happens strictly in memory.
+
+---
+
 *Workspace boot layer — Trading-Strategies v2 · All 16 telemetry dimensions active.*
