@@ -11,14 +11,45 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 ASSETS_DIR = os.path.join(ROOT, "data", "telemetry", "assets")
 FOOTPRINT_DIR = os.path.join(ROOT, "data", "telemetry", "footprint")
 
+MT5_ALIASES = {
+    "ADAUSD.P": "ADA", "BCHUSD.P": "BCH", "LNKUSD.P": "LINK", "XLMUSD.P": "XLM",
+    "AVXUSD.P": "AVAX", "DOGUSD.P": "DOGE", "FILUSD.P": "FIL", "GRTUSD.P": "GRT",
+    "NERUSD.P": "NEAR", "SOLUSD.P": "SOL", "TRXUSD.P": "TRX", "UNIUSD.P": "UNI",
+    "VETUSD.P": "VET", "XMRUSD.P": "XMR", "BNBUSD.P": "BNB", "AVEUSD.P": "AAVE",
+    "ALGUSD.P": "ALGO", "ATMUSD.P": "ATOM", "AXSUSD.P": "AXS", "CHZUSD.P": "CHZ",
+    "COMUSD.P": "COMP", "EGLUSD.P": "EGLD", "FLWUSD.P": "FLOW", "IOTUSD.P": "IOTA",
+    "KSMUSD.P": "KSM", "NEOUSD.P": "NEO", "XSIUSD.P": "SUSHI", "THTUSD.P": "THETA",
+    "XTZUSD.P": "XTZ", "ZECUSD.P": "ZEC", "MANUSD.P": "MANA", "INCUSD.P": "1INCH",
+    "ARWUSD.P": "AR", "BATUSD.P": "BAT", "CHRUSD.P": "CHR", "CRVUSD.P": "CRV",
+    "ENJUSD.P": "ENJ", "BARUSD.P": "HBAR", "KAVUSD.P": "KAVA", "KNCUSD.P": "KNC",
+    "ONTUSD.P": "ONT", "QTMUSD.P": "QTUM", "SNDUSD.P": "SAND", "SKLUSD.P": "SKL",
+    "SNXUSD.P": "SNX", "YFIUSD.P": "YFI", "ZILUSD.P": "ZIL", "ZRXUSD.P": "ZRX",
+    "DSHUSD.P": "DASH", "BTCUSD.PI": "BTC", "DOTUSD.PI": "DOT", "ETHUSD.PI": "ETH",
+    "LTCUSD.PI": "LTC", "XRPUSD.PI": "XRP",
+    "XAUUSD.PI": "XAU", "XAGUSD.PI": "XAG",
+    "USWTI.P": "CL", "UKBRENT.P": "UKO", "GAS.P": "NATGAS",
+    "XPTUSD.PI": "XPT", "XPDUSD.PI": "XPD", "COPPER.P": "COPPER",
+}
+
+def resolve_telemetry_sym(symbol: str) -> str:
+    raw = symbol.strip().upper()
+    if raw in MT5_ALIASES:
+        return MT5_ALIASES[raw]
+    stripped = raw
+    for suf in (".PI", ".P", ".I", ".PRO", ".RAW"):
+        if stripped.endswith(suf):
+            stripped = stripped[:-len(suf)]
+            break
+    if os.path.exists(os.path.join(ASSETS_DIR, f"{stripped}.json")):
+        return stripped
+    if stripped.endswith("USD") and len(stripped) > 3:
+        cand = stripped[:-3]
+        if os.path.exists(os.path.join(ASSETS_DIR, f"{cand}.json")):
+            return cand
+    return stripped
+
 def read_asset_telemetry(symbol: str, max_stale_sec: int = 600) -> dict:
-    sym = symbol.upper().replace(".PI", "").replace(".P", "").replace("USD", "")
-    # handle common symbol aliases
-    if sym.startswith("XAU"): sym = "XAU"
-    elif sym.startswith("BTC"): sym = "BTC"
-    elif sym.startswith("ETH"): sym = "ETH"
-    elif sym.startswith("SOL"): sym = "SOL"
-    elif sym.startswith("BNB"): sym = "BNB"
+    sym = resolve_telemetry_sym(symbol)
 
     asset_file = os.path.join(ASSETS_DIR, f"{sym}.json")
     if not os.path.exists(asset_file):

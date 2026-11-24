@@ -85,6 +85,8 @@ def audit_symbol_16p(
     p: Dict[str, Any] = {
         "_meta": {
             "sym": sym,
+            "feed_type": d.get("feed_type", "coinglass_perp"),
+            "mt5_sym": (d.get("mt5") or {}).get("symbol"),
             "age_sec": age_sec,
             "is_fresh": is_fresh,
             "updated_at": d.get("updated_at"),
@@ -183,14 +185,16 @@ def audit_symbol_16p(
         "factors": {f.get("id"): f.get("score") for f in (athena.get("factors") or []) if isinstance(f, dict)},
     }
 
-    # 5. Microstructure L2/L3
+    # 5. Microstructure L2/L3 (Coinglass + MT5 BBO)
     micro = d.get("microstructure_l2_l3") or {}
     hl = micro.get("hl") or {}
+    mt5_q = d.get("mt5") or {}
     p["5_microstructure"] = {
-        "mark": hl.get("mark"),
+        "mark": hl.get("mark") or mt5_q.get("mid"),
         "oracle": hl.get("oracle"),
         "mark_vs_oracle_pct": hl.get("markVsOraclePct"),
         "vol24h_usd": hl.get("vol24hUsd"),
+        "mt5_spread_bps": mt5_q.get("spread_bps"),
     }
 
     # 6. Quant Positioning
@@ -352,9 +356,9 @@ def audit_symbol_16p(
     return p, None
 
 
-def audit_universe(symbols: Optional[List[str]] = None, include_all_files: bool = False) -> Dict[str, Any]:
+def audit_universe(symbols: Optional[List[str]] = None, include_all_files: bool = False, mt5_only: bool = False) -> Dict[str, Any]:
     assets_dir = "data/telemetry/assets"
-    if include_all_files:
+    if include_all_files or mt5_only:
         symbols = sorted(os.path.basename(f).replace(".json", "") for f in glob.glob(os.path.join(assets_dir, "*.json")))
     elif symbols is None:
         symbols = DEFAULT_CURATED
@@ -367,6 +371,8 @@ def audit_universe(symbols: Optional[List[str]] = None, include_all_files: bool 
         if err:
             missing.append((s, err))
         elif res:
+            if mt5_only and not res["_meta"].get("mt5_sym"):
+                continue
             audited[s] = res
             if not res["_meta"]["is_fresh"]:
                 stale.append((s, res["_meta"]["age_sec"]))
@@ -377,6 +383,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Deterministic 16-Parameter Telemetry Engine")
     parser.add_argument("--sym", type=str, help="Single symbol detailed 16-parameter JSON output")
     parser.add_argument("--all", action="store_true", help="Audit all files in data/telemetry/assets/ instead of curated 40")
+    parser.add_argument("--mt5", action="store_true", help="Audit all MT5-available asset files in data/telemetry/assets/")
     parser.add_argument("--top", type=int, default=20, help="Show top N ranked candidates")
     parser.add_argument("--verify-gate", action="store_true", help="Print empirical WS-15 audit verification stats")
     args = parser.parse_args()
@@ -386,7 +393,7 @@ if __name__ == "__main__":
         print(json.dumps(res or {"error": err}, indent=2))
         raise SystemExit(0 if res else 1)
 
-    out = audit_universe(include_all_files=args.all)
+    out = audit_universe(include_all_files=args.all, mt5_only=args.mt5)
     audited = out["audited"]
     fresh_items = [(sym, d) for sym, d in audited.items() if d["_meta"]["is_fresh"]]
     fresh_items.sort(key=lambda kv: kv[1]["_meta"]["composite_score"], reverse=True)
