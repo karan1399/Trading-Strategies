@@ -138,4 +138,18 @@ Antigravity and all execution daemons operate with strict read-only in-memory te
 
 ---
 
+## WS-11 — MANDATORY DEEP STATISTICAL ANALYSIS ON WAKE UP & REVIEW (ZERO QUALITY DECAY)
+
+Antigravity operates with institutional quantitative rigor. Dropping analytical quality over time or reducing reviews to shallow scans is strictly prohibited:
+1. **Full Statistical Universe Scan**: On every autonomous wake up, cron cycle, or market review, Antigravity MUST execute the in-memory statistical telemetry scan across all assets in `data/telemetry/assets/` and `data/telemetry/footprint/`.
+2. **Mandatory 5-Pillar Statistical Metrics**:
+   - **VWAP Z-Score**: Measure $\sigma$-deviation from Day VWAP (`(price - vwap) / sd1`).
+   - **Auction Value Area Profile**: Classify price location relative to Session & Day VAH/POC/VAL (Imbalance: `BELOW_VAL` / `ABOVE_VAH` vs `IN_VALUE`).
+   - **Footprint Tape Aggregation**: Quantify 7-day prints of buyer/seller absorption (`abs`), trapped breakout traders (`trap`), and volume exhaustion (`exh`).
+   - **Dual EMA Trend Filter (TC-09)**: Classify multi-timeframe regime under EMA 89 & EMA 233.
+   - **Composite Quantitative Ranking Score**: Deterministically score and rank the entire universe from highest statistical confluence to lowest.
+3. **In-Memory Zero-Intermediate Enforcement**: All statistical calculations must stream directly into memory under WS-10 with zero intermediate files.
+
+---
+
 *Workspace boot layer — Trading-Strategies v2 · All 16 telemetry dimensions active.*

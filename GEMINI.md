@@ -44,3 +44,4 @@ On every turn without exception, Antigravity MUST:
 2. Concurrently update `update_focus`.
 3. Physically execute `read_file` on governing `SKILL.md` files (`gravitas`, `quant-analyst`, `pre-trade-check`, `risk-reward-sanity-check`, `verification-before-completion`, `kaizen-agent`).
 4. Ground all empirical claims directly from tool outputs.
+5. Execute the full in-memory statistical telemetry scan (VWAP Z-Score, Value Area Imbalance, Footprint Abs/Trap/Exh, and Composite Quant Score) under WS-11 on every wake up and review with zero intermediate files (WS-10). Dropping quality over time is strictly prohibited.
