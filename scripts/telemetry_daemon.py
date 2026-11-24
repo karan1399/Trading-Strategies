@@ -557,7 +557,7 @@ def git_sync_push():
             ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
             subprocess.run(["git", "commit", "-m", f"telemetry: live order-flow snapshot [{ts} UTC]"], check=False, timeout=30)
             subprocess.run(["git", "pull", "--rebase", "origin", "main"], check=False, timeout=30)
-            res = subprocess.run(["git", "push", "origin", "main"], capture_output=True, text=True, timeout=45)
+            res = subprocess.run(["git", "push", "origin", "HEAD:main"], capture_output=True, text=True, timeout=45)
             if res.returncode == 0:
                 print(f"[git-sync] Successfully pushed fresh telemetry to origin/main at {ts} UTC", flush=True)
             else:
