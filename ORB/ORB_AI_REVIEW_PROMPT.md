@@ -6,15 +6,16 @@ You are operating as a Senior Quantitative Portfolio Manager and Algorithmic Tra
 
 ## 1. REPOSITORY & DATA CONTEXT
 
-- **Project Root**: `C:\Users\SIGMA\Documents\Trading-Strategies`
-- **Baseline ORB Codebase**: `C:\Users\SIGMA\Documents\Trading-Strategies\ORB`
-  * Core Single-TF Engine: `ORB/orb_engine.py`
-  * Multi-Timeframe Engine: `ORB/orb_mtf_engine.py`
-  * Baseline Sweeps: `ORB/orb_sweep.py`, `ORB/orb_mtf_sweep.py`
-  * Portfolio Combiner: `ORB/orb_champion_portfolio.py`
-  * Comprehensive Report: `ORB/ORB_STRATEGY_RESEARCH_REPORT.md`
-  * Data CSVs: `ORB/results/orb_qualified.csv`, `ORB/results/orb_mtf_qualified.csv`
-- **Historical Data Directory**: `C:\Users\SIGMA\Documents\Trading-Strategies\historical_parquet`
+- **GitHub Repository**: [https://github.com/karan1399/Trading-Strategies](https://github.com/karan1399/Trading-Strategies)
+- **Clone Command**: `git clone https://github.com/karan1399/Trading-Strategies.git`
+- **Baseline ORB Codebase**: [https://github.com/karan1399/Trading-Strategies/tree/main/ORB](https://github.com/karan1399/Trading-Strategies/tree/main/ORB)
+  * Core Single-TF Engine: [`ORB/orb_engine.py`](https://github.com/karan1399/Trading-Strategies/blob/main/ORB/orb_engine.py)
+  * Multi-Timeframe Engine: [`ORB/orb_mtf_engine.py`](https://github.com/karan1399/Trading-Strategies/blob/main/ORB/orb_mtf_engine.py)
+  * Baseline Sweeps: [`ORB/orb_sweep.py`](https://github.com/karan1399/Trading-Strategies/blob/main/ORB/orb_sweep.py), [`ORB/orb_mtf_sweep.py`](https://github.com/karan1399/Trading-Strategies/blob/main/ORB/orb_mtf_sweep.py)
+  * Portfolio Combiner: [`ORB/orb_champion_portfolio.py`](https://github.com/karan1399/Trading-Strategies/blob/main/ORB/orb_champion_portfolio.py)
+  * Comprehensive Report: [`ORB/ORB_STRATEGY_RESEARCH_REPORT.md`](https://github.com/karan1399/Trading-Strategies/blob/main/ORB/ORB_STRATEGY_RESEARCH_REPORT.md)
+  * Data CSVs: [`ORB/results/orb_qualified.csv`](https://github.com/karan1399/Trading-Strategies/blob/main/ORB/results/orb_qualified.csv), [`ORB/results/orb_mtf_qualified.csv`](https://github.com/karan1399/Trading-Strategies/blob/main/ORB/results/orb_mtf_qualified.csv)
+- **Historical Data Directory**: [https://github.com/karan1399/Trading-Strategies/tree/main/historical_parquet](https://github.com/karan1399/Trading-Strategies/tree/main/historical_parquet)
   * Available Timeframes: `5M/`, `15M/`, `1H/`, `4H/`
   * Parquet Schema: `datetime` (UTC ISO string/timestamp), `open`, `high`, `low`, `close`, `volume`, `spread` (points), `digits`.
   * Date Coverage:
@@ -48,14 +49,14 @@ The baseline engine evaluated **2,560 parameter configurations** across single-t
 ## 3. YOUR DUAL MANDATE
 
 ### PHASE 1: INDEPENDENT QUANT AUDIT & RED-TEAMING
-Examine `ORB/orb_engine.py`, `ORB/orb_mtf_engine.py`, and `ORB/ORB_STRATEGY_RESEARCH_REPORT.md` and address these specific vulnerabilities:
+Examine the code in [`ORB/orb_engine.py`](https://github.com/karan1399/Trading-Strategies/blob/main/ORB/orb_engine.py), [`ORB/orb_mtf_engine.py`](https://github.com/karan1399/Trading-Strategies/blob/main/ORB/orb_mtf_engine.py), and [`ORB/ORB_STRATEGY_RESEARCH_REPORT.md`](https://github.com/karan1399/Trading-Strategies/blob/main/ORB/ORB_STRATEGY_RESEARCH_REPORT.md) and address these specific vulnerabilities:
 1. **Regime & Selection Bias**: Does the September–November 2026 data window over-represent a persistent bull market in US equities? How vulnerable are these setups to high-volatility chop or bear markets?
-2. **Execution Friction & Open Spreads**: In live trading on Blueberry MT5 or Delta Exchange, spreads and slippage widen significantly during the first 5–15 minutes of the NYSE open (14:30–14:45 UTC). Are the spread models in the engine conservative enough?
+2. **Execution Friction & Open Spreads**: In live trading, spreads and slippage widen significantly during the first 5–15 minutes of the NYSE open (14:30–14:45 UTC). Are the spread models in the engine conservative enough?
 3. **Lookahead Bias Verification**: Inspect the causal backward `merge_asof` logic in `orb_mtf_engine.py`. Confirm that the 1-bar shift prevents any future 4H bar leakage into 15M decisions.
 4. **Midpoint vs Swing Stop Robustness**: Why does the 50% Opening Range Midpoint stop loss outperform the opposite extreme? Under what market conditions does it get prematurely hunted?
 
 ### PHASE 2: ARCHITECT & TEST YOUR EVOLVED VERSION (`ORB/orb_evolved.py`)
-Build your own enhanced ORB engine that directly imports and processes the parquet files in `historical_parquet/`. Incorporate one or more of the following quant innovations:
+Build your own enhanced ORB engine that directly imports and processes the parquet files in [`historical_parquet/`](https://github.com/karan1399/Trading-Strategies/tree/main/historical_parquet). Incorporate one or more of the following quant innovations:
 
 1. **Developing Session VWAP Integration**:
    - Calculate intraday Volume Weighted Average Price (VWAP) and rolling standard deviation bands ($\pm 1\sigma, \pm 2\sigma$).
@@ -99,4 +100,4 @@ To ensure your results can be benchmarked against the baseline:
    | Asset | Timeframe / Setup | Baseline OOS PF | Evolved OOS PF | Baseline OOS R | Evolved OOS R | Evolved Max DD | Statistical $t$-stat |
 4. **Institutional Trade Recommendations**: Clear, actionable rulebook for live execution on MT5 and Delta Exchange.
 
-Begin by inspecting `ORB/orb_mtf_engine.py` and reading parquet data from `historical_parquet/`.
+Begin by cloning [https://github.com/karan1399/Trading-Strategies](https://github.com/karan1399/Trading-Strategies), inspecting [`ORB/orb_mtf_engine.py`](https://github.com/karan1399/Trading-Strategies/blob/main/ORB/orb_mtf_engine.py), and reading parquet data from [`historical_parquet/`](https://github.com/karan1399/Trading-Strategies/tree/main/historical_parquet).
