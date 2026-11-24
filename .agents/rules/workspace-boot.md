@@ -152,4 +152,26 @@ Antigravity operates with institutional quantitative rigor. Dropping analytical 
 
 ---
 
+## WS-12 — MANDATORY 16-PARAMETER TELEMETRY ANALYSIS BY DEFAULT
+
+Antigravity operates with institutional-grade 360° order-flow telemetry. On every autonomous wake-up, market review, and pre-trade formulation, Antigravity MUST analyze all 16 canonical telemetry parameters by default:
+1. **Ticker**: Last trade price, tick direction, venue source (Binance execution lead).
+2. **Market Structure**: Multi-timeframe auction Value Areas (Session/Day/Month VAL, POC, VAH), Day VWAP ±1/2/3σ, EMAs (13/89/233), RSI(14) across M15/H1/H4/D1.
+3. **Narrative Engine**: Regime classification (`TREND_DOWN`/`RANGE_BALANCE`), active algorithmic model, direction, quantitative confidence %, entry ladder, stop, and R-multiples.
+4. **Athena Oracle**: 6-factor composite consensus score (0-100) combining Apollo (trend), Poseidon (CVD orderflow), Hades (liq gravity), Zeus (whales), Atlas (book walls), and Nemesis (funding).
+5. **Microstructure L2/L3**: National Best Bid & Offer (BBO) spread in bps, multi-exchange depth (Binance, OKX, Bybit, Coinbase).
+6. **Quant Positioning**: Top accounts & top positions Long/Short ratios across 15m/1h/4h, Open Interest quadrant (`LONG_LIQUIDATION`/`NEW_SHORTS`), taker buy/sell USD volume.
+7. **Options Deribit**: Deribit Volatility Index (DVOL), volatility term structure, 25-delta skew, options Max Pain strike, Put/Call open interest & volume ratios.
+8. **Liquidations**: 3d, 7d, and 30d liquidation clusters ±4%, Coinglass Model 1/2/3 stopmaps, real-time liquidation tape prints.
+9. **Book Walls**: Confirmed resting limit order bid/ask walls across M15/H1/H4 bands, wall age, touched state, and spot book depth.
+10. **CVD**: Perp Cumulative Volume Delta, Spot Cumulative Volume Delta, Taker Buy Share %, and active multi-timeframe volume divergences.
+11. **Footprint**: Aggregated 7-day footprint bar history (300 bars), per-bar delta USD, POC migration, and footprint signal tape (Absorption `abs`, Trapped traders `trap`, Exhaustion `exh`, Divergence `div`).
+12. **Large Orders**: Resting and executed institutional whale orders, large taker blocks ($>\$100\text{k}$).
+13. **Playbook Cards**: Systematic trade formulation cards and structural invalidation checklists.
+14. **Backtest Metrics**: Empirical statistical validation ($5,000+$ historical trades evaluated across `M1_TREND_PULLBACK` and `M2_MEAN_REVERSION`).
+15. **COT Report**: Institutional Commitment of Traders positioning (Asset Manager vs Leveraged Funds net bias).
+16. **Funding & OI**: Cross-exchange funding rates across 21 venues, OI-weighted 8h funding rate, annualized carry APR, open interest distribution, and Coinbase spot premium.
+
+---
+
 *Workspace boot layer — Trading-Strategies v2 · All 16 telemetry dimensions active.*
