@@ -30,6 +30,7 @@
 
 param(
     [switch]$TestNow,
+    [switch]$DryRun,
     [string]$DefaultPrompt = "Autonomous Quant Desk Review: Execute full 16-parameter telemetry scan, audit blotter, and verify risk limits."
 )
 
@@ -37,10 +38,11 @@ param(
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName Microsoft.VisualBasic
 
-# 2. P/Invoke user32.dll for rock-solid window foreground activation
+# 2. P/Invoke user32.dll for wildcard EnumWindows lookup + foreground restoration
 $win32Type = @"
 using System;
 using System.Runtime.InteropServices;
+using System.Text;
 
 public class Win32Window {
     [DllImport("user32.dll")]
@@ -55,8 +57,39 @@ public class Win32Window {
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool IsIconic(IntPtr hWnd);
 
-    [DllImport("user32.dll", SetLastError = true)]
-    public static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool IsWindowVisible(IntPtr hWnd);
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+    public static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
+
+    [DllImport("user32.dll")]
+    public static extern bool EnumWindows(EnumWindowsProc enumProc, IntPtr lParam);
+
+    public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+
+    public static IntPtr MatchedHandle = IntPtr.Zero;
+    public static string MatchedTitle = "";
+
+    public static IntPtr FindBySubstring(string needle) {
+        MatchedHandle = IntPtr.Zero;
+        MatchedTitle = "";
+        EnumWindows(delegate(IntPtr hWnd, IntPtr lParam) {
+            if (IsWindowVisible(hWnd)) {
+                StringBuilder sb = new StringBuilder(256);
+                GetWindowText(hWnd, sb, 256);
+                string title = sb.ToString();
+                if (!string.IsNullOrEmpty(title) && title.IndexOf(needle, StringComparison.OrdinalIgnoreCase) >= 0) {
+                    MatchedHandle = hWnd;
+                    MatchedTitle = title;
+                    return false;
+                }
+            }
+            return true;
+        }, IntPtr.Zero);
+        return MatchedHandle;
+    }
 }
 "@
 
@@ -72,20 +105,29 @@ function Write-Log {
     Write-Host "[$ts] $Message" -ForegroundColor $Color
 }
 
-function Focus-AntigravityWindow {
-    # Method A: Search process list for Antigravity with a valid window handle
-    $procs = Get-Process -Name "Antigravity" -ErrorAction SilentlyContinue
-    $targetHandle = [IntPtr]::Zero
-
-    foreach ($p in $procs) {
-        if ($p.MainWindowHandle -ne [IntPtr]::Zero) {
-            $targetHandle = $p.MainWindowHandle
-            break
-        }
+function Find-AntigravityHandle {
+    $script:matchedTitle = ""
+    # Method A: Pure C# EnumWindows wildcard substring match (works when title is "<workspace> - Antigravity")
+    $hwnd = [Win32Window]::FindBySubstring("Antigravity")
+    if ($hwnd -ne [IntPtr]::Zero) {
+        $script:matchedTitle = [Win32Window]::MatchedTitle
+        return $hwnd
     }
 
+    # Method B: Process MainWindowHandle fallback
+    $procs = Get-Process -Name "Antigravity" -ErrorAction SilentlyContinue
+    foreach ($p in $procs) {
+        if ($p.MainWindowHandle -ne [IntPtr]::Zero) {
+            $script:matchedTitle = $p.MainWindowTitle
+            return $p.MainWindowHandle
+        }
+    }
+    return [IntPtr]::Zero
+}
+
+function Focus-AntigravityWindow {
+    $targetHandle = Find-AntigravityHandle
     if ($targetHandle -ne [IntPtr]::Zero) {
-        # Restore window if minimized (SW_RESTORE = 9)
         if ([Win32Window]::IsIconic($targetHandle)) {
             [Win32Window]::ShowWindow($targetHandle, 9) | Out-Null
             Start-Sleep -Milliseconds 200
@@ -96,87 +138,71 @@ function Focus-AntigravityWindow {
             return $true
         }
     }
-
-    # Method B: Visual Basic AppActivate fallback (matches title or process)
-    try {
-        [Microsoft.VisualBasic.Interaction]::AppActivate("Antigravity")
-        Start-Sleep -Milliseconds 400
-        return $true
-    } catch {
-        # Try matching any window with Antigravity in title
-        $allWindows = Get-Process | Where-Object { $_.MainWindowTitle -match "Antigravity" }
-        if ($allWindows) {
-            $h = $allWindows[0].MainWindowHandle
-            if ($h -ne [IntPtr]::Zero) {
-                [Win32Window]::ShowWindow($h, 9) | Out-Null
-                [Win32Window]::SetForegroundWindow($h) | Out-Null
-                Start-Sleep -Milliseconds 400
-                return $true
-            }
-        }
-        return $false
-    }
+    return $false
 }
 
 function Send-PasteAndEnter {
-    # Check clipboard content
-    $clipboardText = [System.Windows.Forms.Clipboard]::GetText()
-    
+    # Read clipboard safely via PowerShell STA cmdlet
+    $clipboardText = Get-Clipboard -Raw -ErrorAction SilentlyContinue
+
     if ([string]::IsNullOrWhiteSpace($clipboardText)) {
         Write-Log "Clipboard was empty. Using default wake prompt..." -Color Yellow
-        [System.Windows.Forms.Clipboard]::SetText($DefaultPrompt)
+        if (-not $DryRun) {
+            Set-Clipboard -Value $DefaultPrompt
+        }
         $clipboardText = $DefaultPrompt
     }
 
-    $preview = if ($clipboardText.Length -gt 60) { $clipboardText.Substring(0, 60) + "..." } else { $clipboardText }
-    Write-Log "Pasting content: '$preview'" -Color Cyan
+    $preview = if ($clipboardText.Length -gt 60) { $clipboardText.Substring(0, 60).Replace("`r", "").Replace("`n", " ") + "..." } else { $clipboardText.Replace("`r", "").Replace("`n", " ") }
+    Write-Log "Clipboard payload: '$preview'" -Color Cyan
 
-    # Activate Antigravity Window
-    Write-Log "Activating Antigravity window..." -Color Gray
+    if ($DryRun) {
+        $hwnd = Find-AntigravityHandle
+        Write-Log "DRY-RUN: Antigravity Window Handle=$hwnd | Title='$script:matchedTitle'" -Color Yellow
+        Write-Log "DRY-RUN: Would focus window, paste payload via Ctrl+V, and send {ENTER}." -Color Yellow
+        return
+    }
+
+    Write-Log "Activating Antigravity window ($script:matchedTitle)..." -Color Gray
     $focused = Focus-AntigravityWindow
 
     if (-not $focused) {
-        Write-Log "WARNING: Could not find or focus 'Antigravity' window. Attempting keystrokes regardless." -Color Magenta
-    } else {
-        Write-Log "Antigravity window successfully brought to foreground." -Color Green
+        Write-Log "WARNING: Could not find or focus 'Antigravity' window. Skipping blind keystrokes to avoid pasting into wrong app!" -Color Red
+        return
     }
+    Write-Log "Antigravity window successfully brought to foreground." -Color Green
 
-    # Small pause to ensure UI chat input field has focus
+    # Small pause to ensure UI chat input field has focus (keep cursor in Antigravity chat box!)
     Start-Sleep -Milliseconds 500
-
-    # Send Ctrl+V (Paste)
     [System.Windows.Forms.SendKeys]::SendWait("^v")
     Write-Log "Sent Ctrl+V (Paste)" -Color Gray
-
-    # Pause 600ms before sending Enter so text settles in the input box
     Start-Sleep -Milliseconds 600
-
-    # Send Enter ({ENTER})
     [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
     Write-Log "Sent Enter! Prompt dispatched successfully to Antigravity." -Color Green
 }
 
 # --- MAIN EXECUTION ---
-Clear-Host
+if (-not $DryRun) { Clear-Host }
 Write-Host "==========================================================================" -ForegroundColor Cyan
 Write-Host "     ANTIGRAVITY AUTONOMOUS WAKE-UP DAEMON (:00 & :30 OF EVERY HOUR)      " -ForegroundColor Yellow
 Write-Host "==========================================================================" -ForegroundColor Cyan
-Write-Host "Target Process : Antigravity" -ForegroundColor Gray
-Write-Host "Cadence        : Minute 00 and Minute 30" -ForegroundColor Gray
+Write-Host "Target Process : Antigravity (*Antigravity* wildcard EnumWindows match)" -ForegroundColor Gray
+Write-Host "Cadence        : Exact Minute :00:00 and :30:00" -ForegroundColor Gray
 Write-Host "Action         : Activate Window -> Paste Clipboard -> Send Enter" -ForegroundColor Gray
+Write-Host "Safety Note    : Leave cursor focused in the Antigravity chat box!" -ForegroundColor DarkYellow
 Write-Host "Press Ctrl+C at any time to stop.`n" -ForegroundColor DarkGray
 
-if ($TestNow) {
-    Write-Log "Running immediate test trigger (-TestNow specified)..." -Color Yellow
+if ($TestNow -or $DryRun) {
+    Write-Log "Running immediate execution ($(if ($DryRun) {'-DryRun'} else {'-TestNow'}))..." -Color Yellow
     Send-PasteAndEnter
-    Write-Log "Test trigger completed." -Color Cyan
+    Write-Log "Completed." -Color Cyan
     exit 0
 }
 
 while ($true) {
     $now = [DateTime]::Now
-    
-    # Calculate next :00 or :30 target
+
+    # Calculate next exact :00:00 or :30:00 boundary
     if ($now.Minute -lt 30) {
         $nextTarget = [DateTime]::new($now.Year, $now.Month, $now.Day, $now.Hour, 30, 0)
     } else {
@@ -184,19 +210,22 @@ while ($true) {
     }
 
     $waitSpan = $nextTarget - $now
-    $totalSeconds = [Math]::Max(1, [int]$waitSpan.TotalSeconds)
+    $sleepSecs = [Math]::Max(1, [int][Math]::Floor($waitSpan.TotalSeconds))
 
-    Write-Log "Next trigger scheduled for: $($nextTarget.ToString('HH:mm:ss')) (in $([int]($totalSeconds / 60)) min $($totalSeconds % 60) sec)" -Color DarkCyan
+    Write-Log "Next trigger scheduled for: $($nextTarget.ToString('HH:mm:ss')) (in $([int]($sleepSecs / 60)) min $($sleepSecs % 60) sec)" -Color DarkCyan
 
-    # Sleep until target time
-    Start-Sleep -Seconds $totalSeconds
+    if ($sleepSecs -gt 1) {
+        Start-Sleep -Seconds ($sleepSecs - 1)
+    }
+    # Fine alignment loop guarantees never firing before exact :00:00 / :30:00 boundary
+    while ([DateTime]::Now -lt $nextTarget) {
+        Start-Sleep -Milliseconds 200
+    }
 
-    Write-Log "=== TRIGGER TIME REACHED: $($nextTarget.ToString('HH:mm:ss')) ===" -Color Yellow
-    
-    # Execute Paste and Enter
+    Write-Log "=== TRIGGER TIME REACHED: $([DateTime]::Now.ToString('HH:mm:ss.fff')) ===" -Color Yellow
     Send-PasteAndEnter
 
-    # Guard sleep (8 seconds) to prevent triggering twice on the same second boundary
-    Start-Sleep -Seconds 8
+    # Guard sleep past the trigger second so the next loop advances cleanly to +30 min
+    Start-Sleep -Seconds 5
     Write-Host ""
 }

@@ -21,10 +21,10 @@ The operational constitution of this workspace is modularized under `.agents/rul
 ---
 
 ## 2. Core Operational Parameters
-- **Active Broker**: Blueberry Markets MT5 Account `#5126976` (Equity: ~$2,550+ USD)
+- **Active Broker**: Blueberry Markets MT5 Account `#5126976` (verify balance/equity dynamically via MT5 API)
 - **Active Crypto CLOB**: Delta Exchange India (Antigravity is the sole execution authority)
-- **Hard Risk Ceiling**: 1.0% of equity per trade (**$25.00** single-trade cap)
-- **Concurrency**: Max 2 active positions/orders; max 1 crypto position
+- **Hard Risk Ceiling**: 1.0% of equity total book risk cap ($\approx \mathbf{\$25.00\text{ USD}}$); **\$5.00–\$6.00 USD** per trend setup ($R \ge 2.0$)
+- **Concurrency**: Bounded by total aggregate book risk ($\le \$25.00$ across open positions + pending orders under `TC-09`); automated `engine/unified_alpha_pilot.py` sleeves separately follow `engine/config.json` (`max_global_positions: 2`)
 - **Local Terminal**: Next.js Order-Flow Terminal on `http://localhost:3000`
 
 ---

@@ -251,33 +251,39 @@ def harvest_single_asset(sym):
                     "quadrant": cv.get("quadrant")
                 }
 
-    # 10. FOOTPRINT TIME SERIES (300 bars at 15m) + SUMMARY
-    fp_7d = fetch_json(f"/api/cg/fp?sym={sym}&itv=m15&limit=300", timeout=20)
-    if fp_7d and fp_7d.get("ok"):
-        bars = fp_7d.get("bars", [])
+    # 10. FOOTPRINT TIME SERIES (300 bars at 15m + 1h) + FINISHED AUCTION ZERO-PRINT
+    def process_fp_bars(bars, tf_label, out_filename):
         sym_fp_dir = os.path.join(FOOTPRINT_DIR, sym)
         os.makedirs(sym_fp_dir, exist_ok=True)
-
         summary_rows = []
         cum_delta = 0.0
         for b in bars:
             fp = b.get("fp")
-            buy_v = sum(fp.get("b", [])) if fp else 0.0
-            sell_v = sum(fp.get("s", [])) if fp else 0.0
+            b_arr = fp.get("b", []) if fp else []
+            s_arr = fp.get("s", []) if fp else []
+            buy_v = sum(b_arr) if b_arr else 0.0
+            sell_v = sum(s_arr) if s_arr else 0.0
             delta = buy_v - sell_v
             cum_delta += delta
             tot_v = buy_v + sell_v
             delta_pct = (delta / tot_v * 100) if tot_v > 0 else 0.0
 
             poc_p, max_v = None, 0.0
-            if fp and fp.get("b") and fp.get("s"):
+            top_bid = b_arr[-1] if b_arr else None
+            top_ask = s_arr[-1] if s_arr else None
+            bot_bid = b_arr[0] if b_arr else None
+            bot_ask = s_arr[0] if s_arr else None
+            finished_high = bool(b_arr and s_arr and len(b_arr) >= 2 and top_bid == 0 and top_ask > 0)
+            finished_low = bool(b_arr and s_arr and len(b_arr) >= 2 and bot_ask == 0 and bot_bid > 0)
+
+            if b_arr and s_arr:
                 tick = fp.get("tick", 1)
                 lo = fp.get("lo", b.get("l"))
-                for i in range(len(fp["b"])):
-                    row_v = fp["b"][i] + fp["s"][i]
+                for i in range(min(len(b_arr), len(s_arr))):
+                    row_v = b_arr[i] + s_arr[i]
                     if row_v > max_v:
                         max_v = row_v
-                        poc_p = round(lo + i * tick, 2)
+                        poc_p = round(lo + i * tick, 4)
 
             summary_rows.append({
                 "ts": b.get("ts"),
@@ -291,12 +297,18 @@ def harvest_single_asset(sym):
                 "delta_pct": round(delta_pct, 2),
                 "cum_delta": round(cum_delta, 2),
                 "poc_price": poc_p,
-                "poc_vol": round(max_v, 2)
+                "poc_vol": round(max_v, 2),
+                "top_bid": top_bid,
+                "top_ask": top_ask,
+                "bot_bid": bot_bid,
+                "bot_ask": bot_ask,
+                "finished_high": finished_high,
+                "finished_low": finished_low
             })
 
-        atomic_write(os.path.join(sym_fp_dir, "summary_7d.json"), {
+        atomic_write(os.path.join(sym_fp_dir, out_filename), {
             "sym": sym,
-            "timeframe": "15m",
+            "timeframe": tf_label,
             "days": 7,
             "total_bars": len(summary_rows),
             "start_time": summary_rows[0]["ts"] if summary_rows else None,
@@ -304,12 +316,26 @@ def harvest_single_asset(sym):
             "cum_delta_7d": round(cum_delta, 2),
             "rows": summary_rows
         })
+        return summary_rows, cum_delta
 
+    fp_7d = fetch_json(f"/api/cg/fp?sym={sym}&itv=m15&limit=300", timeout=20)
+    if fp_7d and fp_7d.get("ok"):
+        summary_rows, cum_delta = process_fp_bars(fp_7d.get("bars", []), "15m", "summary_7d.json")
         profile["footprint"]["history_7d"] = {
-            "bars_count": len(bars),
+            "bars_count": len(summary_rows),
             "cum_delta_7d": round(cum_delta, 2),
             "summary_file": f"data/telemetry/footprint/{sym}/summary_7d.json",
             "recent_bars_tail": summary_rows[-8:] if summary_rows else []
+        }
+
+    fp_1h = fetch_json(f"/api/cg/fp?sym={sym}&itv=h1&limit=300", timeout=20)
+    if fp_1h and fp_1h.get("ok"):
+        rows_1h, cum_delta_1h = process_fp_bars(fp_1h.get("bars", []), "1h", "summary_1h.json")
+        profile["footprint"]["history_1h"] = {
+            "bars_count": len(rows_1h),
+            "cum_delta_1h": round(cum_delta_1h, 2),
+            "summary_file": f"data/telemetry/footprint/{sym}/summary_1h.json",
+            "recent_bars_tail": rows_1h[-8:] if rows_1h else []
         }
 
     # Signals
@@ -440,36 +466,49 @@ def generate_authoritative_datasets(harvested_profiles, screener_data):
 
     for sym, p in harvested_profiles.items():
         mkt = p.get("market_structure") or {}
-        px = (p.get("ticker") or {}).get("price") or mkt.get("price")
+        mkt_price = mkt.get("price")
+        px = (p.get("ticker") or {}).get("price") or (mkt_price.get("last") if isinstance(mkt_price, dict) else mkt_price)
         if not px or px <= 0:
             continue
 
         vwap_data = mkt.get("vwap") or {}
         vwap_val = vwap_data.get("vwap")
-        vwap_std = vwap_data.get("std", 1.0)
-        vwap_z = (px - vwap_val) / vwap_std if (vwap_val and vwap_std > 0) else 0.0
+        vwap_std = vwap_data.get("std") or ((vwap_data.get("bands") or {}).get("sd1"))
+        vwap_z = (px - vwap_val) / vwap_std if (vwap_val and vwap_std and vwap_std > 0) else 0.0
 
         rsi_15m = (mkt.get("rsi") or {}).get("m15", 50.0)
+        emas_m15 = (mkt.get("emas") or {}).get("m15") or {}
+        e89_m15 = emas_m15.get("e89")
+        e233_m15 = emas_m15.get("e233")
+        trend_short_tc09 = bool(e89_m15 and e233_m15 and px < e89_m15 and px < e233_m15)
+        trend_long_tc09 = bool(e89_m15 and e233_m15 and px > e89_m15 and px > e233_m15)
+
+        day_auc = (mkt.get("auction") or {}).get("day") or {}
+        day_val = day_auc.get("val")
+        day_vah = day_auc.get("vah")
+
         cum_delta_7d = (p.get("footprint", {}).get("history_7d") or {}).get("cum_delta_7d", 0.0)
         oracle_score = (p.get("athena_oracle") or {}).get("score", 50)
         regime = (p.get("narrative_engine") or {}).get("regime", "UNKNOWN")
 
-        # Check nearest liq cluster
-        clusters = (p.get("liquidations", {}).get("clusters") or {}).get("3d", {}).get("stats", {})
         largest_level = (p.get("liquidations", {}).get("stopmap", {}).get("m1_coin_24h", {}).get("overview") or {}).get("largestLevel")
 
         score_short = 0.0
         score_long = 0.0
 
-        if vwap_z > 1.0: score_short += vwap_z * 15
-        if rsi_15m > 65: score_short += (rsi_15m - 65) * 2
-        if cum_delta_7d < 0: score_short += 10 # Net selling pressure / divergence
-        if oracle_score < 48: score_short += (50 - oracle_score) * 1.5
+        if trend_short_tc09:
+            score_short += 30.0
+            if day_val and px < day_val: score_short += 20.0
+            if vwap_z < -1.0: score_short += min(abs(vwap_z) * 10.0, 25.0)
+            if cum_delta_7d < 0: score_short += 10.0
+            if oracle_score < 48: score_short += (50 - oracle_score) * 0.8
 
-        if vwap_z < -1.0: score_long += abs(vwap_z) * 15
-        if rsi_15m < 35: score_long += (35 - rsi_15m) * 2
-        if cum_delta_7d > 0: score_long += 10
-        if oracle_score > 52: score_long += (oracle_score - 50) * 1.5
+        if trend_long_tc09:
+            score_long += 30.0
+            if day_vah and px > day_vah: score_long += 20.0
+            if vwap_z > 1.0: score_long += min(vwap_z * 10.0, 25.0)
+            if cum_delta_7d > 0: score_long += 10.0
+            if oracle_score > 52: score_long += (oracle_score - 50) * 0.8
 
         short_candidates.append({
             "sym": sym,

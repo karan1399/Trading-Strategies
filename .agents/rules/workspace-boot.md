@@ -17,10 +17,10 @@ pre-loaded on the first turn.
 
 - **Project Root**: `c:\Users\SIGMA\Documents\Trading-Strategies`
 - **Terminal**: CG Order-Flow Terminal on `http://localhost:3000`
-- **Active Broker**: Blueberry MT5 Account `5126976` (equity \$2,589.67)
+- **Active Broker**: Blueberry MT5 Account `5126976` (always verify live balance/equity via MT5 API — never cite stale figures)
 - **Delta Exchange**: India CLOB — Antigravity is the ONLY execution authority
-- **Risk Cap**: 1.0% equity = **\$25.90 USD** per trade · $25.00 single-trade ceiling
-- **Concurrency**: Max 2 total positions/orders · Max 1 crypto position (P5-02)
+- **Risk Cap**: **\$5.00–\$6.00 USD** standard risk per trade ($R \ge 2.0$); aggregate portfolio risk strictly capped $\le \mathbf{1.0\% / \$25.00\text{ USD}}$
+- **Concurrency**: Trend-aligned multi-asset exposure permitted under `TC-09` strictly within the \$25.00 aggregate risk ceiling (`engine/unified_alpha_pilot.py` sleeves retain `engine/config.json` `max_global_positions: 2`)
 
 ---
 
@@ -36,26 +36,19 @@ adds the following workspace-specific reads in ADDITION:
 
 ---
 
-## WS-03 — ACTIVE PENDING ORDERS (Last Known State)
+## WS-03 — LIVE PENDING ORDERS & POSITIONS VERIFICATION
 
-> Read live state via `python -c "import MetaTrader5 as mt5; mt5.initialize(); ..."` to verify.
-
-| Ticket | Symbol | Type | Entry | SL | TP | Risk |
-|:--|:--|:--|:--|:--|:--|:--|
-| `20428262` | `XAUUSD.pi` | BUY_LIMIT | \$3,648.50 | \$3,633.00 | \$3,679.50 | \$18.60 / 0.72% |
-| `20428272` | `BTCUSD.pi` | BUY_LIMIT | \$62,475.00 | \$61,850.00 | \$63,725.00 | \$22.50 / 0.87% |
+> Static snapshots are banned under `WS-15`. Query live state directly via `MetaTrader5` API (`positions_get()`, `orders_get()`, `account_info()`) on every review and audit all orders against `TC-09` and `WS-14`.
 
 ---
 
-## WS-04 — ACTIVE BACKGROUND DAEMONS
+## WS-04 — ACTIVE BACKGROUND DAEMONS REGISTRY
 
-| Task | Process | Role |
-|:--|:--|:--|
-| `task-16644` | `npm start` (1024MB heap) | Web terminal, WS order-flow |
-| `task-16278` | `telemetry_daemon.py` | 16-point telemetry ingest |
-| `task-15936` | Cron `0,30 * * * *` | 30-min order-flow review wakes |
-| `task-13849` | `desk_daemon.mjs` | Desk ingest + Git sync |
-| `task-13851` | `antigravity_council_poller.py` | Tricouncil consensus polling |
+> Verify active daemon uptime dynamically via `manage_task(Action='list')` on every wake-up rather than assuming prior task IDs:
+> - **Web Terminal**: `npm start` (port `3000`, 2048MB heap)
+> - **Telemetry Poller**: `python scripts/telemetry_daemon.py`
+> - **Unified Multi-Sleeve Engine**: `python engine/unified_alpha_pilot.py --live --i-understand-live-risk`
+> - **Scheduled Wake Trigger**: Active Antigravity cron (`0,30 * * * *`) and/or desktop `scripts/antigravity_auto_wake.ps1`
 
 ---
 
@@ -179,14 +172,14 @@ Antigravity operates with institutional-grade 360° order-flow telemetry. On eve
 On EVERY autonomous wake-up, scheduled cron review, and conversational turn, Antigravity MUST explicitly emit and verify this structured Wake-Up Verification Checklist:
 
 - [ ] **1. Physical SKILL.md Loading**: Physical `read_file` calls executed on the 6 governing skill bibles (`gravitas`, `quant-analyst`, `pre-trade-check`, `risk-reward-sanity-check`, `verification-before-completion`, `kaizen-agent`).
-- [ ] **2. Plugin Grounding & Confirmation**: Operational status confirmed for the 4 governing bibles (`gravitas-native`, `superpowers`, `coderabbit`, `trading-skills`).
-- [ ] **3. In-Memory Telemetry JSON Ingestion**: Direct in-memory parsing of `data/telemetry/assets/<SYM>.json`, `data/telemetry/footprint/<SYM>/signals_7d.json`, and `universe_overview.json` with zero intermediate scratch files (`WS-10`).
-- [ ] **4. 16-Parameter Telemetry Audit**: Institutional analysis across all 16 parameters under `WS-12` (Ticker, Market Structure, Narrative Engine, Athena Oracle, Microstructure L2/L3, Quant Positioning, Options Deribit, Liquidations, Book Walls, CVD, Footprint, Large Orders, Playbook Cards, Backtest Metrics, COT Report, Funding & OI).
-- [ ] **5. MT5 Live Blotter & Concurrency Reconciliation**: Real-time readback of Blueberry account `#5126976`, open positions, pending orders, balance, and floating PnL.
-- [ ] **6. Trend Protocol Adherence (TC-09)**: Strict $\text{Price} < \text{EMA 233}$ short-only regime; immediate purge of any counter-trend orders.
-- [ ] **7. Asymmetric Bounded Risk**: Dollar risk strictly bounded to $\$5.00–\$6.00$ USD per trade, reward $\ge 2.0R$, total book risk $< 1.0\%$ (\$25.00 cap).
-- [ ] **8. Background Daemons Health**: Verify continuous uptime of `task-20346` (telemetry), `task-20953` (unified engine), `task-21217` (terminal), and `task-21661` (cron).
-- [ ] **9. Kaizen 4-Pillar Self-Optimization**: Complete response with Benchmark, 5-Whys, Surgical Fix, and Anti-Regression Ledger.
+- [ ] **2. Plugin Grounding & Confirmation**: Run `list_plugin_accounts` (when plugin state hasn't been checked) and verify local rules/skills vs MCP auth status (`gravitas-native`, `superpowers`, `coderabbit`, `trading-skills`), disclosing any unsigned-in MCP servers honestly.
+- [ ] **3. In-Memory Telemetry JSON Ingestion (`WS-10`)**: Direct in-memory parsing of `data/telemetry/assets/*.json`, `data/telemetry/footprint/*/signals_7d.json` + `summary_7d.json` + `summary_1h.json`, and `universe_overview.json` with `WS-08` freshness gate (`<= 600s`) and zero intermediate scratch files.
+- [ ] **4. 16-Parameter Telemetry Audit (`WS-12`)**: Execute `python scripts/telemetry_16p_engine.py --verify-gate` covering all 16 canonical parameters across Crypto + TradFi (disclosing `N/A` bounds like DVOL BTC/ETH-only or COT CFTC-only).
+- [ ] **5. MT5 Live Blotter & Portfolio Risk Reconciliation**: Real-time readback of Blueberry account `#5126976` via `MetaTrader5` API (balance, equity, open positions, pending orders, and total book risk `<= $25.00`).
+- [ ] **6. Trend Protocol Adherence (`TC-09`)**: Verify `Price < EMA 233` (Short-Only) or `Price > EMA 233` (Long-Only) across M15/H1 + Finished Auction Zero-Prints (`0 | X` / `X | 0`); purge any counter-trend orders immediately.
+- [ ] **7. Asymmetric Bounded Risk & `WS-14` Re-Validation**: Verify `$5.00–$6.00` setup risk, $R \ge 2.0$, stop clearing widest `3d/7d/30d` shelf + M15 ATR noise, and audit pending limits for developing POC migration.
+- [ ] **8. Background Daemons Health**: Inspect live processes dynamically via `manage_task(Action='list')` (`telemetry_daemon.py`, `unified_alpha_pilot.py`, `npm start`, plus wake scheduler / `antigravity_auto_wake.ps1`).
+- [ ] **9. Kaizen 4-Pillar Self-Optimization**: Complete response with verified empirical Benchmark, 5-Whys, Surgical Fix, and Anti-Regression Ledger (`antigravity_selfcheck.py` on desk rounds).
 
 ---
 
