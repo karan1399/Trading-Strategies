@@ -45,7 +45,7 @@ process.env.CG_DATA_DIR ??= existsSync(join(baseDir, "data", "cg-series"))
 // unless the caller explicitly overrides PORT.
 process.env.PORT ??= "3000";
 
-const child = spawn(process.execPath, ["--max-old-space-size=512", server], {
+const child = spawn(process.execPath, ["--max-old-space-size=1024", server], {
   cwd: baseDir,
   stdio: "inherit",
   env: process.env,
