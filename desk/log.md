@@ -20112,3 +20112,11 @@ analysis script rc=1
 
 analysis script rc=1
 
+
+## INTERLOCK BLOCKED · 2026-11-24 10:21 UTC · Antigravity
+
+Client-side assertion: mt5.terminal_info().trade_allowed == False (Physical Algo Trading toolbar button is RED).
+Broker retcode: 10027 (AutoTrading disabled by client).
+Persisted event record: desk/events/interlock_20261124_102030.json
+Operator action required: Toggle Algo Trading button to GREEN (Ctrl + E in MT5 GUI) to enable execution.
+Prepared canary order: ETHUSD.pi SELL 0.16 lots @ 1683.70, SL 1715.00 (.00 risk), TP 1620.00 (.19 reward, 2.03R).
