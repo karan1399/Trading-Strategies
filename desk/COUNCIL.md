@@ -3793,3 +3793,13 @@ Empirical audit of today's MT5 deal history reveals the exact root causes of sto
 - **Prompt Fixed:** Saved zero-gap mandate prompt to `desk/INSTITUTIONAL_MANDATE_PROMPT.md` (fixing broken path `TradingStrategies` -> `Trading-Strategies`, mandating `D01-D16` schema parity + live `:3000` continuation).
 
 **Confidence:** VERIFIED (`8/8` pytest + `py_compile` + live `:3000` schema inspection + `telemetry_daemon.py v4.1` running).
+
+### [2026-11-25T18:47:00Z] · Antigravity · R40 V2 MANDATE EXECUTION, FULL 252-ASSET PARITY & GAUUSD.pi COLD-ZONE PROTECTION (00:17 IST)
+**Verdict:** Executed the V2 Zero-Gap Endpoint Parity Mandate (`252/252` inventory: `231` fresh, `21` stale `>600s`, `0` malformed; `40/40` curated fresh under `--verify-gate --live-continue`). Audited all `5` open MT5 trades & `2` Delta positions against live `D01–D16` + H4 Hurst/ATR60/Kurtosis + MT5 spreads, widened both `GAUUSD.pi` short SLs out of the `XAU` `3,586–3,610` squeeze zone into `116.25`, vetoed `7` high-spread MT5 `.p` altcoins (`30.8%–1000%` spread/ATR15), and held all remaining positions cleanly within the `1.00%` equity cap (`NO NEW TRADE`).
+- **MT5 `#5126976` (`Bal=$2,548.49`, `Eq=$2,538.08`, `Free=$2,360.09`, `Open=5`, `Pend=0`, `Risk=$24.73 = 0.974%`):**
+  - `MODIFY STOP LOSS & TP` (`retcode=10009`): `#20515764 GAUUSD.pi` (`SELL 0.01 @ 111.7681`, `SL 115.2126 -> 116.25`, `TP 103.1041 -> 102.75`, risk `$4.48`, `2.01R`) and `#20527955 GAUUSD.pi` (`SELL 0.01 @ 112.6763`, `SL 114.8305 -> 116.25`, `TP 106.1858 -> 105.50`, risk `$3.57`, `2.01R`) — clears live `XAU` `3d/7d/30d` liquidation shelves (`3,586.20`–`3,610.23`, `str=89.7`) and `H1 EMA89 (3,597.34)`.
+  - `KEEP UNCHANGED`: `#20467916 EURUSD.pi` (`$5.36`, `2.11R`, `Z=+2.19σ`, `RSI15/H1=70.0/71.9`, `H=0.369`), `#20499902 GBPNZD.pi` (`$6.04`, `2.00R`, `Z=-2.16σ`, resting at `H4 EMA89 2.3890`), `#20516480 ETHUSD.pi` (`$5.28`, `2.00R`, `SL 1748.00 > 1734.2` Gamma Flip & `1729.60–1743.32` Model 1 walls).
+- **Delta `#26902927` (`Bal=$3.3031 USD`, `Avail=$3.1904 USD`):** `KEEP UNCHANGED` `ADAUSD -3 @ 0.1440` (`SL 0.1476`, `TP 0.1368`, `-$0.00225` uPnL, `bw_f=-0.432`, `3d/7d` walls `<=0.1473`) and `XRPUSD -1 @ 0.9031` (`SL 0.9327`, `TP 0.8109`, `-$0.0257` uPnL, at `0.90%` `$0.0296` single-contract cap).
+- **New Entries:** `NO TRADE` (`$0.65` MT5 headroom remaining `< $1.94–$6.00` min risk; MT5 `.p` altcoins vetoed on `30.8%–1000%` spread/ATR15).
+
+**Confidence:** VERIFIED (`MT5` `retcode=10009` + live blotter + `Delta` `get_margined_positions`/`get_ticker`/`get_open_orders` + `252`-asset inventory + live `D01–D16` parity).

@@ -20286,3 +20286,8 @@ Synced live MT5 #5126976 execution & `/thinking-red-team` backtest verification 
 - Fixed 7 data/schema/freshness drops in `scripts/telemetry_daemon.py` (`v4.1`) & `scripts/telemetry_16p_engine.py` (`--live-continue` + full `D01-D16` extraction).
 - Passed `pytest tests/test_telemetry_parity.py tests/test_cg_sl_tp_and_baskets.py` (`8/8`).
 - Authored zero-gap `desk/INSTITUTIONAL_MANDATE_PROMPT.md` & restarted `telemetry_daemon.py --no-git`.
+
+### [2026-11-25T18:47:00Z] · R40 · V2 MANDATE EXECUTION (`D01-D16` FULL AUDIT & `GAUUSD.pi` COLD-ZONE MOVE)
+- Cleared `__pycache__` / `.pytest_cache`; hydrated all 4 `data/agent_memory/*` artifacts; audited `252/252` files (`231` fresh `<=600s`, `21` stale `>600s`, `0` malformed; `40/40` curated fresh under `--verify-gate --live-continue`).
+- MT5 `#5126976`: `retcode=10009` moved `#20515764` (`SL 115.2126 -> 116.25`, `TP -> 102.75`, `$4.48`, `2.01R`) & `#20527955` (`SL 114.8305 -> 116.25`, `TP -> 105.50`, `$3.57`, `2.01R`) cleanly above `XAU` `3,586.20–3,610.23` `3d/7d/30d` shelves; held `EURUSD.pi`, `GBPNZD.pi`, `ETHUSD.pi` (`Total SL Risk = $24.73 / 0.974% <= 1.00% Cap`). New trades: `NO TRADE`.
+- Delta `#26902927`: Held `ADAUSD -3 @ 0.1440` (`-$0.00225`) & `XRPUSD -1 @ 0.9031` (`-$0.0257`).
