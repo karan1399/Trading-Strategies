@@ -44,7 +44,7 @@ using System;
 using System.Runtime.InteropServices;
 using System.Text;
 
-public class AgAutoWakeWin32V2 {
+public class AgAutoWakeWin32V3 {
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool SetForegroundWindow(IntPtr hWnd);
@@ -170,7 +170,7 @@ public class AgAutoWakeWin32V2 {
 }
 "@
 
-if (-not ('AgAutoWakeWin32V2' -as [type])) {
+if (-not ('AgAutoWakeWin32V3' -as [type])) {
     Add-Type -TypeDefinition $win32Type -ErrorAction Stop
 }
 
@@ -184,10 +184,10 @@ function Find-AntigravityHandle {
     $script:matchedTitle = ""
     $script:matchedProc = ""
     # Method A: Pure C# EnumWindows filtering on Antigravity.exe / "- Antigravity" (excludes antigravity-tools!)
-    $hwnd = [AgAutoWakeWin32V2]::FindAntigravityIdeWindow("Trading-Strategies")
+    $hwnd = [AgAutoWakeWin32V3]::FindAntigravityIdeWindow("Trading-Strategies")
     if ($null -ne $hwnd -and $hwnd -is [IntPtr] -and $hwnd -ne [IntPtr]::Zero) {
-        $script:matchedTitle = [AgAutoWakeWin32V2]::MatchedTitle
-        $script:matchedProc = [AgAutoWakeWin32V2]::MatchedProc
+        $script:matchedTitle = [AgAutoWakeWin32V3]::MatchedTitle
+        $script:matchedProc = [AgAutoWakeWin32V3]::MatchedProc
         return $hwnd
     }
 
@@ -210,15 +210,15 @@ function Focus-AntigravityWindow {
     if ($null -eq $TargetHandle -or $TargetHandle -eq [IntPtr]::Zero) {
         return $false
     }
-    $ok = [AgAutoWakeWin32V2]::ForceForeground($TargetHandle)
-    Start-Sleep -Milliseconds 350
+    $ok = [AgAutoWakeWin32V3]::ForceForeground($TargetHandle)
+    Start-Sleep -Milliseconds 450
     if ($ok) { return $true }
 
     # Fallback: AppActivate by exact matched title
     if (-not [string]::IsNullOrWhiteSpace($script:matchedTitle)) {
         try {
             [Microsoft.VisualBasic.Interaction]::AppActivate($script:matchedTitle)
-            Start-Sleep -Milliseconds 350
+            Start-Sleep -Milliseconds 450
             return $true
         } catch {}
     }
@@ -226,12 +226,11 @@ function Focus-AntigravityWindow {
 }
 
 function Send-PasteAndEnter {
-    # Read clipboard safely via PowerShell STA cmdlet; fall back to DefaultPrompt if empty or holding a file path/drop
-    $fileDrop = Get-Clipboard -Format FileDropList -ErrorAction SilentlyContinue
+    # Paste whatever text is currently copied on the Windows Clipboard; only fall back if truly empty
     $clipboardText = Get-Clipboard -Raw -ErrorAction SilentlyContinue
 
-    if ($fileDrop -or [string]::IsNullOrWhiteSpace($clipboardText) -or ($clipboardText.Trim() -match '^"?[A-Za-z]:\\')) {
-        Write-Log "Clipboard was empty or held a file path. Using default wake prompt..." -Color Yellow
+    if ([string]::IsNullOrWhiteSpace($clipboardText)) {
+        Write-Log "Clipboard was empty. Using default wake prompt..." -Color Yellow
         if (-not $DryRun) {
             Set-Clipboard -Value $DefaultPrompt
         }
@@ -255,7 +254,7 @@ function Send-PasteAndEnter {
         Write-Log "WARNING: Could not find or focus 'Antigravity' IDE window. Skipping blind keystrokes to avoid pasting into wrong app!" -Color Red
         return
     }
-    $fgNow = [AgAutoWakeWin32V2]::GetForegroundWindow()
+    $fgNow = [AgAutoWakeWin32V3]::GetForegroundWindow()
     if ($fgNow -ne $targetHandle) {
         Write-Log "WARNING: Foreground handle ($fgNow) != Antigravity handle ($targetHandle). Aborting paste for safety." -Color Red
         return

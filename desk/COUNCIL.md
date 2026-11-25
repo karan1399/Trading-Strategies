@@ -3676,3 +3676,9 @@ Empirical audit of today's MT5 deal history reveals the exact root causes of sto
 
 **Confidence:** VERIFIED (live process list + selftests + selfcheck + MT5/Delta API readbacks + daemon startup logs).
 
+
+
+### [2026-11-25T13:41:00Z] · Antigravity · 19:00 IST WAKE, POSITION MANAGEMENT & AUTO-WAKE V3 FIX — R30 (19:11 IST)
+**Verdict:** Executed 19:00 IST scheduled wake (`task-24483` iter 1) + fixed `scripts/antigravity_auto_wake.ps1` (`AgAutoWakeWin32V2 -> AgAutoWakeWin32V3` AppDomain collision fix; removed file-path override so ANY copied clipboard text pastes verbatim at `:00/:30`). **MT5 #5126976 (`bal=$2580.62`, `eq=$2587.88`, `book_risk=$24.88/$25.88`):** `JP225.p #20502882` filled @ `56452.5` (`+$1.41`); trailed `BNBUSD.p #20432336` SL `554.5 -> 548.50` (`retcode=10009`, locking profit above M15 EMA233 `547.48`); kept `EURUSD.pi #20467916` (`+$2.41`), `GBPNZD.pi #20499902` (`-$0.85`), `ETHUSD.pi #20501509` (lim `1662.5`), `NOKJPY.pi #20501510` (lim `16.205`). **DELTA EXCHANGE #26902927:** `BTCUSD -1` closed @ `58417.0` (`#1714754382`) realizing **`+$1.92` (+310.87% ROE)**, lifting balance `$1.4257 -> $3.3112` (`avail=$3.2778`); cancelled orphaned stop `#1714517851`; `ADAUSD #1714234905` & `FILUSD #1714518260` remain active.
+
+**Confidence:** VERIFIED (MT5 retcode=10009 + Delta wallet/orders/positions readback + `antigravity_auto_wake.ps1 -DryRun` verified next).

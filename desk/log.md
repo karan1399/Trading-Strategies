@@ -20222,3 +20222,8 @@ Cleared Delta ILK-01 (116.50.84.115), fixed delta_exec.py slot count, restarted 
   * DELTA BRIDGE (`scripts/delta_exec.py`): Added `*USDT -> *USD` + cached `/v2/products` fallback; disabled numeric cap when `max_concurrent <= 0`.
   * UNLIMITED POSITION SLOTS: Set `max_global_positions=0`, `max_per_sleeve=0`, `gold_cluster_max_positions=0`, `delta.max_concurrent=0` in `engine/config.json` and `max_concurrent=0` (MT5 + Delta) in `footprint_alpha/engine/config.json`; updated `S4` selftest + restarted `task-24481` & `task-24482` after purging duplicate processes.
   * AUTO-WAKE (`scripts/antigravity_auto_wake.ps1`): Excluded `antigravity-tools` (`com.lbjlaq.antigravity-tools-siw`), restricted lookup to `Antigravity.exe` + `Trading-Strategies`, added foreground verification + file-path clipboard fallback; registered native `0,30 * * * *` cron (`task-24483`).
+
+## R30 WAKE, TRAILING SL, DELTA REALIZATION & AUTO-WAKE V3 · 2026-11-25 13:41 UTC · Antigravity
+  * MT5 #5126976: `JP225.p #20502882` filled @ `56452.5` (+$1.41). Trailed `BNBUSD.p #20432336` SL `554.5 -> 548.50` (retcode=10009). Kept `EURUSD.pi`, `GBPNZD.pi`, `ETHUSD.pi` (lim `1662.5`), `NOKJPY.pi` (lim `16.205`).
+  * DELTA #26902927: Closed `BTCUSD -1` @ `58417.0` (`+$1.92`, +310.87% ROE, balance `$3.3112`, avail `$3.2778`); cancelled orphaned stop `#1714517851`.
+  * AUTO-WAKE: Renamed `AgAutoWakeWin32V2 -> AgAutoWakeWin32V3` in `scripts/antigravity_auto_wake.ps1` and restored verbatim clipboard pasting at `:00/:30`.
