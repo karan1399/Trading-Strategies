@@ -20205,3 +20205,10 @@ Exhaustive 252-asset audit (`161` Coinglass, `91` MT5-OHLCV, `0` malformed; `99`
 Wired automatic Delta Exchange India execution (`scripts/delta_exec.py`) into BOTH `footprint_alpha/engine/unified_alpha_pilot.py` (18 mapped crypto perps) and root `engine/unified_alpha_pilot.py` (`XAUUSD.pi -> XAUTUSD`):
   * Enforces `ILK-01` pre-batch check (`/v2/wallet/balances`), integer contract sizing (`delta_contracts_for_risk`), tick-snapping (`snap_tick`), server-side brackets (`bracket_stop_loss_price` + `bracket_take_profit_price`), and `1.0%` per-trade / `2.0%` book cap.
   * VERIFIED: `footprint_alpha --mode selftest` (`24/24 PASS`), `engine --selftest` (`S1..S5 PASS`). Both daemons restarted `--live`. Delta awaits operator IP whitelist (`116.50.84.115`).
+
+## DUAL-VENUE AUDIT & DELTA BRACKETS · 2026-11-25 10:47 UTC · Antigravity (R27)
+Cleared Delta ILK-01 (116.50.84.115), fixed delta_exec.py slot count, restarted live engines (task-24145/24146), audited 252 assets + 168 footprints:
+  * DELTA BTCUSD BRACKET: #1714234069 SL Buy 1 @ 59850.0 (+$0.487 locked) & #1714234070 TP Buy 1 @ 56950.0.
+  * DELTA ADAUSD ENTRY: #1714234905 SELL_LIMIT 3 @ 0.14400 (SL 0.14760, TP 0.13680, $0.0108 risk 0.76%, 2.00R).
+  * MT5 #5126976: Eq=$2587.20, Profit=+$6.58, GBPNZD #20499902 filled (3/4 slots). All 6 tickets KEEP UNCHANGED ($24.84/$25.00).
+
