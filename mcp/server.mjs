@@ -209,7 +209,7 @@ async function toolLivePrice(args) {
 
 async function toolLiquidationLevels(args) {
   const sym = (args?.sym ?? "BTC").toUpperCase();
-  const range = ["3d", "7d", "30d"].includes(args?.range) ? args.range : "3d";
+  const range = ["3d", "7d", "14d", "30d"].includes(args?.range) ? args.range : "3d";
   const d = await api(`/api/cg/liqlevels?sym=${sym}&range=${range}&lvR=4`);
   if (!d.ok) throw new Error(d.error || "liquidation levels failed");
   if (!d.stats) return { text: d.reason ?? `${sym}: liquidation data unavailable`, data: d };
@@ -367,12 +367,153 @@ async function toolCvdState(args) {
   return { text: lines.join("\n"), data: { kpis: d.kpis, divergences: d.divergences.slice(-10), n: d.n, itv, anchor } };
 }
 
+/** Exact JS port of `src/components/cg/charts/coinglass-walls.tsx` `buildWalls()` */
+function computeStopmapWalls(model, thr = 0) {
+  const yAxis = model?.yAxis;
+  const colsArr = model?.columns;
+  const candles = model?.candles;
+  if (!Array.isArray(yAxis) || yAxis.length < 2 || !Array.isArray(colsArr) || !colsArr.length || !Array.isArray(candles) || !candles.length) {
+    return null;
+  }
+  const rows = yAxis.length;
+  const cols = colsArr.length;
+  const lo = Number(yAxis[0]);
+  const binSz = Math.abs(Number(yAxis[1]) - Number(yAxis[0]));
+  if (!Number.isFinite(lo) || !Number.isFinite(binSz) || binSz <= 0) return null;
+
+  const grid = Array.from({ length: cols }, () => new Float64Array(rows));
+  let mxGlobal = 0;
+  for (let c = 0; c < cols; c++) {
+    const col = colsArr[c] ?? [];
+    for (let k = 0; k < col.length; k++) {
+      const tuple = col[k];
+      if (!Array.isArray(tuple) || tuple.length < 3) continue;
+      const cIdx = Number(tuple[0]);
+      const rIdx = Number(tuple[1]);
+      const v = Number(tuple[2]);
+      if (cIdx >= 0 && cIdx < cols && rIdx >= 0 && rIdx < rows && Number.isFinite(v) && v > 0) {
+        grid[cIdx][rIdx] += v;
+        if (grid[cIdx][rIdx] > mxGlobal) mxGlobal = grid[cIdx][rIdx];
+      }
+    }
+  }
+  if (mxGlobal <= 0) return { total_walls_found: 0, walls_top24: [], active_short_prices: [], active_long_prices: [], max_short: null, max_long: null };
+
+  const active = Array.from({ length: cols }, () => new Uint8Array(rows));
+  const vals = [];
+  for (let c = 0; c < cols; c++) {
+    for (let r = 0; r < rows; r++) {
+      const n = grid[c][r] / mxGlobal;
+      if (n > 0) vals.push(n);
+    }
+  }
+  vals.sort((a, b) => a - b);
+  const p70 = vals.length ? vals[Math.min(vals.length - 1, Math.floor(vals.length * 0.7))] : 0;
+  const cut = Math.max(thr, p70, 0.25);
+  for (let c = 0; c < cols; c++) {
+    for (let r = 0; r < rows; r++) {
+      if (grid[c][r] / mxGlobal >= cut) active[c][r] = 1;
+    }
+  }
+
+  const lastClose = Number(candles[candles.length - 1]?.close ?? model?.lastPrice ?? 0);
+  const closeRow = Number.isFinite(lastClose) && lastClose > 0 ? Math.floor((lastClose - lo) / binSz) : -1;
+  const seen = Array.from({ length: cols }, () => new Uint8Array(rows));
+  const walls = [];
+  for (let r0 = 0; r0 < rows; r0++) {
+    for (let c0 = 0; c0 < cols; c0++) {
+      if (!active[c0][r0] || seen[c0][r0]) continue;
+      const q = [[c0, r0]];
+      seen[c0][r0] = 1;
+      let rmin = r0, rmax = r0, cmin = c0, cmax = c0;
+      for (let i = 0; i < q.length; i++) {
+        const [cc, rr] = q[i];
+        if (rr < rmin) rmin = rr;
+        if (rr > rmax) rmax = rr;
+        if (cc < cmin) cmin = cc;
+        if (cc > cmax) cmax = cc;
+        for (let dc = -1; dc <= 1; dc++) {
+          for (let dr = -1; dr <= 1; dr++) {
+            const nc = cc + dc, nr = rr + dr;
+            if (nc >= 0 && nc < cols && nr >= 0 && nr < rows && active[nc][nr] && !seen[nc][nr]) {
+              seen[nc][nr] = 1;
+              q.push([nc, nr]);
+            }
+          }
+        }
+      }
+      let a = -1, empties = 0;
+      for (let n = cmin; n <= cmax + 1; n++) {
+        let has = false;
+        if (n <= cmax) {
+          for (let r = rmin; r <= rmax; r++) if (active[n][r]) { has = true; break; }
+        }
+        if (has) { if (a < 0) a = n; empties = 0; }
+        else if (a >= 0) {
+          empties++;
+          if (empties >= 2 || n > cmax) {
+            const cEnd = n - empties;
+            if (cEnd - a + 1 >= 2) {
+              let mx = 0, rpk = rmin;
+              for (let s = a; s <= cEnd; s++) {
+                for (let r = rmin; r <= rmax; r++) {
+                  if (grid[s][r] > mx) { mx = grid[s][r]; rpk = r; }
+                }
+              }
+              if (mx > 0) {
+                walls.push({
+                  price: +(lo + (rpk + 0.5) * binSz).toFixed(6),
+                  mx_usd: +mx.toFixed(2),
+                  score: +(mx * (cEnd - a + 1)).toFixed(2),
+                  side: rpk > closeRow ? "short" : "long",
+                  active: cEnd >= cols - 1,
+                  bars: cEnd - a + 1,
+                });
+              }
+            }
+            a = -1; empties = 0;
+          }
+        }
+      }
+    }
+  }
+  walls.sort((a, b) => b.score - a.score);
+  const top24 = walls.slice(0, 24);
+  const maxShort = top24.filter((w) => w.side === "short").sort((a, b) => b.mx_usd - a.mx_usd)[0] ?? null;
+  const maxLong = top24.filter((w) => w.side === "long").sort((a, b) => b.mx_usd - a.mx_usd)[0] ?? null;
+  const activeShortPrices = top24.filter((w) => w.active && w.side === "short").map((w) => w.price).sort((a, b) => a - b);
+  const activeLongPrices = top24.filter((w) => w.active && w.side === "long").map((w) => w.price).sort((a, b) => b - a);
+  return { total_walls_found: walls.length, walls_top24: top24, active_short_prices: activeShortPrices, active_long_prices: activeLongPrices, max_short: maxShort, max_long: maxLong };
+}
+
 async function toolStopmap(args) {
   const sym = (args?.sym ?? "BTC").toUpperCase();
-  // NEW (2026-11-22): model/mode/range surface — the CURRENT Coinglass
-  // /LiquidationHeatMap page (Model 1/2/3 tabs, Pair/Coin toggle,
-  // 12h..2y ranges). Requires CG_SESSION in the terminal's .env for
-  // anything beyond BTC pair 24h (the anonymous upstream wall).
+  // Multi-horizon sweep mode (`range="all"`): sequentially gather 12h..90d with polite delay
+  if (String(args?.range).toLowerCase() === "all") {
+    const model = ["1", "2", "3"].includes(String(args?.model)) ? String(args.model) : "1";
+    const mode = args?.mode === "pair" ? "pair" : "coin";
+    const horizons = {};
+    const lines = [`${sym} MULTI-HORIZON LIQUIDATION HEATMAP (Model ${model}, ${mode} mode):`];
+    for (const rng of ["12h", "24h", "48h", "3d", "7d", "14d", "30d", "90d"]) {
+      const res = await toolStopmap({ sym, model, mode, range: rng }).catch((e) => ({ text: `${rng}: err ${e.message}`, data: null }));
+      if (res?.data) {
+        horizons[rng] = res.data;
+        const w = res.data.walls;
+        const ov = res.data.overview;
+        lines.push(
+          `  [${rng.padEnd(3)}] lg=${ov ? fmtUsd(ov.largestLevel) : "–"} · activeShort=[${(w?.active_short_prices ?? []).slice(0, 4).join(", ")}] · activeLong=[${(w?.active_long_prices ?? []).slice(0, 4).join(", ")}]` +
+            (w?.max_short ? ` · maxS=${w.max_short.price}(${fmtUsd(w.max_short.mx_usd)})` : "") +
+            (w?.max_long ? ` · maxL=${w.max_long.price}(${fmtUsd(w.max_long.mx_usd)})` : "")
+        );
+      } else {
+        lines.push(`  [${rng.padEnd(3)}] unavailable`);
+      }
+      await new Promise((r) => setTimeout(r, 300));
+    }
+    return { text: lines.join("\n"), data: { sym, model, mode, horizons } };
+  }
+
+  // Single-window Model-1/2/3 surface
   const model = ["1", "2", "3"].includes(String(args?.model)) ? String(args.model) : null;
   const mode = args?.mode === "pair" ? "pair" : args?.mode === "coin" ? "coin" : null;
   const range = typeof args?.range === "string" && args.range ? args.range : null;
@@ -384,23 +525,24 @@ async function toolStopmap(args) {
 
   const d = await api(`/api/cg/stopmap?sym=${sym}${wantsNewSurface ? newQ : endQ}`);
   if (!d.ok) throw new Error(d.error || "stopmap failed");
-  // honest degradation: non-BTC perps serve the rolling liq-snapshot heatmap
-  // from archived liqlevels — until the engine's rotation archives that sym,
-  // the route returns 200 { supported: false, reason }. Never crash, never 400.
   if (d.supported === false) {
     return { text: `${sym} liquidation heatmap: ${d.reason ?? "rolling liq-snapshot archive not yet available for this perp"}`, data: d };
   }
   const m = d.model;
   if (!m) throw new Error("stopmap returned no model");
 
-  // Model-1/2/3 surface: key levels + market overview (the live page's panels)
   if (m.keyLevels && m.overview) {
     const ov = m.overview;
     const pct = (x) => (x * 100) / (ov.total || 1);
+    const walls = computeStopmapWalls(m);
     const lines = [
-      `${sym} liquidation heatmap — Model ${m.model} ${m.mode} mode, ${m.range} window, ${ov.columnMinutes}m columns (Coinglass estimates)`,
-      `price ${ov.lastPrice}${ov.chgPct24h === null || ov.chgPct24h === undefined ? "" : ` (${ov.chgPct24h >= 0 ? "+" : ""}${ov.chgPct24h}% 24h)`} · open liq levels ${fmtUsd(ov.total)}: longs below ${fmtUsd(ov.longs)} (${Math.round(pct(ov.longs))}%) · shorts above ${fmtUsd(ov.shorts)} (${Math.round(pct(ov.shorts))}%)`,
+      `${sym} liquidation heatmap — Model ${m.model} ${m.mode} mode, ${m.range} window, ${ov.columnMinutes}m columns (Coinglass estimates, source=${d.source ?? "session"})`,
+      `price ${ov.lastPrice}${ov.chgPct24h == null ? "" : ` (${ov.chgPct24h >= 0 ? "+" : ""}${ov.chgPct24h}% 24h)`} · open liq levels ${fmtUsd(ov.total)}: longs below ${fmtUsd(ov.longs)} (${Math.round(pct(ov.longs))}%) · shorts above ${fmtUsd(ov.shorts)} (${Math.round(pct(ov.shorts))}%)`,
       `largest single level ${fmtUsd(ov.largestLevel)} · price step ${Number(ov.priceStep).toFixed(2)} · instrument ${d.instrument ?? m.symbol}`,
+      ...(walls ? [
+        `UI active short walls (right-edge untouched): [${walls.active_short_prices.slice(0, 6).join(", ")}]${walls.max_short ? ` · maxShort ${walls.max_short.price} (${fmtUsd(walls.max_short.mx_usd)})` : ""}`,
+        `UI active long walls  (right-edge untouched): [${walls.active_long_prices.slice(0, 6).join(", ")}]${walls.max_long ? ` · maxLong ${walls.max_long.price} (${fmtUsd(walls.max_long.mx_usd)})` : ""}`,
+      ] : []),
       `key levels ABOVE (short liq — pullback resistance / squeeze fuel):`,
       ...m.keyLevels.above.map((k) => `  ${fmtUsd(k.usd)} @ ${k.price} (+${(((k.price - ov.lastPrice) / ov.lastPrice) * 100).toFixed(2)}%)`),
       `key levels BELOW (long liq — pullback magnets along the trend):`,
@@ -408,16 +550,7 @@ async function toolStopmap(args) {
     ];
     return {
       text: lines.join("\n"),
-      data: {
-        sym,
-        model: m.model,
-        mode: m.mode,
-        range: m.range,
-        lastPrice: ov.lastPrice,
-        overview: ov,
-        keyLevels: m.keyLevels,
-        window: d.window,
-      },
+      data: { sym, model: m.model, mode: m.mode, range: m.range, source: d.source, stale: d.stale, lastPrice: ov.lastPrice, overview: ov, keyLevels: m.keyLevels, walls, window: d.window },
     };
   }
 
@@ -430,7 +563,37 @@ async function toolStopmap(args) {
     ...(m.clusters?.above ?? []).slice(0, 5).map((c) => `  ${fmtUsd(c.usd)} @ ${c.price} (+${c.distPct}%, str ${c.strength})`),
     `distance bands: ` + (m.bands ?? []).map((b) => `±${b.a}-${b.b}% ↓${fmtUsd(b.below)} ↑${fmtUsd(b.above)}`).join(" · "),
   ];
-  return { text: lines.join("\n"), data: { sym, lastPrice: m.lastPrice, totals: m.totals, clusters: m.clusters, bands: m.bands, window: d.window } };
+  return { text: lines.join("\n"), data: { sym, source: d.source, lastPrice: m.lastPrice, totals: m.totals, clusters: m.clusters, bands: m.bands, window: d.window } };
+}
+
+function analyzeFpBarMicro(bar) {
+  const fp = bar?.fp;
+  if (fp && Array.isArray(fp.p) && Array.isArray(fp.b) && Array.isArray(fp.s) && fp.p.length >= 2) {
+    const n = fp.p.length;
+    let buy = 0, sell = 0, maxTot = -1, pocP = null, diagBuy3 = 0, diagSell3 = 0;
+    for (let i = 0; i < n; i++) {
+      const bv = Number(fp.b[i]) || 0;
+      const sv = Number(fp.s[i]) || 0;
+      buy += bv; sell += sv;
+      if (bv + sv > maxTot) { maxTot = bv + sv; pocP = +Number(fp.p[i]).toPrecision(6); }
+      if (i > 0 && bv > 0 && bv >= 3 * (Number(fp.s[i - 1]) || 0)) diagBuy3++;
+      if (i + 1 < n && sv > 0 && sv >= 3 * (Number(fp.b[i + 1]) || 0)) diagSell3++;
+    }
+    const topB = Number(fp.b[n - 1]) || 0, topS = Number(fp.s[n - 1]) || 0;
+    const botB = Number(fp.b[0]) || 0, botS = Number(fp.s[0]) || 0;
+    const finHigh = topB === 0 && topS > 0 ? `0x${topS.toFixed(1)}` : null;
+    const finLow = botS === 0 && botB > 0 ? `${botB.toFixed(1)}x0` : null;
+    const delta = buy - sell;
+    return { ts: bar.ts, buyUsd: Math.round(buy), sellUsd: Math.round(sell), deltaUsd: Math.round(delta), deltaPct: +(buy + sell > 0 ? (100 * delta) / (buy + sell) : 0).toFixed(1), poc: pocP, diagBuy3, diagSell3, finHigh, finLow };
+  }
+  let buy = 0, sell = 0, pocUsd = -1, pocP = null;
+  for (const bk of bar?.buckets ?? []) {
+    const b = Number(bk[4]) || 0, s = Number(bk[5]) || 0;
+    buy += b; sell += s;
+    if (b + s > pocUsd) { pocUsd = b + s; pocP = +((Number(bk[0]) + Number(bk[1])) / 2).toPrecision(6); }
+  }
+  const delta = buy - sell;
+  return { ts: bar.ts, buyUsd: Math.round(buy), sellUsd: Math.round(sell), deltaUsd: Math.round(delta), deltaPct: +(buy + sell > 0 ? (100 * delta) / (buy + sell) : 0).toFixed(1), poc: pocP, diagBuy3: null, diagSell3: null, finHigh: null, finLow: null };
 }
 
 async function toolFootprint(args) {
@@ -438,33 +601,28 @@ async function toolFootprint(args) {
   const interval = resolveInterval(args?.interval, M_INTERVALS, PAGE_TO_M, "m15");
   const limit = Math.min(Math.max(Number(args?.limit ?? 96) || 96, 10), 500);
   const lastN = Math.min(Math.max(Number(args?.last ?? 12) || 12, 1), 48);
-  const d = await api(`/api/cg/orderflow-agg?sym=${sym}&interval=${interval}&limit=${limit}`);
-  if (!d.ok) throw new Error(d.error || "footprint failed");
-  const rows = [];
-  for (const bar of (d.bars ?? []).slice(-lastN)) {
-    let buy = 0;
-    let sell = 0;
-    let pocUsd = -1;
-    let pocP = null;
-    for (const bk of bar.buckets ?? []) {
-      const b = Number(bk[4]) || 0;
-      const s = Number(bk[5]) || 0;
-      buy += b;
-      sell += s;
-      if (b + s > pocUsd) {
-        pocUsd = b + s;
-        pocP = +((Number(bk[0]) + Number(bk[1])) / 2).toPrecision(6);
-      }
-    }
-    const delta = buy - sell;
-    const dpct = buy + sell > 0 ? (100 * delta) / (buy + sell) : 0;
-    rows.push({ ts: bar.ts, buyUsd: Math.round(buy), sellUsd: Math.round(sell), deltaUsd: Math.round(delta), deltaPct: +dpct.toFixed(1), poc: pocP });
+  const sourcePref = args?.source ?? "auto";
+  let d = sourcePref !== "agg" ? await api(`/api/cg/fp?sym=${sym}&itv=${interval}&limit=${limit}`).catch(() => null) : null;
+  let routeUsed = "cg/fp";
+  if (!d?.ok || !Array.isArray(d.bars) || !d.bars.length) {
+    d = await api(`/api/cg/orderflow-agg?sym=${sym}&interval=${interval}&limit=${limit}`).catch(() => null);
+    routeUsed = "cg/orderflow-agg";
   }
+  if ((!d?.ok || !Array.isArray(d.bars) || !d.bars.length) && args?.symbol) {
+    d = await api(`/api/cg/orderflow?symbol=${encodeURIComponent(String(args.symbol))}&interval=${interval}&limit=${limit}`);
+    routeUsed = "cg/orderflow";
+  }
+  if (!d?.ok) throw new Error(d?.error || "footprint failed");
+  const rows = (d.bars ?? []).slice(-lastN).map(analyzeFpBarMicro);
   const lines = [
-    `${sym} aggregated footprint (${interval}, ${d.venuesOk}/${d.venues} venues ok) — last ${rows.length} bars`,
-    ...rows.slice(-12).reverse().map((r) => `  ${tsOf(r.ts)} buy ${fmtM(r.buyUsd)} sell ${fmtM(r.sellUsd)} Δ ${r.deltaPct > 0 ? "+" : ""}${r.deltaPct}% POC ${r.poc ?? "—"}`),
+    `${sym} footprint (${routeUsed}, ${interval}, buckets=${d.bucketsAvailable ?? "?"}, source=${d.source ?? "?"}) — last ${rows.length} bars`,
+    ...rows.slice(-12).reverse().map((r) => {
+      const diag = r.diagBuy3 != null ? ` 3xB:${r.diagBuy3}/S:${r.diagSell3}` : "";
+      const fin = [r.finHigh ? `finH:${r.finHigh}` : "", r.finLow ? `finL:${r.finLow}` : ""].filter(Boolean).join(" ");
+      return `  ${tsOf(r.ts)} Δ ${r.deltaPct > 0 ? "+" : ""}${r.deltaPct}% POC ${r.poc ?? "—"}${diag}${fin ? " " + fin : ""}`;
+    }),
   ];
-  return { text: lines.join("\n"), data: { sym, interval, bars: rows } };
+  return { text: lines.join("\n"), data: { sym, routeUsed, interval, bucketsAvailable: d.bucketsAvailable, bars: rows } };
 }
 
 async function toolLargeOrders(args) {
@@ -531,12 +689,222 @@ async function toolKline(args) {
   return { text: lines.join("\n"), data: { symbol, type, interval, rows: rows.slice(-Math.min(rows.length, 500)) } };
 }
 
+async function toolAthenaOracle(args) {
+  const sym = (args?.sym ?? "BTC").toUpperCase();
+  const d = await api(`/api/cg/oracle?sym=${sym}`);
+  if (!d?.ok) throw new Error(d?.error || "oracle failed");
+  const lines = [
+    `${sym} Athena Oracle: score ${d.score}/100 · ${d.verdict} (regime ${d.regime ?? "–"}${d.partial?.length ? `, partial missing: ${d.partial.join(",")}` : ""})`,
+    ...(d.factors ?? []).map((f) => `  ${f.id.padEnd(9)} (${Math.round((f.weight ?? 0) * 100)}%) ${String(f.score).padStart(3)}/100 — ${f.detail ?? ""}`),
+  ];
+  return { text: lines.join("\n"), data: d };
+}
+
+async function toolMicrostructure(args) {
+  const sym = (args?.sym ?? "BTC").toUpperCase();
+  const d = await api(`/api/cg/micro?sym=${sym}`);
+  if (!d?.ok) throw new Error(d?.error || "microstructure failed");
+  const hl = d.hl ?? {};
+  const bbo = d.bbo ?? {};
+  const lines = [
+    `${sym} L2/L3 Microstructure (age ${Math.round((d.ageMs ?? 0) / 1000)}s${d.stale ? " STALE" : ""}):`,
+    hl.ok ? `  HL L2: mark ${hl.mark} · spread ${fmtP(hl.spreadPct, 4)}% · imb20 ${fmtP(hl.imbalance20, 2)} · OI $${fmtUsd(hl.oiNotionalUsd)}` : `  HL L2: ${hl.error ?? "n/a"}`,
+    bbo.best ? `  Best BBO: ${bbo.best.venue} bid ${bbo.best.bid} / ask ${bbo.best.ask} (spread ${fmtP(bbo.best.spreadBps, 2)} bps)` : `  BBO: unavailable`,
+  ];
+  return { text: lines.join("\n"), data: d };
+}
+
+async function toolLiveOrderbook(args) {
+  const sym = (args?.sym ?? "BTC").toUpperCase();
+  const band = [0.5, 1, 2, 5].includes(Number(args?.band)) ? Number(args.band) : 5;
+  const d = await api(`/api/cg/livebook?sym=${sym}&band=${band}`);
+  if (!d?.ok) throw new Error(d?.error || "livebook failed");
+  const m = d.model ?? {};
+  const lines = [
+    `${sym} Binance Live Top-1000 Book (band ±${band}%, covered ${d.covered?.lo ?? "?"}..${d.covered?.hi ?? "?"} [${d.covered?.loPct ?? "?"}%..+${d.covered?.hiPct ?? "?"}%]):`,
+    `  imbalance ${fmtP((m.imbalance ?? 0) * 100, 1)}% · 5m ago ${fmtP((m.imbalance5mAgo ?? 0) * 100, 1)}% · walls ${(m.walls ?? []).length} · minWall ${fmtUsd(d.minWallUsd)}`,
+  ];
+  return { text: lines.join("\n"), data: d };
+}
+
+async function toolLiveTick(args) {
+  const sym = (args?.sym ?? "BTC").toUpperCase();
+  const d = await api(`/api/cg/live?sym=${sym}`);
+  if (!d?.ok) throw new Error(d?.error || "live tick failed");
+  return { text: `${sym} LIVE BBO (${d.source}): last ${d.price} · bid ${d.bid} · ask ${d.ask} · age ${d.ageMs}ms`, data: d };
+}
+
+async function toolFundingVenues(args) {
+  const sym = (args?.sym ?? "BTC").toUpperCase();
+  const d = await api(`/api/cg/funding?sym=${sym}`);
+  if (!d?.ok) throw new Error(d?.error || "funding failed");
+  const agg = d.aggregate ?? {};
+  const lines = [
+    `${sym} Funding (${d.venues?.length ?? 0} venues, source=${d.source}): 8h=${agg.fundingPct8h ?? "–"}% · APR=${agg.fundingPct8h != null ? fmtP(agg.fundingPct8h * 3 * 365, 2) : "–"}%`,
+    ...(d.venues ?? []).slice(0, 8).map((v) => `  ${String(v.exchange ?? v.name ?? "?").padEnd(12)} ${v.rate8h ?? v.fundingRate ?? "–"}%`),
+  ];
+  return { text: lines.join("\n"), data: d };
+}
+
+async function toolOpenInterest(args) {
+  const sym = (args?.sym ?? "BTC").toUpperCase();
+  const d = await api(`/api/cg/oi?sym=${sym}`);
+  if (!d?.ok) throw new Error(d?.error || "oi failed");
+  const agg = d.aggregate ?? {};
+  const lines = [
+    `${sym} Open Interest: total ${fmtUsd(agg.totalUsd ?? agg.oiUsd ?? agg.total)} across ${(d.venues ?? []).length} venues`,
+    ...(d.venues ?? []).slice(0, 8).map((v) => `  ${String(v.exchange ?? v.name ?? "?").padEnd(12)} ${fmtUsd(v.oiUsd ?? v.openInterestUsd ?? v.usd)}`),
+  ];
+  return { text: lines.join("\n"), data: d };
+}
+
+async function toolPerpDepth(args) {
+  const sym = (args?.sym ?? "SP500").toUpperCase();
+  const d = await api(`/api/cg/perpdepth?sym=${sym}`);
+  if (!d?.ok) throw new Error(d?.error || "perpdepth failed");
+  return { text: `${sym} Tier-3 Perp Depth: OI=${d.oi?.last ?? "–"} (1h ${d.oi?.d1h ?? "–"}% / 4h ${d.oi?.d4h ?? "–"}% / 24h ${d.oi?.d24h ?? "–"}%) · flow15m=${fmtUsd(d.netFlow15mUsd)}`, data: d };
+}
+
+async function toolCotReport(args) {
+  const sym = (args?.sym ?? "XAU").toUpperCase();
+  const d = await api(`/api/cg/cot?sym=${sym}&quiet=1`);
+  if (!d?.ok) throw new Error(d?.error || "cot failed");
+  const lines = [
+    `${sym} CFTC COT (${d.contract ?? "?"} · code ${d.code ?? "?"} · asOf ${d.asOf ?? "?"}): OI ${d.openInterest ?? "–"}`,
+    d.noncomm ? `  Non-Commercial (Leveraged/Specs): L ${d.noncomm.long} vs S ${d.noncomm.short} (net ${d.noncomm.net})` : "",
+  ].filter(Boolean);
+  return { text: lines.join("\n"), data: d };
+}
+
+async function toolClassicMacroQuotes(args) {
+  const sym = (args?.sym ?? "SPX500").toUpperCase();
+  const syms = args?.syms ?? "SP500,NDX100,EURUSD";
+  const [c, m] = await Promise.all([
+    api(`/api/cg/classic?sym=${encodeURIComponent(sym)}`).catch(() => null),
+    api(`/api/cg/cnbc?syms=${encodeURIComponent(syms)}`).catch(() => null),
+  ]);
+  const lines = [];
+  if (c?.ok) lines.push(`${sym} Classic (${c.exchange ?? "?"}): ${c.price} (${fmtP(c.chgPct, 2)}% vs ${c.prevClose})`);
+  if (m?.ok && m.quotes) {
+    lines.push("CNBC Macro Quotes:");
+    for (const [k, q] of Object.entries(m.quotes)) lines.push(`  ${k}: ${q?.price ?? q?.last ?? "?"} (${q?.chgPct ?? "?"}%)`);
+  }
+  return { text: lines.join("\n") || "classic/macro unavailable", data: { classic: c, cnbc: m } };
+}
+
+async function toolPlaybookCards(args) {
+  const sym = args?.sym ? String(args.sym).toUpperCase() : "BTC,ETH,SOL";
+  const d = await api(`/api/strategy/cards?sym=${encodeURIComponent(sym)}`);
+  if (!d?.ok) throw new Error(d?.error || "playbook cards failed");
+  const cards = [];
+  for (const row of d.assets ?? []) {
+    for (const card of row.cards ?? []) cards.push(`${row.sym} ${card.engine} ${card.direction} entry=${card.entry} SL=${card.stop} TP=${card.tp} R=${card.rMultiple}`);
+  }
+  const lines = [
+    `Playbook Cards (${sym}): ${cards.length} active setups` + (d.suspended ? ` [SUSPENDED: ${d.suspended}]` : ""),
+    ...cards,
+  ];
+  return { text: lines.join("\n"), data: d };
+}
+
+async function toolAlertRules() {
+  const d = await api(`/api/cg/alert-rules`);
+  if (!d?.ok) throw new Error(d?.error || "alert-rules failed");
+  const rules = d.rules ?? [];
+  return {
+    text: `Alert Rules (${rules.length}, source=${d.source}):\n` + rules.slice(0, 15).map((r) => `  [${r.enabled ? "ON" : "off"}] ${r.name ?? r.id}: ${r.lastTriggered ?? "never"}`).join("\n"),
+    data: d,
+  };
+}
+
+async function toolTerminalHealth() {
+  const [h, eng, mem] = await Promise.all([
+    api(`/api/health`).catch(() => null),
+    api(`/api/cg/engine/status`).catch(() => null),
+    api(`/api/cg/debug/mem`).catch(() => null),
+  ]);
+  const lines = [
+    `Terminal Health: uptime=${h?.uptimeSec ?? "?"}s · RSS=${h?.rssMb ?? "?"}MB · Heap=${h?.heapUsedMb ?? "?"}/${h?.heapTotalMb ?? "?"}MB`,
+    eng?.ok ? `Engine: started=${eng.started} · backfill=${eng.backfillDays}d · instrumentKeys=${eng.instrumentKeys} · series=${eng.series} · assetSeries=${eng.assetSeries}` : "Engine: unavailable",
+  ];
+  return { text: lines.join("\n"), data: { health: h, engine: eng, mem } };
+}
+
+async function toolBinanceMarketData(args) {
+  const action = ["quotes", "market", "klines", "universe", "account"].includes(args?.action) ? args.action : "market";
+  const sym = (args?.sym ?? "BTC").toUpperCase();
+  const interval = args?.interval ?? "15m";
+  const limit = Math.min(Math.max(Number(args?.limit ?? 100) || 100, 5), 1000);
+  const pathMap = {
+    quotes: `/api/binance/quotes${args?.syms ? `?syms=${encodeURIComponent(args.syms)}` : ""}`,
+    market: `/api/binance/market?sym=${encodeURIComponent(sym)}`,
+    klines: `/api/binance/klines?sym=${encodeURIComponent(sym)}&interval=${encodeURIComponent(interval)}&limit=${limit}`,
+    universe: `/api/binance/universe`,
+    account: `/api/binance/account`,
+  };
+  const d = await api(pathMap[action]);
+  if (!d) throw new Error("binance market data failed");
+  return { text: `Binance ${action} (${sym}): ok=${d.ok}\n${JSON.stringify(d).slice(0, 1800)}`, data: d };
+}
+
+async function toolTelemetrySnapshot(args) {
+  const sym = (args?.sym ?? "BTC").toUpperCase();
+  const assetPath = fileURLToPath(new URL(`../data/telemetry/assets/${sym}.json`, import.meta.url));
+  const fpPath = fileURLToPath(new URL(`../data/telemetry/footprint/${sym}/summary_7d.json`, import.meta.url));
+  let asset = null, fp = null;
+  try { asset = JSON.parse(fsRead(assetPath, "utf-8")); } catch {}
+  try { fp = JSON.parse(fsRead(fpPath, "utf-8")); } catch {}
+  if (!asset) throw new Error(`No telemetry JSON found at data/telemetry/assets/${sym}.json`);
+  const ageSec = asset.updated_epoch ? Math.round(Date.now() / 1000 - asset.updated_epoch) : null;
+  const smap = asset.liquidations?.stopmap ?? {};
+  const lines = [
+    `${sym} TELEMETRY SNAPSHOT (disk age=${ageSec ?? "?"}s, feed=${asset.feed_type}, MT5=${asset.mt5?.symbol ?? "none"} spread=${asset.mt5?.spread_bps ?? "–"}bps):`,
+    `Price: ${asset.ticker?.price ?? asset.mt5?.mid ?? "–"} · Oracle: ${asset.athena_oracle?.score ?? "–"}/100 · Narrative: ${asset.narrative_engine?.regime ?? "–"} ${asset.narrative_engine?.direction ?? ""} (${asset.narrative_engine?.grade ?? "–"})`,
+    `Stopmap Horizons (${Object.keys(smap).filter((k) => k !== "rolling_archive_shared_across").length}):`,
+    ...["m1_coin_12h", "m1_coin_24h", "m1_coin_48h", "m1_coin_3d", "m1_coin_7d", "m1_coin_14d", "m1_coin_30d", "m1_coin_90d"]
+      .filter((k) => smap[k])
+      .map((k) => {
+        const w = smap[k].walls ?? {};
+        return `  ${k.padEnd(11)} kind=${smap[k].kind ?? "?"} maxS=${w.max_short?.price ?? "–"}(${fmtUsd(w.max_short?.mx_usd)}) maxL=${w.max_long?.price ?? "–"}(${fmtUsd(w.max_long?.mx_usd)})`;
+      }),
+    fp ? `Footprint 7d: ${fp.rows?.length ?? 0} bars · cumDelta=${fmtUsd(fp.cum_delta_7d ?? fp.cum_delta)}` : "Footprint 7d: n/a",
+  ];
+  return { text: lines.join("\n"), data: { sym, ageSec, asset, fpSummaryBars: fp?.rows?.slice(-8) ?? [] } };
+}
+
+async function toolOpenLiveVisual(args) {
+  const sym = (args?.sym ?? "BTC").toUpperCase();
+  const [snap, setup, oracle, sm3, sm30, desk] = await Promise.all([
+    api(`/api/cg/market?sym=${sym}`).catch(() => null),
+    api(`/api/cg/narrative?sym=${sym}`).catch(() => null),
+    api(`/api/cg/oracle?sym=${sym}`).catch(() => null),
+    toolStopmap({ sym, model: "1", mode: "coin", range: "3d" }).catch(() => null),
+    toolStopmap({ sym, model: "1", mode: "coin", range: "30d" }).catch(() => null),
+    api(`/api/desk/live`).catch(() => null),
+  ]);
+  const structuredContent = {
+    sym,
+    fetchedAt: new Date().toISOString(),
+    market: snap,
+    narrative: setup,
+    oracle,
+    stopmap3d: sm3?.data ?? null,
+    stopmap30d: sm30?.data ?? null,
+    desk,
+  };
+  return {
+    text: `Live CG Order-Flow Visual updated for ${sym} (Price ${snap?.price?.last ?? "?"}, Oracle ${oracle?.score ?? "?"}/100, 3d+30d Stopmap & Desk live).`,
+    structuredContent,
+    data: structuredContent,
+  };
+}
+
 async function toolAnalyzeSetup(args) {
   const sym = (args?.sym ?? "BTC").toUpperCase();
-  const [market, signals, liq, whale, book, cvd, notif, narrative, quant, options] = await Promise.all([
+  const [market, signals, liq, whale, book, cvd, notif, narrative, quant, options, oracle, micro, livebook, sm3] = await Promise.all([
     toolMarketSnapshot({ sym }).catch(() => null),
     toolSignals({ sym }).catch(() => null),
-    toolLiquidationLevels({ sym, range: "3d" }).catch(() => null),
+    toolLiquidationLevels({ sym, range: "14d" }).catch(() => toolLiquidationLevels({ sym, range: "3d" }).catch(() => null)),
     toolWhaleOrders({ sym }).catch(() => null),
     toolBookWalls({ sym }).catch(() => null),
     toolCvdState({ sym }).catch(() => null),
@@ -544,6 +912,10 @@ async function toolAnalyzeSetup(args) {
     api(`/api/cg/narrative?sym=${sym}`).catch(() => null),
     api(`/api/cg/quant?sym=${sym}`).catch(() => null),
     api(`/api/cg/options?sym=${sym}`).catch(() => null),
+    toolAthenaOracle({ sym }).catch(() => null),
+    toolMicrostructure({ sym }).catch(() => null),
+    toolLiveOrderbook({ sym }).catch(() => null),
+    toolStopmap({ sym, model: "1", mode: "coin", range: "3d" }).catch(() => null),
   ]);
   const parts = [];
   parts.push(`=== ${sym} TRADE CONTEXT (all values live) ===`);
