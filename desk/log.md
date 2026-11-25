@@ -20227,3 +20227,8 @@ Cleared Delta ILK-01 (116.50.84.115), fixed delta_exec.py slot count, restarted 
   * MT5 #5126976: `JP225.p #20502882` filled @ `56452.5` (+$1.41). Trailed `BNBUSD.p #20432336` SL `554.5 -> 548.50` (retcode=10009). Kept `EURUSD.pi`, `GBPNZD.pi`, `ETHUSD.pi` (lim `1662.5`), `NOKJPY.pi` (lim `16.205`).
   * DELTA #26902927: Closed `BTCUSD -1` @ `58417.0` (`+$1.92`, +310.87% ROE, balance `$3.3112`, avail `$3.2778`); cancelled orphaned stop `#1714517851`.
   * AUTO-WAKE: Renamed `AgAutoWakeWin32V2 -> AgAutoWakeWin32V3` in `scripts/antigravity_auto_wake.ps1` and restored verbatim clipboard pasting at `:00/:30`.
+
+## R31 ADAPTIVE MEMORY, 252-ASSET AUDIT & 1% CAP RECONCILIATION · 2026-11-25 14:17 UTC · Antigravity
+  * AGENT MEMORY INIT: Created `data/agent_memory/{trade_postmortems.jsonl,regime_signal_weights.json,adaptive_playbook.md,prediction_calibration_log.jsonl}` (14 closed trades reconciled; anti-overfitting lifecycle enforced).
+  * MT5 #5126976 (retcode=10009): Canceled `NOKJPY.pi #20501510` (spread=50.2% ATR15, -$5.48 risk); replaced `ETHUSD.pi #20501509` with `#20516480 SELL_LIMIT 0.09 @ 1660.0, SL 1715.0, TP 1550.0` ($4.95 risk, 2.00R). Book risk reduced `$31.50 -> $25.56 / $25.89` (0.987%).
+  * DELTA #26902927: Verified `FILUSD -1 @ 0.5144` (`SL 0.5309, TP 0.4642`) + `#1714518260 FILUSD @ 0.534` + `#1714234905 ADAUSD @ 0.144` (`bal=$3.3109`, `net_eq=$3.4286`).
