@@ -3637,3 +3637,14 @@ Empirical audit of today's MT5 deal history reveals the exact root causes of sto
 4. **Backtest Alignment**: Logged GLM's full-store crypto-15m findings in `footprint_alpha/desk/BACKTEST_ALL_SLEEVES.txt` (`aec_trend` PF `1.02`, `ema_rej` PF `1.20`, `orb` PF `0.89`, `dfib_vwap` PF `0.76`, `dfib_ema` PF `0.77`, `vc_breakout` PF `0.87`, ports default-off).
 
 **Confidence:** VERIFIED (live code inspection + direct `footprint_alpha --mode selftest` failure trace + `engine --selftest` PASS + `antigravity_selfcheck.py`).
+
+### [2026-11-25T09:10:00Z] · Antigravity · FOOTPRINT_ALPHA REPAIR, SELFTEST 21/21 PASS & LIVE ARMING — R24 (14:40 IST)
+**Verdict:** Fixed all blocking defects identified in R23 in [unified_alpha_pilot.py](file:///c:/Users/SIGMA/Documents/Trading-Strategies/footprint_alpha/engine/unified_alpha_pilot.py) and [config.json](file:///c:/Users/SIGMA/Documents/Trading-Strategies/footprint_alpha/engine/config.json), verified offline + live signal scans, and armed `footprint_alpha` as a live MT5 daemon (`task-23867`) alongside the root engine (`task-23655`).
+
+#### Verified Fixes & Validation:
+1. **In-Place Mutation & Selftest (`21/21 PASS`)**: Cloned DataFrames cleanly in `_ensure_atr14w()`, `_dfib_bands()`, and `_vc_frame()`, added `"order_type": "market"` and default `"aec_trend"` sleeve tag, and verified `python -u footprint_alpha/engine/unified_alpha_pilot.py --mode selftest` -> `21/21 [OK]`, `SELFTEST: PASS`.
+2. **Live `fapi.binance.com` Tail Feed (`--mode signal` Exit `0`)**: Resolved `data/store` from `ROOT`, added `_fetch_fapi_klines()` / `_build_fapi_tail_frame()` fetching official Binance Futures UM `15m` + `1h` bars (`ac_hvn_*`/`ac_imb_*` left `False` on REST bars), and verified `--mode signal` across all `20` suite symbols (`exit 0`, `0 signal(s)`).
+3. **Contract-Aware CFD Sizing & Global Book Guard**: Switched `execution.venue` to `"mt5"` (`magic: 20261124`), capped per-trade risk at `$5.50` target / `$6.00` max (`0.22%`), added `mt5_lots_for_risk()` using `trade_tick_value`/`trade_tick_size` (rejecting oversized `volume_min` instead of clamping up), enforced `max_spread_risk_ratio <= 0.20`, and added `MT5Live.total_book_risk_usd()` enforcing the `1.0%` aggregate book risk cap across all MT5 positions/pending orders.
+4. **Live Preflight & Daemon Armed (`task-23867`)**: Verified `20/20` Blueberry MT5 symbols `trade_mode=FULL`, `equity 2587.15 | per-trade <=$6.00 (0.22%) | max concurrent 4 | portfolio cap 1.00% (live book risk $22.24)`, `[live] armed — 0 previously-ordered ids loaded from audit log`.
+
+**Confidence:** VERIFIED (`21/21` selftest PASS + `--mode signal` exit `0` + live MT5 preflight `20/20 FULL` + `task-23867` `[live] armed`).

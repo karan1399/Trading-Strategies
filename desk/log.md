@@ -20185,3 +20185,9 @@ Autonomous execution round post-restart on MT5 #5126976 (Bal=$2580.62, Eq=$2587.
   * NEW TRADE: NOKJPY.pi #20501510 SELL_LIMIT 0.09 @ 16.205, SL 16.302 (clears H1 EMA89 16.261 & D1/H4 high 16.297), TP 16.011 (above D1/H4 low 15.952), $5.48 risk, $10.95 TP, 2.00R, retcode=10009. Aligned M15 r=(+0.238 BNB, +0.169 EUR, +0.251 ETH, -0.231 GBPNZD).
   * HOLD: BNBUSD.p #20432336 ($0 risk, +$1.22 locked), EURUSD.pi #20467916 ($5.36 risk, 2.11R), GBPNZD.pi #20499902 ($6.00 risk, 2.00R).
   * Aggregate Book Risk: $5.36 open + $16.88 pending = $22.24 USD (0.860% <= 1.000% Cap $25.87). All 4 background daemons restarted and active.
+
+## ENGINE REPAIR & LIVE · 2026-11-25 09:10 UTC · Antigravity (R24)
+
+Repaired and armed `footprint_alpha/engine/unified_alpha_pilot.py` (`magic=20261124`, `task-23867`) on Blueberry MT5 #5126976 alongside root engine (`task-23655`):
+  * FIXES: `.copy()` DataFrame guards in `_ensure_atr14w`/`_dfib_bands`/`_vc_frame`; official `fapi.binance.com` UM tail loader; MT5 contract-aware `mt5_lots_for_risk()` (`$5.50` target / `$6.00` max, reject oversize min-lot); `max_spread_risk_ratio <= 0.20`; global `MT5Live.total_book_risk_usd()` (`<= 1.00%` equity cap across all magics/manual orders).
+  * VERIFIED: `--mode selftest` -> `21/21 [OK] SELFTEST: PASS`; `--mode signal` -> `exit 0` (`0 signal(s)`, 20 symbols live fapi feed); `--live` preflight -> `20/20 FULL`, `equity 2587.15`, `live book risk $22.24`, `[live] armed`.
