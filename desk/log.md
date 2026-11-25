@@ -20161,3 +20161,11 @@ Realized TP & Limit Re-Anchor on MT5 #5126976 (Bal=$2580.62, Eq=$2587.67, Cap1%=
   * CANCEL + REPLACE: ETHUSD.pi #20496681 cancelled after spot swept 1,634.9 through TP 1,637.50; staged #20498955 SELL_LIMIT 0.15 @ 1,671.50, SL 1,707.50, TP 1,599.50 ($5.40 risk, 2.00R, retcode=10009).
   * HOLD: BNBUSD.p #20432336 (SL 554.50, +$1.22 locked), EURUSD.pi #20467916 (effRisk $5.36), USWTI.p #20496682 (0.05 @ 82.38, $5.50).
   * Aggregate Book Risk: $5.36 open + $10.90 pending = $16.26 USD (0.628% <= 1.000% Cap).
+
+## EXECUTE · 2026-11-25 08:10 UTC · Antigravity (R20)
+
+Zero-cache 151-symbol aligned audit staged orthogonal hedge setup on MT5 #5126976:
+  * Symbol: GBPNZD.pi | Ticket: #20499902 | Type: BUY_LIMIT 0.02 lots @ 2.39400
+  * SL: 2.38850 ($6.00 risk) | TP: 2.40500 ($11.99 reward, 2.00R) | Spread: $0.13 (2.2%)
+  * Rationale: M15/H1/H4/D1 EMA aligned BULL, 8h POC retest, aligned r=(-0.29 BNB, -0.13 EUR, -0.27 ETH, -0.23 WTI), retcode=10009.
+  * Total Book Risk: $5.36 open + $16.90 pending = $22.26 USD (0.860% <= 1.000% Cap $25.88).

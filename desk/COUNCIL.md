@@ -3606,3 +3606,13 @@ Empirical audit of today's MT5 deal history reveals the exact root causes of sto
 - **Non-Selected Justification**: `BTC` (`minLot 0.01` `$6` stop only reaches `600pts` vs `3d/7d` `60,772-61,005` + `BW[spot] +0.2589` + `chase guard`); `LNK/DOT/LTC/SOL/XRP/ADA/AVX/DOG/TRX/FIL/ATM/XPT` fail spread `22.4%–455.3%`; `XAU/XAG/NAS100/COPPER/GER40` fail `minLot` `$11.32–$198.04 > $6.50`; `SP500/US2000/UK100/JP225/USDJPY/GBPUSD/USDCAD/USDCHF/EURJPY/GBPJPY/CADCHF/EURGBP/NZDUSD` `MIXED`; `AUDUSD/AUDCAD/EURAUD/GBPAUD` extended past `20d` boundary + `0.56–0.60` crypto corr; `NZDCAD` only `15 pips` above `30d` low `0.77753`; `UKBRENT` duplicates oil risk; `0` US stock CFDs on MT5.
 
 **Confidence:** VERIFIED (Live MT5 readback + `39`-symbol MT5 audit + `252`-file JSON check + `antigravity_selfcheck.py`).
+
+### [2026-11-25T08:10:00Z] · Antigravity · ZERO-CACHE SELF-AUDIT & GBPNZD.pi EXECUTION #20 (13:40 IST)
+**Verdict:** TRANSCRIPT THINKING-CHAIN AUDIT EXPOSED THREE CACHED-HABIT GAPS (`39`-symbol subset omission, unaligned `M15` correlation slicing, partial `:3000` fallback on stale `BNB`/`CL`) -> FIXED BY FULL `151`-SYMBOL TIMESTAMP-ALIGNED AUDIT + RULE `#6` IN `.agents/rules/01-cognitive-kernel.md` · **NEW TRADE EXECUTED: `GBPNZD.pi` `#20499902` `BUY_LIMIT 0.02 @ 2.39400, SL 2.38850, TP 2.40500` (`retcode=10009`, `$6.00` risk, `$11.99` TP, `2.00R`, `2.2%` spr, `-0.13..-0.29` negative portfolio corr)** · Book Risk **`$22.26 USD (0.860% <= 1.0% Cap $25.88)`** | Headroom `$3.63`.
+
+#### 1. Thinking-Chain & Zero-Cache Audit Findings
+- **Gap 1 (`Cached Subset`)**: Prior `39`-symbol list missed `GBPNZD.pi` (`M15/H1/H4/D1` ALL `BULL`, `poc8h 2.39401`, `SL 2.38850` clearing `H4_swL 2.38883` & `H4 EMA89 2.38876`, `TP 2.40500` at `H4_swH 2.40491` below `D1_30d 2.41792`, `ALIGNED_r BNB -0.29 / EUR -0.13 / ETH -0.27 / WTI -0.23`) AND `GAUUSD.pi` (`1g` micro-Gold — checked and rejected on `D1_30d 112.6152` target-air violation + `+0.59` crypto corr).
+- **Gap 2 (`Unaligned Correlation`)**: Inner-joining `M15` returns on `bar['time']` across `151` symbols corrected distorted correlations (e.g. `UKBRENT vs USWTI` corrected `+0.05 -> +0.97`).
+- **Gap 3 (`Partial Live Fallback`)**: Pulling live `:3000` `market + cvd + liq3d + bw_m15` caught `ETH` `cvd15m +338 both-buying` and `CL` `+10 both-buying` ahead of disk refresh.
+
+**Confidence:** VERIFIED (`retcode=10009` + live blotter readback + `antigravity_selfcheck.py`).
