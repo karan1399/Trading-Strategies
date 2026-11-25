@@ -3616,3 +3616,8 @@ Empirical audit of today's MT5 deal history reveals the exact root causes of sto
 - **Gap 3 (`Partial Live Fallback`)**: Pulling live `:3000` `market + cvd + liq3d + bw_m15` caught `ETH` `cvd15m +338 both-buying` and `CL` `+10 both-buying` ahead of disk refresh.
 
 **Confidence:** VERIFIED (`retcode=10009` + live blotter readback + `antigravity_selfcheck.py`).
+
+### [2026-11-25T08:27:00Z] · Antigravity · PLAN-APPROVED USWTI.p CANCELLATION & BOOK OPTIMIZATION #21 (13:57 IST)
+**Verdict:** Following operator approval of `implementation_plan.md` (Option A), verified MT5 interlock (`connected=True, trade_allowed=True`) and **CANCELLED `USWTI.p` `#20496682`** (`TRADE_ACTION_REMOVE`, `retcode=10009`) due to basis-adjusted overhead Coinglass liquidation shelves (`CL 82.545–83.565` + `+0.94` MT5 premium = `83.49–84.51` MT5 clearing `SL 83.48`), `:3000 CL fut.h4` `$5.11M` bid wall at `80.00`, and Narrative `veto: M1 R 1.41 < 1.5`. Live MT5 `#5126976` readback verified (`Bal=$2,580.62`, `Eq=$2,587.86`, `Free=$2,497.99`, `Profit=+$7.24`) · **HELD `BNBUSD.p` `#20432336` (`$0` risk, `+$1.22` locked), `EURUSD.pi` `#20467916` (`$5.36`, `2.11R`), `ETHUSD.pi` `#20498955` (`$5.40`, `2.00R`), `GBPNZD.pi` `#20499902` (`$6.00`, `2.00R`)** · Aggregate Book Risk reduced **`$22.26 -> $16.76 USD (0.648% <= 1.0% Cap $25.88)`**, restoring **`$8.24` headroom** under `$25.00` desk ceiling. `desk/state.json` (`2026-11-22T15:58:14Z`) remains flagged stale vs live MT5 readback.
+
+**Confidence:** VERIFIED (`retcode=10009` + live MT5 readback + `151/151` MT5 / `252` telemetry audit + `antigravity_selfcheck.py`).

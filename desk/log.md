@@ -20169,3 +20169,10 @@ Zero-cache 151-symbol aligned audit staged orthogonal hedge setup on MT5 #512697
   * SL: 2.38850 ($6.00 risk) | TP: 2.40500 ($11.99 reward, 2.00R) | Spread: $0.13 (2.2%)
   * Rationale: M15/H1/H4/D1 EMA aligned BULL, 8h POC retest, aligned r=(-0.29 BNB, -0.13 EUR, -0.27 ETH, -0.23 WTI), retcode=10009.
   * Total Book Risk: $5.36 open + $16.90 pending = $22.26 USD (0.860% <= 1.000% Cap $25.88).
+
+## CANCEL & HOLD · 2026-11-25 08:27 UTC · Antigravity (R21)
+
+Live MT5 #5126976 plan-approved cancellation & blotter reconciliation (Bal=$2580.62, Eq=$2587.86, Cap1%=$25.88):
+  * CANCEL: USWTI.p #20496682 (SELL_LIMIT 0.05 @ 82.38, SL 83.48, TP 80.18, retcode=10009) — PIT-21 basis-adjusted CL liq shelves 83.49-84.51 clear SL + CL fut.h4 $5.11M bid wall 80.00; frees $5.50 risk.
+  * HOLD: BNBUSD.p #20432336 (SL 554.50, +$1.22 locked, $0 risk), EURUSD.pi #20467916 (SL 1.10280, effRisk $5.36), ETHUSD.pi #20498955 (SELL_LIMIT 0.15 @ 1671.50, $5.40 risk), GBPNZD.pi #20499902 (BUY_LIMIT 0.02 @ 2.39400, $6.00 risk).
+  * Aggregate Book Risk: $5.36 open + $11.40 pending = $16.76 USD (0.648% <= 1.000% Cap $25.88; $8.24 headroom under $25.00 floor). desk/state.json (2026-11-22T15:58:14Z) superseded by live MT5 readback.
