@@ -226,11 +226,12 @@ function Focus-AntigravityWindow {
 }
 
 function Send-PasteAndEnter {
-    # Read clipboard safely via PowerShell STA cmdlet
+    # Read clipboard safely via PowerShell STA cmdlet; fall back to DefaultPrompt if empty or holding a file path/drop
+    $fileDrop = Get-Clipboard -Format FileDropList -ErrorAction SilentlyContinue
     $clipboardText = Get-Clipboard -Raw -ErrorAction SilentlyContinue
 
-    if ([string]::IsNullOrWhiteSpace($clipboardText)) {
-        Write-Log "Clipboard was empty. Using default wake prompt..." -Color Yellow
+    if ($fileDrop -or [string]::IsNullOrWhiteSpace($clipboardText) -or ($clipboardText.Trim() -match '^"?[A-Za-z]:\\')) {
+        Write-Log "Clipboard was empty or held a file path. Using default wake prompt..." -Color Yellow
         if (-not $DryRun) {
             Set-Clipboard -Value $DefaultPrompt
         }
@@ -275,7 +276,7 @@ if (-not $DryRun) { Clear-Host }
 Write-Host "==========================================================================" -ForegroundColor Cyan
 Write-Host "     ANTIGRAVITY AUTONOMOUS WAKE-UP DAEMON (:00 & :30 OF EVERY HOUR)      " -ForegroundColor Yellow
 Write-Host "==========================================================================" -ForegroundColor Cyan
-Write-Host "Target Process : Antigravity (*Antigravity* wildcard EnumWindows match)" -ForegroundColor Gray
+Write-Host "Target Process : Antigravity.exe (excludes antigravity-tools sidecar)" -ForegroundColor Gray
 Write-Host "Cadence        : Exact Minute :00:00 and :30:00" -ForegroundColor Gray
 Write-Host "Action         : Activate Window -> Paste Clipboard -> Send Enter" -ForegroundColor Gray
 Write-Host "Safety Note    : Leave cursor focused in the Antigravity chat box!" -ForegroundColor DarkYellow
