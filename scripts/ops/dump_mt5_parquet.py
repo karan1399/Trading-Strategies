@@ -61,8 +61,8 @@ def dump_all_mt5_to_parquet():
         mt5.shutdown()
         return False
 
-    sym_names = [s.name for s in symbols]
-    print(f"[INFO] Discovered {len(sym_names)} symbols in MT5 broker inventory.")
+    sym_names = [s.name for s in symbols if s.visible]
+    print(f"[INFO] Discovered {len(sym_names)} visible symbols in MT5 broker inventory.", flush=True)
 
     manifest = {
         "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -118,8 +118,8 @@ def dump_all_mt5_to_parquet():
                 pass
 
         manifest["symbols"][sym] = sym_entry
-        if idx % 10 == 0 or idx == len(sym_names):
-            print(f"[{idx:>3}/{len(sym_names)}] Processed: {sym:<15} ({len(sym_entry['timeframes'])}/{len(TIMEFRAMES)} TFs saved)")
+        if idx % 5 == 0 or idx == len(sym_names):
+            print(f"[{idx:>3}/{len(sym_names)}] Processed: {sym:<15} ({len(sym_entry['timeframes'])}/{len(TIMEFRAMES)} TFs saved)", flush=True)
 
     mt5.shutdown()
 
