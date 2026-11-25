@@ -323,16 +323,16 @@ def sig_vc_at(o, h, l, c, atr, i, params) -> dict | None:
     kc_len, mult = int(params.get("kc_len", 20)), float(params.get("kc_mult", 1.5))
     seg_c = c[: i + 1]
     sma = sma_arr(seg_c, bb_len)
-    sd = np.zeros(i + 1)
-    for k in range(bb_len - 1, i + 1):
-        sd[k] = seg_c[k - bb_len + 1: k + 1].std(ddof=0)
-    bb_up, bb_dn = sma + dev * sd, sma - dev * sd
-    atr_kc = wilder_atr(h[: i + 1], l[: i + 1], c[: i + 1], 14)
-    kc_up, kc_dn = sma + mult * atr_kc, sma - mult * atr_kc
     need = int(params.get("min_squeeze_bars", 3))
     j0 = i - need
     if j0 < bb_len:
         return None
+    sd = np.zeros(i + 1)
+    for k in range(max(bb_len - 1, j0), i + 1):
+        sd[k] = seg_c[k - bb_len + 1: k + 1].std(ddof=0)
+    bb_up, bb_dn = sma + dev * sd, sma - dev * sd
+    atr_kc = wilder_atr(h[: i + 1], l[: i + 1], c[: i + 1], 14)
+    kc_up, kc_dn = sma + mult * atr_kc, sma - mult * atr_kc
     squeeze = all(bb_up[k] < kc_up[k] and bb_dn[k] > kc_dn[k] for k in range(j0, i))
     if not squeeze:
         return None
@@ -1022,7 +1022,7 @@ def selftest() -> bool:
         sig_series = ewma_sigma(c, 0.94) if sname == "ivwall" else None
         mod_fn = load_signal_fn(params["module"]) if isinstance(params, dict) and params.get("module") else None
         trades, naked = [], 0
-        i0 = max(210, n - 2500) if sname.startswith("ig_") else (60 if sname != "vc_gold" else max(60, n - 2000))
+        i0 = max(210, n - 1000) if sname.startswith("ig_") else (60 if sname != "vc_gold" else max(60, n - 2000))
         i = i0
         cool = 0
         while i < n - 2:
