@@ -48,6 +48,8 @@ if ROOT not in sys.path:
 if os.path.join(ROOT, "scripts") not in sys.path:
     sys.path.insert(0, os.path.join(ROOT, "scripts"))
 from delta_exec import DeltaLive  # noqa: E402
+from engine.cg_sl_tp import optimize_bracket_with_cg  # noqa: E402
+from strategies._indicators import adx_arr  # noqa: E402
 from strategies.registry import load_signal_fn  # noqa: E402
 from strategies.ig_s8_vol_target import vol_target_risk_usd  # noqa: E402
 
@@ -63,13 +65,15 @@ def load_resolved_config(path: str = CONFIG_PATH) -> dict:
             if os.path.exists(cf_path):
                 with open(cf_path, encoding="utf-8") as sf:
                     ext = json.load(sf)
-                for k in ("params", "symbols", "cooldown_bars", "max_spread_risk_frac"):
+                for k in ("tf", "max_hold_bars", "params", "symbol_params", "symbols", "cooldown_bars", "max_spread_risk_frac"):
                     if k in ext and k not in s:
                         s[k] = ext[k]
                     elif k == "symbols" and not s.get("symbols") and ext.get("symbols"):
                         s["symbols"] = ext["symbols"]
                     elif k == "params" and ext.get("params"):
                         s["params"] = {**ext["params"], **(s.get("params") or {})}
+                    elif k == "symbol_params" and ext.get("symbol_params"):
+                        s["symbol_params"] = {**ext["symbol_params"], **(s.get("symbol_params") or {})}
     return cfg
 
 MT5_OK = True
@@ -316,9 +320,13 @@ def sig_htf_gold_at(o, h, l, c, atr, i, params) -> dict | None:
 
 
 def sig_vc_at(o, h, l, c, atr, i, params) -> dict | None:
-    """VC blueprint: BB inside KC >= min_squeeze_bars, close breaks band, EMA200 gate."""
+    """VC blueprint: BB inside KC >= min_squeeze_bars, close breaks band, EMA200 + optional ADX gate."""
     if i < max(params.get("trend_ema", 200), 60) + 10:
         return None
+    adx_min = float(params.get("adx_min", 0.0) or 0.0)
+    if adx_min > 0.0:
+        if float(adx_arr(h[: i + 1], l[: i + 1], c[: i + 1], 14)[i]) < adx_min:
+            return None
     bb_len, dev = int(params.get("bb_len", 20)), float(params.get("bb_dev", 2.0))
     kc_len, mult = int(params.get("kc_len", 20)), float(params.get("kc_mult", 1.5))
     seg_c = c[: i + 1]
@@ -337,12 +345,13 @@ def sig_vc_at(o, h, l, c, atr, i, params) -> dict | None:
     if not squeeze:
         return None
     ema200 = ema_arr(seg_c, int(params.get("trend_ema", 200)))
+    ema50 = ema_arr(seg_c, 50)
     atr14 = atr[i]
     bullish, bearish = c[i] >= o[i], c[i] <= o[i]
     side = 0
-    if c[i] > bb_up[i] and bullish and c[i] > ema200[i]:
+    if c[i] > bb_up[i] and bullish and c[i] > ema200[i] and ema50[i] >= ema200[i]:
         side = 1
-    elif c[i] < bb_dn[i] and bearish and c[i] < ema200[i]:
+    elif c[i] < bb_dn[i] and bearish and c[i] < ema200[i] and ema50[i] <= ema200[i]:
         side = -1
     if side == 0:
         return None
@@ -446,6 +455,15 @@ def sig_orb_at(o, h, l, c, times_min, atr, htf_c_4h, i, params) -> dict | None:
     t_i = times_min[i] % 1440
     if t_i > sig_end:
         return None
+    a_i = float(atr[i]) if i < len(atr) else 0.0
+    if not np.isfinite(a_i) or a_i <= 0.0:
+        return None
+    max_oa = float(params.get("max_or_atr", 99.0) or 99.0)
+    if max_oa < 90.0 and ((or_high - or_low) / a_i) > max_oa:
+        return None
+    adx_min = float(params.get("adx_min", 0.0) or 0.0)
+    if adx_min > 0.0 and float(adx_arr(h[: i + 1], l[: i + 1], c[: i + 1], 14)[i]) < adx_min:
+        return None
     mid = (or_high + or_low) / 2.0
     side = 0
     if c[i] > or_high and c[i] >= o[i]:
@@ -460,10 +478,13 @@ def sig_orb_at(o, h, l, c, times_min, atr, htf_c_4h, i, params) -> dict | None:
             return None
         if side == -1 and not c[i] < e4[-1]:
             return None
-    # sl is the OR midpoint; stop distance is derived by the caller from the real
-    # entry price (never from a future bar inside the signal).
-    return {"side": side, "rd": None, "sl_abs": float(mid), "tp_abs": None,
-            "exit_r": float(params.get("exit_r", 2.0)), "note": f"OR30_{day}"}
+    sl_mode = str(params.get("sl_mode", "midpoint")).lower()
+    if sl_mode == "opposite":
+        sl_val = float(or_low if side == 1 else or_high)
+    else:
+        sl_val = float(mid)
+    return {"side": side, "rd": None, "sl_abs": sl_val, "tp_abs": None,
+            "exit_r": float(params.get("exit_r", 2.0)), "note": f"OR{or_min}_{day}"}
 
 # ============================================================ MT5 bridge ====
 class MT5Bridge:
@@ -593,15 +614,15 @@ class Governor:
         return out
 
     @staticmethod
-    def register(state: StateStore, ticket: int, sleeve: str, entry: float, sl: float):
+    def register(state: StateStore, ticket: int, sleeve: str, entry: float, sl: float, be_enabled: bool = True):
         rd = abs(entry - sl)
         state.state["positions"][str(ticket)] = {
             "sleeve": sleeve, "entry": float(entry), "r0": float(rd),
-            "be_done": False, "open_ts": int(time.time()),
+            "be_done": False, "be_enabled": bool(be_enabled), "open_ts": int(time.time()),
         }
 
     def be_lock(self, positions: list, tick_fn) -> int:
-        """Breakeven lock at +1R (respects per-sleeve be_lock_enabled); returns modifications."""
+        """Breakeven lock at +1R (respects per-position and per-sleeve be_lock_enabled); returns modifications."""
         n = 0
         trig = float(self.gov.get("be_lock_trigger_r", 1.0))
         buf = float(self.gov.get("be_lock_buffer_r", 0.05))
@@ -611,7 +632,7 @@ class Governor:
             if not meta or meta.get("be_done"):
                 continue
             slv = sleeves_cfg.get(meta.get("sleeve", ""), {})
-            if not slv.get("be_lock_enabled", True):
+            if not meta.get("be_enabled", slv.get("be_lock_enabled", True)):
                 continue
             r0 = float(meta.get("r0", 0)) or abs(p.price_open - p.sl if p.sl else 0)
             if r0 <= 0:
