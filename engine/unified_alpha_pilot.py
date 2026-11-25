@@ -541,14 +541,17 @@ class Governor:
 
     def gates(self, magic: int, positions: list) -> tuple[bool, str]:
         ours = [p for p in positions if getattr(p, "magic", 0) in self.our_magics()]
-        if len(ours) >= int(self.gov["max_global_positions"]):
-            return False, f"global cap {self.gov['max_global_positions']} reached"
-        if any(p.magic == magic for p in ours):
+        max_glob = int(self.gov.get("max_global_positions") or 0)
+        if max_glob > 0 and len(ours) >= max_glob:
+            return False, f"global cap {max_glob} reached"
+        max_sleeve = int(self.gov.get("max_per_sleeve") or 0)
+        if max_sleeve > 0 and len([p for p in ours if p.magic == magic]) >= max_sleeve:
             return False, "sleeve already has a position"
         gold = self.gov.get("gold_cluster_magics", [])
-        if magic in gold:
+        gold_max = int(self.gov.get("gold_cluster_max_positions") or 0)
+        if gold_max > 0 and magic in gold:
             ngold = len([p for p in ours if p.magic in gold])
-            if ngold >= int(self.gov.get("gold_cluster_max_positions", 1)):
+            if ngold >= gold_max:
                 return False, "gold-cluster cap (42003+42004 share one risk unit)"
         if self.bridge is not None:
             eq = self.bridge.account_equity()
@@ -1067,16 +1070,30 @@ def selftest() -> bool:
 
     gov = Governor(cfg, Journal(os.path.join(DATA_DIR, "selftest_journal.csv")),
                    StateStore(os.path.join(DATA_DIR, "selftest_state.json")), None)
-    cases_g = [
+    cases_unlim = [
         ("empty book, any entry", [], 42003, True),
-        ("2 global -> 3rd rejected", [FakePos(42002), FakePos(42005)], 42003, False),
-        ("same sleeve -> 2nd rejected", [FakePos(42003)], 42003, False),
-        ("gold cluster 42003+42004 -> rejected", [FakePos(42004)], 42003, False),
-        ("non-gold sleeves coexist", [FakePos(42002)], 42005, True),
+        ("unlimited global allows 3rd+", [FakePos(42002), FakePos(42005)], 42003, True),
+        ("unlimited sleeve allows multi-sym", [FakePos(42003)], 42003, True),
+        ("unlimited gold cluster passes", [FakePos(42004)], 42003, True),
+    ]
+    for label, pos, magic, expect in cases_unlim:
+        ok, why = gov.gates(magic, pos)
+        print(f"  [live cfg] {label:<34} -> {'PASS' if ok else 'REJECT'} ({why})"[:100])
+        if ok != expect:
+            failures.append(f"governor: {label}")
+    capped_cfg = {**cfg, "governor": {**cfg["governor"], "max_global_positions": 2,
+                                       "max_per_sleeve": 1, "gold_cluster_max_positions": 1,
+                                       "gold_cluster_magics": [42003, 42004]}}
+    gov_capped = Governor(capped_cfg, gov.journal, gov.state, None)
+    cases_g = [
+        ("capped 2 global -> 3rd rejected", [FakePos(42002), FakePos(42005)], 42003, False),
+        ("capped same sleeve -> 2nd rejected", [FakePos(42003)], 42003, False),
+        ("capped gold cluster -> rejected", [FakePos(42004)], 42003, False),
+        ("capped non-gold coexist", [FakePos(42002)], 42005, True),
     ]
     for label, pos, magic, expect in cases_g:
-        ok, why = gov.gates(magic, pos)
-        print(f"  {label:<44} -> {'PASS' if ok else 'REJECT'} ({why})"[:100])
+        ok, why = gov_capped.gates(magic, pos)
+        print(f"  [cap test] {label:<34} -> {'PASS' if ok else 'REJECT'} ({why})"[:100])
         if ok != expect:
             failures.append(f"governor: {label}")
 

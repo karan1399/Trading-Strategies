@@ -1572,8 +1572,10 @@ def mode_live(cfg: dict, do_update: bool) -> int:
     if delta_bridge is not None:
         d_ok, d_eq, d_av, d_err = delta_bridge.interlock_check()
         print(f"  [delta] {'OK equity=$' + f'{d_eq:.2f} avail=${d_av:.2f}' if d_ok else 'ILK-01 HALT (MT5 unaffected): ' + d_err}", flush=True)
+    mc_val = int(risk.get("max_concurrent") or 0)
+    mc_lbl = str(mc_val) if mc_val > 0 else "unlimited"
     print(f"  equity {day_start_equity:.2f} | per-trade <=${r_usd_m:.2f} ({risk['risk_per_trade_pct']}%) | "
-          f"max concurrent {risk['max_concurrent']} | portfolio cap {max_port_pct:.2f}% "
+          f"max concurrent {mc_lbl} | portfolio cap {max_port_pct:.2f}% "
           f"(live book risk ${book_now:.2f})", flush=True)
     print("  safety: create desk/KILL (touch desk/KILL) or Ctrl+C to stop NEW entries any time.", flush=True)
     for t in range(3, 0, -1):
@@ -1616,7 +1618,7 @@ def mode_live(cfg: dict, do_update: bool) -> int:
                                 risk_pct=float(delta_cfg.get("risk_per_trade_pct", 1.0)),
                                 risk_max_pct=float(delta_cfg.get("risk_max_pct", 1.0)),
                                 max_portfolio_risk_pct=float(delta_cfg.get("max_portfolio_risk_pct", 2.0)),
-                                max_concurrent=int(delta_cfg.get("max_concurrent", 4)),
+                                max_concurrent=int(delta_cfg.get("max_concurrent", 0)),
                                 client_order_id=s["signal_id"],
                                 order_type=s.get("order_type", "limit"),
                             )
@@ -1636,7 +1638,7 @@ def mode_live(cfg: dict, do_update: bool) -> int:
                     if breaker:
                         print(f"[live] DAILY LOSS BREAKER — no new entries ({s['symbol']} held)", flush=True)
                         continue
-                    if bridge.open_count() >= risk["max_concurrent"]:
+                    if int(risk.get("max_concurrent") or 0) > 0 and bridge.open_count() >= int(risk["max_concurrent"]):
                         print(f"[live] max_concurrent={risk['max_concurrent']} — {s['symbol']} held", flush=True)
                         continue
                     spec = bridge.symbol_spec(s["mt5_symbol"])
