@@ -1017,34 +1017,42 @@ def selftest() -> bool:
     for sym, tf, sname, params in cases:
         df = _load_parquet(sym, tf)
         o, h, l, c, tm = _closed_arrays(df)
-        htf_c4 = None
+        htf_c4_full, tm4_close = None, None
+        tf_m = TF_MAP.get(tf, 15)
         if sname == "orb_nas":
             df4 = _load_parquet(sym, "H4")
-            htf_c4 = df4["close"].to_numpy(float)
+            _, _, _, htf_c4_full, tm4_open = _closed_arrays(df4)
+            tm4_close = tm4_open + 240
         n = len(c)
         probes = sorted(set([min(350, n - 2), n // 2, n - 51, n - 30, n - 2]))
         sig_series = ewma_sigma(c, 0.94) if sname == "ivwall" else None
         mod_fn = load_signal_fn(params["module"]) if isinstance(params, dict) and params.get("module") else None
         bad = 0
         for k in probes:
-            def run(arrs, sigs=None):
+            k_eff = min(k, 4999)
+            def _causal_h4(bar_idx: int, tt_arr):
+                if htf_c4_full is None or tm4_close is None:
+                    return None
+                n4 = int(np.searchsorted(tm4_close, tt_arr[bar_idx] + tf_m, side="right"))
+                return htf_c4_full[:n4]
+            def run(arrs, bar_idx: int, sigs=None):
                 oo, hh, ll, cc, tt = arrs
                 atr = wilder_atr(hh, ll, cc, 14)
+                hc4 = _causal_h4(bar_idx, tt)
                 if sname == "htf_gold":
-                    return sig_htf_gold_at(oo, hh, ll, cc, atr, k, params)
+                    return sig_htf_gold_at(oo, hh, ll, cc, atr, bar_idx, params)
                 if sname == "vc_gold":
-                    return sig_vc_at(oo, hh, ll, cc, atr, k, params)
+                    return sig_vc_at(oo, hh, ll, cc, atr, bar_idx, params)
                 if sname == "ivwall":
-                    spans = session_spans_from(tt[: k + 1], 2)
-                    return sig_ivwall_at(oo, hh, ll, cc, tt, atr, sigs, k,
+                    spans = session_spans_from(tt[: bar_idx + 1], 2)
+                    return sig_ivwall_at(oo, hh, ll, cc, tt, atr, sigs, bar_idx,
                                          {**params, "broker_utc_offset": 2}, spans)
                 if sname == "orb_nas":
-                    return sig_orb_at(oo, hh, ll, cc, tt, atr, htf_c4, k, params)
-                return mod_fn(oo, hh, ll, cc, tt, atr, k, params.get("params", {}), {"htf_c4": htf_c4})
-            full = run((o, h, l, c, tm), sig_series)
-            k_eff = min(k, 4999)
+                    return sig_orb_at(oo, hh, ll, cc, tt, atr, hc4, bar_idx, params)
+                return mod_fn(oo, hh, ll, cc, tt, atr, bar_idx, params.get("params", {}), {"htf_c4": hc4})
+            full = run((o, h, l, c, tm), k, sig_series)
             pref = run((o[:k_eff + 1], h[:k_eff + 1], l[:k_eff + 1], c[:k_eff + 1], tm[:k_eff + 1]),
-                       sig_series[:k_eff + 1] if sname == "ivwall" else None)
+                       k_eff, sig_series[:k_eff + 1] if sname == "ivwall" else None)
             same = ((full is None and pref is None) or
                     (full is not None and pref is not None and
                      full["side"] == pref["side"] and full["note"] == pref["note"]))
@@ -1065,9 +1073,11 @@ def selftest() -> bool:
         nz = sp[sp > 0]
         spr = np.where(sp > 0, sp, float(np.median(nz)) if len(nz) else 0.0)
         o, h, l, c, tm = _closed_arrays(df)
-        htf_c4 = None
+        htf_c4_full, tm4_close = None, None
+        tf_m = TF_MAP.get(tf, 15)
         if sname == "orb_nas":
-            htf_c4 = _load_parquet(sym, "H4")["close"].to_numpy(float)
+            _, _, _, htf_c4_full, tm4_open = _closed_arrays(_load_parquet(sym, "H4"))
+            tm4_close = tm4_open + 240
         n = len(c)
         atr = wilder_atr(h, l, c, 14)
         sig_series = ewma_sigma(c, 0.94) if sname == "ivwall" else None
@@ -1080,6 +1090,9 @@ def selftest() -> bool:
             if i < cool:
                 i += 1
                 continue
+            htf_c4 = None
+            if htf_c4_full is not None and tm4_close is not None:
+                htf_c4 = htf_c4_full[:int(np.searchsorted(tm4_close, tm[i] + tf_m, side="right"))]
             if sname == "htf_gold":
                 sig = sig_htf_gold_at(o[:i + 1], h[:i + 1], l[:i + 1], c[:i + 1], atr, i, params)
             elif sname == "vc_gold":
