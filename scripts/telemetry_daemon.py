@@ -140,8 +140,8 @@ PERPDEPTH_SYMS = frozenset({"XAU", "XAG", "XPT", "SPX500", "SP500", "NDX100", "J
 CACHES: Dict[str, BoundedTTLCache] = {
     "backtest": BoundedTTLCache(max_entries=120, max_bytes=3 * 1024 * 1024),
     "cot": BoundedTTLCache(max_entries=64, max_bytes=2 * 1024 * 1024),
-    "stopmap": BoundedTTLCache(max_entries=160, max_bytes=8 * 1024 * 1024),
-    "liq": BoundedTTLCache(max_entries=160, max_bytes=4 * 1024 * 1024),
+    "stopmap": BoundedTTLCache(max_entries=600, max_bytes=16 * 1024 * 1024),
+    "liq": BoundedTTLCache(max_entries=300, max_bytes=6 * 1024 * 1024),
     "bw": BoundedTTLCache(max_entries=180, max_bytes=6 * 1024 * 1024),
     "cvd": BoundedTTLCache(max_entries=160, max_bytes=2 * 1024 * 1024),
     "lo": BoundedTTLCache(max_entries=120, max_bytes=2 * 1024 * 1024),
