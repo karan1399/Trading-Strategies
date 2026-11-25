@@ -43,9 +43,34 @@ ENGINE_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(ENGINE_DIR)
 CONFIG_PATH = os.path.join(ENGINE_DIR, "config.json")
 DATA_DIR = os.path.join(ENGINE_DIR, "data")
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
 if os.path.join(ROOT, "scripts") not in sys.path:
     sys.path.insert(0, os.path.join(ROOT, "scripts"))
 from delta_exec import DeltaLive  # noqa: E402
+from strategies.registry import load_signal_fn  # noqa: E402
+from strategies.ig_s8_vol_target import vol_target_risk_usd  # noqa: E402
+
+
+def load_resolved_config(path: str = CONFIG_PATH) -> dict:
+    """Load engine/config.json and hydrate external strategy folder config_file entries."""
+    with open(path, encoding="utf-8") as f:
+        cfg = json.load(f)
+    for sname, s in (cfg.get("sleeves") or {}).items():
+        cf = s.get("config_file")
+        if cf:
+            cf_path = cf if os.path.isabs(cf) else os.path.join(ROOT, cf)
+            if os.path.exists(cf_path):
+                with open(cf_path, encoding="utf-8") as sf:
+                    ext = json.load(sf)
+                for k in ("params", "symbols", "cooldown_bars", "max_spread_risk_frac"):
+                    if k in ext and k not in s:
+                        s[k] = ext[k]
+                    elif k == "symbols" and not s.get("symbols") and ext.get("symbols"):
+                        s["symbols"] = ext["symbols"]
+                    elif k == "params" and ext.get("params"):
+                        s["params"] = {**ext["params"], **(s.get("params") or {})}
+    return cfg
 
 MT5_OK = True
 try:
@@ -571,16 +596,22 @@ class Governor:
     def register(state: StateStore, ticket: int, sleeve: str, entry: float, sl: float):
         rd = abs(entry - sl)
         state.state["positions"][str(ticket)] = {
-            "sleeve": sleeve, "entry": float(entry), "r0": float(rd), "be_done": False}
+            "sleeve": sleeve, "entry": float(entry), "r0": float(rd),
+            "be_done": False, "open_ts": int(time.time()),
+        }
 
     def be_lock(self, positions: list, tick_fn) -> int:
-        """Breakeven lock at +1R; returns count of modifications."""
+        """Breakeven lock at +1R (respects per-sleeve be_lock_enabled); returns modifications."""
         n = 0
         trig = float(self.gov.get("be_lock_trigger_r", 1.0))
         buf = float(self.gov.get("be_lock_buffer_r", 0.05))
+        sleeves_cfg = self.cfg.get("sleeves") or {}
         for p in positions:
             meta = self.state.state["positions"].get(str(p.ticket))
             if not meta or meta.get("be_done"):
+                continue
+            slv = sleeves_cfg.get(meta.get("sleeve", ""), {})
+            if not slv.get("be_lock_enabled", True):
                 continue
             r0 = float(meta.get("r0", 0)) or abs(p.price_open - p.sl if p.sl else 0)
             if r0 <= 0:
@@ -662,6 +693,11 @@ def build_signal(sleeve: str, closed, sleeve_cfg: dict, params: dict, htf_c4: np
                              {**sleeve_cfg, "broker_utc_offset": int(sleeve_cfg.get("broker_utc_offset", 2))}, spans)
     if sleeve == "orb_nas":
         return sig_orb_at(o, h, l, c, times_min, atr, htf_c4, i, params)
+    mod_path = sleeve_cfg.get("module")
+    if mod_path:
+        fn = load_signal_fn(mod_path)
+        eff_params = {**(sleeve_cfg.get("params") or {}), **(params if params is not sleeve_cfg else {})}
+        return fn(o, h, l, c, times_min, atr, i, eff_params, {"htf_c4": htf_c4})
     return None
 
 
@@ -763,6 +799,11 @@ def run_loop(cfg: dict, mode: str, loop_seconds: int | None = None):
                     rd = abs(entry - sl)
                     if rd <= 0:
                         continue
+                    max_sf = float(s.get("max_spread_risk_frac") or 0.0)
+                    if max_sf > 0.0 and (live_spread * 2.0) / rd > max_sf:
+                        journal.log("SPREAD_SKIP", sleeve=sname, magic=magic, symbol=sym,
+                                    note=f"2x_spread {2*live_spread:.5f} > {max_sf:.2f}x risk {rd:.5f}")
+                        continue
                     if sig.get("tp_abs") is not None:
                         tp = float(sig["tp_abs"])
                     else:
@@ -801,6 +842,15 @@ def run_loop(cfg: dict, mode: str, loop_seconds: int | None = None):
                         journal.log("GATE_SKIP", sleeve=sname, magic=magic, symbol=sym, note=why)
                         continue
                     risk_usd = float(cfg["governor"]["risk_usd_target"])
+                    s8 = cfg.get("s8_vol_target") or {}
+                    if s8.get("enabled"):
+                        risk_usd = vol_target_risk_usd(
+                            closed["close"].astype(float), s["tf"], risk_usd,
+                            float(cfg["governor"].get("risk_usd_min", 5.0)),
+                            float(cfg["governor"].get("risk_usd_max", 6.0)),
+                            target_ann_vol=float(s8.get("target_ann_vol", 0.22)),
+                            lookback=int(s8.get("lookback", 20)),
+                        )
                     lots, why = lots_for_risk(spec, rd, risk_usd, float(cfg["governor"]["risk_usd_max"]))
                     if lots is None:
                         journal.log("RISK_REJECT", sleeve=sname, magic=magic, symbol=sym,
@@ -850,6 +900,18 @@ def run_loop(cfg: dict, mode: str, loop_seconds: int | None = None):
                             res = bridge.close_position(p, dev)
                             journal.log("TIME_STOP", sleeve="orb_nas", magic=42005, symbol=p.symbol,
                                         retcode=str(getattr(res, "retcode", "")), note="eod")
+                    # Generic max_hold_bars time-stop for sleeves specifying it (e.g. ig_s2_rsi2_meanrev)
+                    meta_p = state.state.get("positions", {}).get(str(p.ticket))
+                    if meta_p and meta_p.get("open_ts"):
+                        slv_name = meta_p.get("sleeve", "")
+                        slv_cfg = cfg["sleeves"].get(slv_name, {})
+                        mh_bars = int(slv_cfg.get("max_hold_bars") or 0)
+                        if mh_bars > 0:
+                            max_sec = mh_bars * TF_MAP.get(slv_cfg.get("tf", "H4"), 240) * 60
+                            if (now - float(meta_p["open_ts"])) >= max_sec:
+                                res = bridge.close_position(p, dev)
+                                journal.log("TIME_STOP", sleeve=slv_name, magic=p.magic, symbol=p.symbol,
+                                            retcode=str(getattr(res, "retcode", "")), note=f"max_hold_{mh_bars}")
             state.save()
             time.sleep(poll)
     except KeyboardInterrupt:
