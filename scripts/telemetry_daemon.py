@@ -731,10 +731,12 @@ class AsyncTelemetryHarvester:
                 async with gate:
                     async with self.session.get(path, timeout=aiohttp.ClientTimeout(total=timeout)) as resp:
                         raw = await resp.read()
+                        if heavy:
+                            await asyncio.sleep(0.22)
                         if resp.status == 200:
                             return loads_bytes(raw)
                         if resp.status in (429, 502, 503, 504) and attempt + 1 < attempts:
-                            await asyncio.sleep(0.5 * (attempt + 1))
+                            await asyncio.sleep(0.65 * (attempt + 1))
                             continue
                         return {"_err": f"HTTP {resp.status}"}
             except Exception as e:
@@ -1193,15 +1195,15 @@ class AsyncTelemetryHarvester:
             "SUI", "UNI", "OP", "ARB", "APT", "DOT", "LTC", "BCH", "INJ", "TIA", "QQQ", "TSLA", "MSTR", "GOOGL"
         }
         bw_specs = [
-            ("futures", "m15", 180.0 if is_prime else 900.0, 150),
-            ("futures", "1h", 360.0 if is_prime else 900.0, 150),
+            ("futures", "m15", 240.0 if is_prime else 900.0, 150),
+            ("futures", "1h", 420.0 if is_prime else 900.0, 150),
             ("spot", "m15", 300.0 if is_prime else 900.0, 150),
         ]
         if is_core_flow:
             bw_specs.extend([
-                ("futures", "1m", 300.0, 150),
-                ("futures", "5m", 480.0, 150),
-                ("spot", "1h", 600.0, 150),
+                ("futures", "1m", 480.0, 150),
+                ("futures", "5m", 600.0, 150),
+                ("spot", "1h", 900.0, 150),
             ])
         if is_deep_core:
             bw_specs.append(("futures", "4h", 1800.0, 60))
@@ -1212,7 +1214,7 @@ class AsyncTelemetryHarvester:
                 (sym, mkt_type, itv, lim),
                 ttl_s,
                 f"/api/cg/bookwalls?sym={sym}&market={mkt_type}&interval={itv}&limit={lim}&band=5",
-                timeout=24,
+                timeout=28,
                 transform=build_compact_bookwalls,
                 heavy=True,
             )
@@ -1315,10 +1317,22 @@ class AsyncTelemetryHarvester:
                         "quadrant": cv.get("quadrant"),
                     }
 
-        # Populate Large Orders / LTO / Cards / Backtest / COT
+        # Populate Large Orders / LTO / Cards / Backtest / COT (compact large_orders sub-lists <= 35 rows to avoid 500KB bloat)
+        def _compact_groups(grps: Any, max_groups: int = 12, max_items: int = 35) -> List[Dict[str, Any]]:
+            out_g: List[Dict[str, Any]] = []
+            for g in (grps or [])[:max_groups]:
+                if not isinstance(g, dict):
+                    continue
+                row_g = dict(g)
+                if isinstance(g.get("list"), list) and len(g["list"]) > max_items:
+                    row_g["total_list_len"] = len(g["list"])
+                    row_g["list"] = g["list"][:max_items]
+                out_g.append(row_g)
+            return out_g
+
         lo = res_map.get("lo")
         if lo and lo.get("ok"):
-            profile["large_orders"]["resting_and_executed"]["24h"] = (lo.get("groups") or [])[:12]
+            profile["large_orders"]["resting_and_executed"]["24h"] = _compact_groups(lo.get("groups"), 12, 35)
             if lo.get("supported") is False and lo.get("reason"):
                 profile["large_orders"]["largeorder_status"] = lo.get("reason")
         lto = res_map.get("lto")
@@ -1328,7 +1342,7 @@ class AsyncTelemetryHarvester:
             profile["large_orders"]["large_taker_orders_100k"] = {
                 "supported": lto.get("supported"),
                 "minVolUsd": lto.get("minVolUsd"),
-                "groups": (lto.get("groups") or [])[:12],
+                "groups": _compact_groups(lto.get("groups"), 12, 35),
                 "activeExchanges": active_exch,
                 "hlFallback": lto.get("hlFallback"),
                 "updatedAt": lto.get("updatedAt"),
@@ -1727,7 +1741,7 @@ async def async_main() -> None:
 
     concurrency = int(os.environ.get("TELEMETRY_CONCURRENCY", os.environ.get("TELEMETRY_WORKERS", "8")))
     cg_heavy_concurrency = int(os.environ.get("TELEMETRY_CG_CONCURRENCY", "2"))
-    worker_count = int(os.environ.get("TELEMETRY_ASSET_WORKERS", "4"))
+    worker_count = int(os.environ.get("TELEMETRY_ASSET_WORKERS", "3"))
     interval = int(os.environ.get("TELEMETRY_INTERVAL_SECS", "10"))
     tail_batch = int(os.environ.get("TELEMETRY_TAIL_BATCH", "20"))
     git_sync_secs = 0 if no_git else int(os.environ.get("TELEMETRY_GIT_SYNC_SECS", "600"))
