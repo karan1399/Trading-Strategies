@@ -3701,3 +3701,13 @@ Empirical audit of today's MT5 deal history reveals the exact root causes of sto
 - **Combined Holy Grail vs Baseline (`370` OOS days @ `0.22%` risk):** `Tot +20.1R -> +244.9R (+64.4%)`, `Ann Sharpe 0.98 -> 1.52`, `Ann Sortino 0.67 -> 2.42`, `Active Days 49 -> 368/370`, `p=0.0329`. (`EU_LDN ORB` rejected `-4.0R`.)
 
 **Confidence:** VERIFIED (`S1..S6 SELFTEST: PASS` + `full_universe_optimizer.py` + `class_holy_grail_optimizer.py` + live engine restart pending post-launch log check).
+
+
+### [2026-11-25T15:19:00Z] · Antigravity · PC RAM OPTIMIZATION, 11-SLEEVE INVENTORY & COMBINED EQUITY CURVE — R33 (20:49 IST)
+**Verdict:** Executed non-destructive Win32 working-set optimization across `167` processes + `__pycache__` purge (`10.87 GB -> 9.44 GB`, `1,471.1 MB` reclaimed immediately without halting any of the 5 active daemons; re-readback at `15:18Z` showed rebound to `11.33 GB` driven by `telemetry_daemon.py` `3.86 GB` private commit across 10 unbounded global caches + `Memory Compression` `1.51 GB`). Inventoried **11 live strategy sleeves (+ 1 S8 Vol-Target overlay)** across 2 active engines (`engine/unified_alpha_pilot.py` `8+S8`, `footprint_alpha/engine/unified_alpha_pilot.py` `3`), generated interactive combined equity curve dashboard (`ALL_STRATEGIES_EQUITY_CURVE.html`), and audited live books.
+- **MT5 #5126976:** `bal=$2,580.62, eq=$2,579.20, free=$1,959.05`, **`17` open positions, `0` pending** (`#20516480 ETHUSD.pi SELL_LIMIT 0.09 @ 1660.0` filled prior to cancel check; total open SL risk **`$66.06` / `2.56%`** across `16` engine/desk trades + `$0.00` on BE-locked `#20432336 BNBUSD.p`).
+- **Delta #26902927:** Blocked externally by `ip_not_whitelisted_for_api_key` across both REST (`152.59.108.182`) and `delta-exchange-mcp` (`2409:40c0:2b:6f64:580a:3024:6212:6128`); user IP whitelist refresh required.
+- **Combined 8-Sleeve Engine OOS Curve (`2025-12-24 -> 2026-11-22`, 334d, 0.22%/$5.50 risk):** `Baseline +19.6R (+4.3%, Sharpe 1.01, Sortino 0.71)` -> `Combined +264.7R (+70.8%, $2,579.20 -> $4,405.41, Sharpe 1.63, Sortino 2.52, p=0.0306)`. Over 76d concurrent `15M+4H` overlap (`2026-09-08 -> 2026-11-22`): `+274.7R (+78.7%, Sharpe 5.15, Sortino 11.90, MaxDD -4.90%)`.
+- **Selfcheck:** `python scripts/antigravity_selfcheck.py` -> `11 pass · 0 warn · 0 fail`.
+
+**Confidence:** VERIFIED (`antigravity_selfcheck` + MT5 live readback + bar-by-bar parquet replay + Delta 401 IP error observed).
