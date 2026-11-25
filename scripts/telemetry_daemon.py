@@ -764,8 +764,13 @@ class AsyncTelemetryHarvester:
         res = await self.fetch_json(endpoint, timeout=timeout, heavy=heavy)
         if res and not res.get("_err"):
             val = transform(res) if transform else res
-            # Cache structurally unsupported assets (e.g. TradFi spot bookwalls) longer so we don't re-probe needlessly
-            effective_ttl = unsupported_ttl_secs if (isinstance(val, dict) and val.get("supported") is False) else ttl_secs
+            # Cache permanently unsupported assets (e.g. TradFi spot bookwalls) longer; retry temporary binance-fapi fallbacks quickly
+            if isinstance(val, dict) and val.get("supported") is False:
+                effective_ttl = unsupported_ttl_secs
+            elif isinstance(val, dict) and res.get("source") in ("binance-fapi", "hl-xyz") and cache_name == "bw":
+                effective_ttl = min(ttl_secs, 45.0)
+            else:
+                effective_ttl = ttl_secs
             if effective_ttl > 0 and val is not None:
                 cache.set(key, val)
             return val
@@ -868,16 +873,23 @@ class AsyncTelemetryHarvester:
             elif isinstance(existing_obj, list):
                 existing_bars = existing_obj
 
-        need_full = self.force_full_fp or (not raw_path) or (len(existing_bars) < min(120, target_bars // 2)) or (raw_age > 3600)
+        existing_has_fp = any(isinstance(b, dict) and b.get("fp") for b in existing_bars)
+        need_full = (
+            self.force_full_fp
+            or (not raw_path)
+            or (not existing_has_fp)
+            or (len(existing_bars) < min(120, target_bars // 2))
+            or (raw_age > 3600)
+        )
         init_lim = target_bars if (self.force_full_fp or itv != "m15") else min(target_bars, 300)
         fetch_lim = init_lim if need_full else delta_limit
         fp_res = await self.fetch_json(
             f"/api/cg/fp?sym={sym}&itv={itv}&limit={fetch_lim}",
-            timeout=16 if fetch_lim > 200 else 10,
+            timeout=24 if fetch_lim > 200 else 14,
             heavy=True,
         )
         if (not fp_res or fp_res.get("_err") or not fp_res.get("bars")) and fetch_lim > 150:
-            fp_res = await self.fetch_json(f"/api/cg/fp?sym={sym}&itv={itv}&limit=150", timeout=12, heavy=True)
+            fp_res = await self.fetch_json(f"/api/cg/fp?sym={sym}&itv={itv}&limit=150", timeout=18, heavy=True)
         if not (fp_res and fp_res.get("ok") and fp_res.get("bars")):
             stale_meta = CACHES["fp_meta"].get(cache_key, ttl_secs=ttl_secs, allow_stale=True)
             if stale_meta is not None:
@@ -899,7 +911,30 @@ class AsyncTelemetryHarvester:
                 }
             return None
 
-        merged_bars = _merge_fp_bars(existing_bars, fp_res.get("bars") or [], max_keep=target_bars)
+        new_bars = fp_res.get("bars") or []
+        new_has_fp = bool(fp_res.get("bucketsAvailable") and any(isinstance(b, dict) and b.get("fp") for b in new_bars))
+        # Non-clobbering guard: never overwrite good Coinglass fp buckets on disk with empty binance-fapi fallback rows!
+        if existing_has_fp and not new_has_fp:
+            rows, c_delta, with_fp_cnt = _summarize_fp_bars_with_diag(
+                sym, existing_bars, tf_label, summary_filename, delta_key, include_diag_levels=True
+            )
+            fp_meta = {
+                "bars_count": len(rows),
+                "with_fp_bars": with_fp_cnt,
+                "buckets_available": True,
+                "source": "coinglass_preserved_on_fallback",
+                delta_key: round(c_delta, 2),
+                "cum_delta": round(c_delta, 2),
+                "summary_file": f"data/telemetry/footprint/{sym}/{summary_filename}",
+                "bars_file": f"data/telemetry/footprint/{sym}/{raw_filename}" if raw_filename else None,
+                "recent_bars_tail": rows[-(8 if itv == "m15" else 6):] if rows else [],
+            }
+            del existing_bars
+            return fp_meta
+
+        # Self-healing guard: if existing bars were all fallback placeholders and Coinglass succeeded now, replace cleanly
+        base_bars = existing_bars if existing_has_fp else []
+        merged_bars = _merge_fp_bars(base_bars, new_bars, max_keep=target_bars)
         rows, c_delta, with_fp_cnt = _summarize_fp_bars_with_diag(
             sym, merged_bars, tf_label, summary_filename, delta_key, include_diag_levels=True
         )
@@ -1153,17 +1188,20 @@ class AsyncTelemetryHarvester:
                 heavy=True,
             )
 
-        # Book Walls across timeframes (timeout=24s so XAU/majors never drop under queue wait)
+        # Book Walls across timeframes (m15/1h + spot m15 for all; 1m/5m/spot-1h for top 26 Core Flow; 4h for Deep Core)
+        is_core_flow = is_deep_core or sym in {
+            "SUI", "UNI", "OP", "ARB", "APT", "DOT", "LTC", "BCH", "INJ", "TIA", "QQQ", "TSLA", "MSTR", "GOOGL"
+        }
         bw_specs = [
-            ("futures", "m15", 120.0 if is_prime else 900.0, 150),
-            ("futures", "1h", 300.0 if is_prime else 900.0, 150),
-            ("spot", "m15", 240.0 if is_prime else 900.0, 150),
+            ("futures", "m15", 180.0 if is_prime else 900.0, 150),
+            ("futures", "1h", 360.0 if is_prime else 900.0, 150),
+            ("spot", "m15", 300.0 if is_prime else 900.0, 150),
         ]
-        if is_prime:
+        if is_core_flow:
             bw_specs.extend([
                 ("futures", "1m", 300.0, 150),
                 ("futures", "5m", 480.0, 150),
-                ("spot", "1h", 480.0, 150),
+                ("spot", "1h", 600.0, 150),
             ])
         if is_deep_core:
             bw_specs.append(("futures", "4h", 1800.0, 60))
@@ -1688,8 +1726,8 @@ async def async_main() -> None:
             bench_cycles = max(1, int(sys.argv[idx + 1]))
 
     concurrency = int(os.environ.get("TELEMETRY_CONCURRENCY", os.environ.get("TELEMETRY_WORKERS", "8")))
-    cg_heavy_concurrency = int(os.environ.get("TELEMETRY_CG_CONCURRENCY", "4"))
-    worker_count = int(os.environ.get("TELEMETRY_ASSET_WORKERS", "6"))
+    cg_heavy_concurrency = int(os.environ.get("TELEMETRY_CG_CONCURRENCY", "2"))
+    worker_count = int(os.environ.get("TELEMETRY_ASSET_WORKERS", "4"))
     interval = int(os.environ.get("TELEMETRY_INTERVAL_SECS", "10"))
     tail_batch = int(os.environ.get("TELEMETRY_TAIL_BATCH", "20"))
     git_sync_secs = 0 if no_git else int(os.environ.get("TELEMETRY_GIT_SYNC_SECS", "600"))
