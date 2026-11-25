@@ -20176,3 +20176,12 @@ Live MT5 #5126976 plan-approved cancellation & blotter reconciliation (Bal=$2580
   * CANCEL: USWTI.p #20496682 (SELL_LIMIT 0.05 @ 82.38, SL 83.48, TP 80.18, retcode=10009) — PIT-21 basis-adjusted CL liq shelves 83.49-84.51 clear SL + CL fut.h4 $5.11M bid wall 80.00; frees $5.50 risk.
   * HOLD: BNBUSD.p #20432336 (SL 554.50, +$1.22 locked, $0 risk), EURUSD.pi #20467916 (SL 1.10280, effRisk $5.36), ETHUSD.pi #20498955 (SELL_LIMIT 0.15 @ 1671.50, $5.40 risk), GBPNZD.pi #20499902 (BUY_LIMIT 0.02 @ 2.39400, $6.00 risk).
   * Aggregate Book Risk: $5.36 open + $11.40 pending = $16.76 USD (0.648% <= 1.000% Cap $25.88; $8.24 headroom under $25.00 floor). desk/state.json (2026-11-22T15:58:14Z) superseded by live MT5 readback.
+
+## EXECUTE, REPLACE & ILK-01 HALT · 2026-11-25 08:48 UTC · Antigravity (R22)
+
+Autonomous execution round post-restart on MT5 #5126976 (Bal=$2580.62, Eq=$2587.20, Cap1%=$25.87):
+  * DELTA INTERLOCK HALT (ILK-01): #26902927 get_wallet_balances/get_open_orders HTTP 401 ip_not_whitelisted_for_api_key (client_ip: 116.50.84.115). Recorded in desk/events/interlock_20261125_141327.json.
+  * CANCEL + REPLACE (PIT-21): Cancelled ETHUSD.pi #20498955 (SL 1707.50 caught under new 1713.89-1715.39 3d/7d/30d liq peaks) -> Placed #20501509 SELL_LIMIT 0.10 @ 1671.50, SL 1725.50, TP 1563.50 ($5.40 risk, $10.80 TP, 2.00R, retcode=10009).
+  * NEW TRADE: NOKJPY.pi #20501510 SELL_LIMIT 0.09 @ 16.205, SL 16.302 (clears H1 EMA89 16.261 & D1/H4 high 16.297), TP 16.011 (above D1/H4 low 15.952), $5.48 risk, $10.95 TP, 2.00R, retcode=10009. Aligned M15 r=(+0.238 BNB, +0.169 EUR, +0.251 ETH, -0.231 GBPNZD).
+  * HOLD: BNBUSD.p #20432336 ($0 risk, +$1.22 locked), EURUSD.pi #20467916 ($5.36 risk, 2.11R), GBPNZD.pi #20499902 ($6.00 risk, 2.00R).
+  * Aggregate Book Risk: $5.36 open + $16.88 pending = $22.24 USD (0.860% <= 1.000% Cap $25.87). All 4 background daemons restarted and active.
