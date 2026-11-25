@@ -52,6 +52,7 @@ import time
 
 import numpy as np
 import pandas as pd
+import requests
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CFG_PATH = os.path.join(ROOT, "engine", "config.json")
@@ -80,7 +81,8 @@ DEFAULT_CFG = {
         "min_atr_pct": 0.0005,         # skip dead markets (ATR/price floor)
         "side_mode": "auto"            # auto = trade the aligned side (research: shorts)
     },
-    "risk": {"risk_per_trade_pct": 0.5, "max_concurrent": 4, "daily_loss_cap_pct": 1.5},
+    "risk": {"risk_per_trade_pct": 0.22, "risk_usd_target": 5.5, "risk_usd_max": 6.0,
+             "max_concurrent": 4, "max_portfolio_risk_pct": 1.0, "daily_loss_cap_pct": 1.5},
     "data": {"store": "binance_orderflow/data", "bar_tf": "15m", "symbols": "SUITE"},
     "dfib": {"tp_r": 2.0, "wick_tol_atr": 0.15, "ema_period": 50},
     "vc": {"tp_r": 2.0, "bb_period": 20, "bb_mult": 2.0, "kc_mult": 1.5,
@@ -101,7 +103,7 @@ DEFAULT_CFG = {
         "ALGOUSDT": "ALGUSD.p", "VETUSDT": "VETUSD.p"
     },
     "execution": {"venue": "paper", "magic": 20261124, "deviation_points": 20,
-                  "max_spread_points": 150, "max_data_age_min": 20}
+                  "max_spread_points": 350, "max_spread_risk_ratio": 0.20, "max_data_age_min": 20}
 }
 
 
@@ -115,8 +117,12 @@ def load_cfg(path: str = CFG_PATH) -> dict:
                 cfg[k].update(v)
             else:
                 cfg[k] = v
+    store_dir = cfg["data"]["store"]
+    if not os.path.isabs(store_dir):
+        store_dir = os.path.join(ROOT, store_dir)
+        cfg["data"]["store"] = store_dir
     # per-asset research overrides (written by scripts/aec_per_asset.py)
-    ov_path = os.path.join(cfg["data"]["store"], "research", "aec_asset_overrides.json")
+    ov_path = os.path.join(store_dir, "research", "aec_asset_overrides.json")
     if os.path.exists(ov_path):
         with open(ov_path) as f:
             cfg["asset_overrides"] = json.load(f).get("asset_overrides", {})
@@ -126,6 +132,109 @@ def load_cfg(path: str = CFG_PATH) -> dict:
 # ================================================================ features ==
 def ema(s: pd.Series, n: int) -> pd.Series:
     return s.ewm(span=n, adjust=False).mean()
+
+
+def _fetch_fapi_klines(sym: str, interval: str, limit: int = 360) -> pd.DataFrame | None:
+    """Fetch official Binance Futures UM klines (includes taker_buy_quote for exact delta)."""
+    url = f"https://fapi.binance.com/fapi/v1/klines?symbol={sym}&interval={interval}&limit={limit}"
+    try:
+        r = requests.get(url, timeout=8)
+        if r.status_code in (418, 429):
+            time.sleep(2.0)
+            return None
+        if r.status_code != 200:
+            return None
+        rows = r.json()
+        if not rows:
+            return None
+        recs = []
+        for k in rows:
+            vb = float(k[5])
+            vq = float(k[7])
+            tb = float(k[9])
+            tq = float(k[10])
+            dq = 2.0 * tq - vq
+            dv = 2.0 * tb - vb
+            recs.append({
+                "ts": int(k[0]),
+                "o": float(k[1]),
+                "h": float(k[2]),
+                "l": float(k[3]),
+                "c": float(k[4]),
+                "n_trades": int(k[8]),
+                "vol_base": vb,
+                "vol_quote": vq,
+                "delta_vol": dv,
+                "delta_quote": dq,
+                "delta_pct": (dq / vq) if vq > 0 else 0.0,
+            })
+        return pd.DataFrame(recs)
+    except Exception:
+        return None
+
+
+def _build_fapi_tail_frame(sym: str, tf: str = "15m") -> pd.DataFrame | None:
+    """Live Binance Futures REST frame when Vision daily dumps lag intraday."""
+    if tf not in ("5m", "15m"):
+        return None
+    df = _fetch_fapi_klines(sym, tf, limit=360)
+    h1 = _fetch_fapi_klines(sym, "1h", limit=160)
+    if df is None or h1 is None or len(df) < 250 or len(h1) < 60:
+        return None
+    df = df.sort_values("ts").reset_index(drop=True)
+    df["body_mid"] = (df["o"] + df["c"]) / 2.0
+    df["ema20b"] = ema(df["body_mid"], 20)
+    df["ema50b"] = ema(df["body_mid"], 50)
+    tr = np.maximum(df["h"] - df["l"], np.maximum((df["h"] - df["c"].shift()).abs(),
+                                                  (df["l"] - df["c"].shift()).abs()))
+    df["atr"] = tr.rolling(14).mean()
+    rng = (df["h"] - df["l"]).replace(0, np.nan)
+    df["close_pos"] = ((df["c"] - df["l"]) / rng).clip(0, 1)
+    df["vol_ma20"] = df["vol_base"].rolling(20).mean()
+    df["is_low12"] = df["l"] <= df["l"].rolling(12).min() + 1e-12
+    df["is_high12"] = df["h"] >= df["h"].rolling(12).max() - 1e-12
+    dp = df["delta_pct"]
+    dq = df["delta_quote"]
+    df["ac_abs_low"] = df["is_low12"] & (dp > 0.02)
+    df["ac_abs_high"] = df["is_high12"] & (dp < -0.02)
+    df["ac_dflip_low"] = (dq.shift(1) < 0) & (dq > 0) & (df["l"] <= df["l"].shift(1))
+    df["ac_dflip_high"] = (dq.shift(1) > 0) & (dq < 0) & (df["h"] >= df["h"].shift(1))
+    for col in ("ac_hvn_low", "ac_hvn_high", "ac_imb_low", "ac_imb_high"):
+        df[col] = False
+    df["ac_climax_low"] = (df["vol_base"] > 2.0 * df["vol_ma20"]) & df["is_low12"] & (df["c"] > df["o"])
+    df["ac_climax_high"] = (df["vol_base"] > 2.0 * df["vol_ma20"]) & df["is_high12"] & (df["c"] < df["o"])
+    ext_up = ((df["h"] - df["ema20b"]) / df["atr"]).rolling(12).max()
+    ext_dn = ((df["ema20b"] - df["l"]) / df["atr"]).rolling(12).max()
+    df["depth_up_ok"] = (ext_up >= 1.5).fillna(False)
+    df["depth_dn_ok"] = (ext_dn >= 1.5).fillna(False)
+    df["reclaim_up"] = df["c"] > df["ema20b"]
+    df["reclaim_dn"] = df["c"] < df["ema20b"]
+    df["touch_low5"] = (df["l"] <= df["ema20b"] * (1 + 0.0025)).rolling(5).max().fillna(0).astype(bool)
+    df["touch_high5"] = (df["h"] >= df["ema20b"] * (1 - 0.0025)).rolling(5).max().fillna(0).astype(bool)
+    h1 = h1.sort_values("ts").reset_index(drop=True)
+    h1["hb"] = (h1["o"] + h1["c"]) / 2.0
+    h1["he20"] = ema(h1["hb"], 20)
+    h1["he50"] = ema(h1["hb"], 50)
+    h1["htf_up"] = h1["he20"] > h1["he50"]
+    h1["htf_dn"] = h1["he20"] < h1["he50"]
+    h1_sub = h1[["ts", "htf_up", "htf_dn"]].rename(columns={"ts": "h1_ts"})
+    df["h1_ts"] = (df["ts"] // 3600000) * 3600000
+    df = df.merge(h1_sub, on="h1_ts", how="left").drop(columns=["h1_ts"])
+    df[["htf_up", "htf_dn"]] = df[["htf_up", "htf_dn"]].ffill().fillna(False)
+    df["e89"] = ema(df["c"], 89)
+    df["e233"] = ema(df["c"], 233)
+    df["slope233"] = df["e233"] - df["e233"].shift(5)
+    df["upper_wick"] = df["h"] - np.maximum(df["o"], df["c"])
+    df["lower_wick"] = np.minimum(df["o"], df["c"]) - df["l"]
+    df["day"] = df["ts"] // 86400000
+    hod = (df["ts"] % 86400000) // 300000 // 4
+    orb_win = df[hod == 0].groupby("day").agg(r_hi=("h", "max"), r_lo=("l", "min")).reset_index()
+    df = df.merge(orb_win, on="day", how="left")
+    df[["r_hi", "r_lo"]] = df[["r_hi", "r_lo"]].shift(1)
+    df.loc[hod == 0, ["r_hi", "r_lo"]] = np.nan
+    df["ac_any_low"] = df["ac_abs_low"] | df["ac_dflip_low"] | df["ac_climax_low"]
+    df["ac_any_high"] = df["ac_abs_high"] | df["ac_dflip_high"] | df["ac_climax_high"]
+    return df
 
 
 def build_5m_frames(sym: str, store: str, tf: str = "15m") -> pd.DataFrame | None:
@@ -431,6 +540,7 @@ def wilder_atr_np(h: np.ndarray, l: np.ndarray, c: np.ndarray, period: int = 14)
 
 def _ensure_atr14w(d: pd.DataFrame) -> pd.DataFrame:
     if "atr14w" not in d.columns:
+        d = d.copy()
         d["atr14w"] = wilder_atr_np(d["h"].to_numpy(float), d["l"].to_numpy(float),
                                     d["c"].to_numpy(float), 14)
     return d
@@ -441,7 +551,7 @@ def _dfib_bands(d: pd.DataFrame) -> pd.DataFrame:
     Volume weight = vol_base (real traded volume from the orderflow store)."""
     if "vwap" in d.columns:
         return d
-    _ensure_atr14w(d)
+    d = _ensure_atr14w(d).copy()
     ts = pd.to_datetime(d["ts"], unit="ms", utc=True)
     vol = d["vol_base"].clip(lower=1e-9)
     tp = (d["h"] + d["l"] + d["c"]) / 3.0
