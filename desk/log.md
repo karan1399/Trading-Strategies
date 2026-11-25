@@ -20199,3 +20199,9 @@ Exhaustive 252-asset audit (`161` Coinglass, `91` MT5-OHLCV, `0` malformed; `99`
   * NEW TRADE: `JP225.p` `#20502882` `SELL_LIMIT 0.07 @ 57070.0, SL 57660.0, TP 55890.0` (`retcode=10009`, `$2.59` risk, `$5.18` TP, `2.00R`, `1.02%` spr/risk, max pairwise `|r|=0.21` vs book, `4TF=SSSS/SSSS`).
   * HOLD UNCHANGED: `BNBUSD.p` `#20432336` (`$0` risk, `+$3.76`), `EURUSD.pi` `#20467916` (`$5.36` risk, `+$3.48`, BE at `<1.09208`), `GBPNZD.pi` `#20499902` (`$6.00`), `ETHUSD.pi` `#20501509` (`$5.40`), `NOKJPY.pi` `#20501510` (`$5.48`).
   * Aggregate Book Risk: `$5.36` open + `$19.47` pending = **`$24.83 USD` (`0.960% <= $25.00` ceiling / `1.00%` `$25.88` cap)**.
+
+## ENGINE DUAL-VENUE · 2026-11-25 09:31 UTC · Antigravity (R26)
+
+Wired automatic Delta Exchange India execution (`scripts/delta_exec.py`) into BOTH `footprint_alpha/engine/unified_alpha_pilot.py` (18 mapped crypto perps) and root `engine/unified_alpha_pilot.py` (`XAUUSD.pi -> XAUTUSD`):
+  * Enforces `ILK-01` pre-batch check (`/v2/wallet/balances`), integer contract sizing (`delta_contracts_for_risk`), tick-snapping (`snap_tick`), server-side brackets (`bracket_stop_loss_price` + `bracket_take_profit_price`), and `1.0%` per-trade / `2.0%` book cap.
+  * VERIFIED: `footprint_alpha --mode selftest` (`24/24 PASS`), `engine --selftest` (`S1..S5 PASS`). Both daemons restarted `--live`. Delta awaits operator IP whitelist (`116.50.84.115`).
