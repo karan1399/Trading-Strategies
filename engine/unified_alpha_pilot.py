@@ -945,18 +945,24 @@ def _closed_arrays(df, limit=None):
 
 def selftest() -> bool:
     import pandas as pd
-    cfg = json.load(open(CONFIG_PATH))
+    cfg = load_resolved_config(CONFIG_PATH)
     failures = []
     print("=" * 88)
-    print("SELFTEST — causal determinism, brackets, risk math, governor")
+    print("SELFTEST — causal determinism, brackets, risk math, governor, S8 vol-target")
     print("=" * 88)
 
     # ---- S1: causality — signal at bar k identical when computed on prefix vs full
     print("\nS1 causal determinism (prefix == full at every probe):")
-    cases = [("XAUUSD.pi", "4H", "htf_gold", cfg["sleeves"]["htf_gold"]["symbols"]["XAUUSD.pi"]),
-             ("XAUUSD.pi", "4H", "vc_gold", cfg["sleeves"]["vc_gold"]["symbols"]["XAUUSD.pi"]),
-             ("EURUSD.pi", "15M", "ivwall", cfg["sleeves"]["ivwall"]),
-             ("NAS100.p", "15M", "orb_nas", cfg["sleeves"]["orb_nas"])]
+    cases = [
+        ("XAUUSD.pi", "4H", "htf_gold", cfg["sleeves"]["htf_gold"]["symbols"]["XAUUSD.pi"]),
+        ("XAUUSD.pi", "4H", "vc_gold", cfg["sleeves"]["vc_gold"]["symbols"]["XAUUSD.pi"]),
+        ("EURUSD.pi", "15M", "ivwall", cfg["sleeves"]["ivwall"]),
+        ("NAS100.p", "15M", "orb_nas", cfg["sleeves"]["orb_nas"]),
+        ("SOLUSD.p", "4H", "ig_s7_daily_pivot", cfg["sleeves"]["ig_s7_daily_pivot"]),
+        ("ETHUSD.pi", "4H", "ig_s5_zscore_breakout", cfg["sleeves"]["ig_s5_zscore_breakout"]),
+        ("BNBUSD.p", "4H", "ig_s1_williams_pullback", cfg["sleeves"]["ig_s1_williams_pullback"]),
+        ("SP500.p", "4H", "ig_s2_rsi2_meanrev", cfg["sleeves"]["ig_s2_rsi2_meanrev"]),
+    ]
     for sym, tf, sname, params in cases:
         df = _load_parquet(sym, tf)
         o, h, l, c, tm = _closed_arrays(df)
@@ -965,8 +971,9 @@ def selftest() -> bool:
             df4 = _load_parquet(sym, "H4")
             htf_c4 = df4["close"].to_numpy(float)
         n = len(c)
-        probes = sorted(set([min(300, n - 2), n // 2, n - 51, n - 30, n - 2]))
+        probes = sorted(set([min(350, n - 2), n // 2, n - 51, n - 30, n - 2]))
         sig_series = ewma_sigma(c, 0.94) if sname == "ivwall" else None
+        mod_fn = load_signal_fn(params["module"]) if isinstance(params, dict) and params.get("module") else None
         bad = 0
         for k in probes:
             def run(arrs, sigs=None):
@@ -980,7 +987,9 @@ def selftest() -> bool:
                     spans = session_spans_from(tt[: k + 1], 2)
                     return sig_ivwall_at(oo, hh, ll, cc, tt, atr, sigs, k,
                                          {**params, "broker_utc_offset": 2}, spans)
-                return sig_orb_at(oo, hh, ll, cc, tt, atr, htf_c4, k, params)
+                if sname == "orb_nas":
+                    return sig_orb_at(oo, hh, ll, cc, tt, atr, htf_c4, k, params)
+                return mod_fn(oo, hh, ll, cc, tt, atr, k, params.get("params", {}), {"htf_c4": htf_c4})
             full = run((o, h, l, c, tm), sig_series)
             k_eff = min(k, 4999)
             pref = run((o[:k_eff + 1], h[:k_eff + 1], l[:k_eff + 1], c[:k_eff + 1], tm[:k_eff + 1]),
@@ -991,7 +1000,7 @@ def selftest() -> bool:
             if not same:
                 bad += 1
         status = "OK" if bad == 0 else f"FAIL ({bad}/{len(probes)} probes differ)"
-        print(f"  {sname:<10} {sym:<10} {tf}: {status}")
+        print(f"  {sname:<24} {sym:<10} {tf}: {status}")
         if bad:
             failures.append(f"causality {sname}")
 
@@ -1011,8 +1020,9 @@ def selftest() -> bool:
         n = len(c)
         atr = wilder_atr(h, l, c, 14)
         sig_series = ewma_sigma(c, 0.94) if sname == "ivwall" else None
+        mod_fn = load_signal_fn(params["module"]) if isinstance(params, dict) and params.get("module") else None
         trades, naked = [], 0
-        i0 = 60 if sname != "vc_gold" else max(60, n - 2000)
+        i0 = max(210, n - 2500) if sname.startswith("ig_") else (60 if sname != "vc_gold" else max(60, n - 2000))
         i = i0
         cool = 0
         while i < n - 2:
@@ -1027,8 +1037,10 @@ def selftest() -> bool:
                 spans = session_spans_from(tm[:i + 1], 2)
                 sig = sig_ivwall_at(o[:i + 1], h[:i + 1], l[:i + 1], c[:i + 1], tm[:i + 1], atr,
                                     sig_series[:i + 1], i, {**params, "broker_utc_offset": 2}, spans)
-            else:
+            elif sname == "orb_nas":
                 sig = sig_orb_at(o[:i + 1], h[:i + 1], l[:i + 1], c[:i + 1], tm[:i + 1], atr, htf_c4, i, params)
+            else:
+                sig = mod_fn(o[:i + 1], h[:i + 1], l[:i + 1], c[:i + 1], tm[:i + 1], atr, i, params.get("params", {}), {"htf_c4": htf_c4})
             if sig is None:
                 i += 1
                 continue
@@ -1167,6 +1179,23 @@ def selftest() -> bool:
     print(f"  htf_gold replay A==B -> {'OK' if same else 'FAIL'} ({a})")
     if not same:
         failures.append("determinism")
+    s7a = replay("SOLUSD.p", "4H", "ig_s7_daily_pivot", cfg["sleeves"]["ig_s7_daily_pivot"], 3.5)
+    s7b = replay("SOLUSD.p", "4H", "ig_s7_daily_pivot", cfg["sleeves"]["ig_s7_daily_pivot"], 3.5)
+    same7 = s7a == s7b
+    print(f"  ig_s7_daily_pivot replay A==B -> {'OK' if same7 else 'FAIL'} ({s7a})")
+    if not same7:
+        failures.append("determinism s7")
+
+    # ---- S6: IG-S8 Volatility-Targeting risk overlay bounds
+    print("\nS6 IG-S8 volatility targeting ($5.00..$6.00 bounded risk):")
+    calm_c = 100.0 + np.linspace(0, 1.0, 40) + 0.05 * np.sin(np.arange(40))
+    wild_c = 100.0 + np.cumsum(np.where(np.arange(40) % 2 == 0, 3.0, -2.8))
+    r_calm = vol_target_risk_usd(calm_c, "H4", 5.5, 5.0, 6.0)
+    r_wild = vol_target_risk_usd(wild_c, "H4", 5.5, 5.0, 6.0)
+    ok_s8 = (5.0 <= r_wild <= r_calm <= 6.0)
+    print(f"  calm=${r_calm:.2f}, high_vol=${r_wild:.2f} -> {'OK' if ok_s8 else 'FAIL'}")
+    if not ok_s8:
+        failures.append("s8_vol_target")
 
     # cleanup selftest artifacts
     for f in ("selftest_journal.csv", "selftest_state.json"):
@@ -1189,7 +1218,7 @@ def main():
     ap.add_argument("--loop-seconds", type=int, default=None)
     args = ap.parse_args()
 
-    cfg = json.load(open(CONFIG_PATH))
+    cfg = load_resolved_config(CONFIG_PATH)
     if args.selftest:
         sys.exit(0 if selftest() else 1)
     if args.status:
