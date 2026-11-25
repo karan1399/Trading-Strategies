@@ -20137,3 +20137,19 @@ Punched dual high-confluence limit orders on Blueberry MT5:
   * Ticket #20458013: BTCUSD.pi BUY_LIMIT 0.01 lots @ 58550.00 (SL 57450.00, TP 61000.00, 2.23R)
   * Broker Retcode: 10009 on both submissions.
   * Active blotter: 2 running positions (BNB, EURUSD) + 2 resting L2 limit orders (XAU, BTC).
+
+## EXECUTE & MODIFY · 2026-11-25 06:42 UTC · Antigravity (R15)
+
+Synced live MT5 #5126976 autonomous execution batch (Bal=$2570.35, Eq=$2583.91, Cap1%=$25.84):
+  * MODIFY SLTP: UNIUSD.p #20475921 (SELL 0.05 @ 4.740) -> SL 4.735 -> 4.702 (TP 4.535 held, +$1.90 locked, retcode=10009).
+  * CANCEL + REPLACE: ETHUSD.pi #20480855 removed (SL 1.714.50 was inside 1,713.89-1,720.76 3d/7d/30d cluster); staged #20496681 SELL_LIMIT 0.18 @ 1,695.50, SL 1,724.50, TP 1,637.50 ($5.22 risk, 2.00R, retcode=10009).
+  * EXECUTE PENDING: USWTI.p #20496682 SELL_LIMIT 0.05 @ 82.38, SL 83.48, TP 80.18 ($5.50 risk, 2.00R, 2.7% spread, +0.08 crypto corr, retcode=10009).
+  * HOLD: BNBUSD.p #20432336 (SL 554.50, +$1.22 locked) & EURUSD.pi #20467916 (SL 1.10280, effRisk $5.36).
+  * Aggregate Book Risk: $5.36 open + $10.72 pending = $16.08 USD (0.622% <= 1.000% Cap). desk/state.json updatedAt=2026-11-22T15:58:14Z legacy snapshot flagged as stale; live MT5 readback governs.
+
+## MODIFY · 2026-11-25 07:35 UTC · Antigravity (R17)
+
+Live MT5 #5126976 trailing SL ratchet executed (Bal=$2570.35, Eq=$2584.91, Cap1%=$25.85):
+  * MODIFY SLTP: UNIUSD.p #20475921 (SELL 0.05 @ 4.740, +$7.55 / +1.51R) -> SL 4.702 -> 4.680 (TP 4.535 held; +$3.00 / +0.60R locked above MT5 M15 EMA89 4.6710 & 4.64/4.66 ask walls; retcode=10009).
+  * HOLD: BNBUSD.p #20432336 (SL 554.50, +$1.22 locked), EURUSD.pi #20467916 (effRisk $5.36), ETHUSD.pi #20496681 (0.18 @ 1695.50, $5.22), USWTI.p #20496682 (0.05 @ 82.38, $5.50).
+  * Aggregate Book Risk: $5.36 open + $10.72 pending = $16.08 USD (0.622% <= 1.000% Cap). desk/state.json legacy 2026-11-22 snapshot remains superseded by live MT5 readback.

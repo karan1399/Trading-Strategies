@@ -3510,3 +3510,84 @@ Empirical audit of today's MT5 deal history reveals the exact root causes of sto
 - Honest Discrepancies Disclosed (`WS-15`): `list_plugin_accounts` reports MCP sign-in needed for `coderabbit`, `cloudflare`, `harness-antigravity` (local SKILL.md files used cleanly); `desk/state.json` register retains Nov-22 entries pending `desk_daemon` reconcile; internal `task-22129` cron not active (`antigravity_auto_wake.ps1` + local daemons verified).
 
 **Confidence:** VERIFIED (Fresh tool outputs observed across MT5 API, `telemetry_daemon.py --once`, `telemetry_16p_engine.py`, `antigravity_selfcheck.py`).
+
+
+### [2026-11-24T20:43:00Z] · Antigravity · AUTONOMOUS QUANT DESK REVIEW #13 (EXHAUSTIVE MICROSTRUCTURE AUDIT & LIVE MT5 OPTIMIZATION)
+**Verdict:** FULL 252-ASSET TELEMETRY INVENTORY VERIFIED (`17.95 MB`, `0` malformed) · ALL 5 ACTIVE MT5 ASSETS AUDITED ACROSS 16 TELEMETRY DIMENSIONS & 200-BAR M15 CORRELATIONS · INTERLOCK `trade_allowed=True` PASSED · 5 LIVE MT5 ACTIONS EXECUTED (`retcode=10009`, VERIFIED BY READBACK) REDUCING BOOK RISK FROM `$25.14 (0.976%)` TO `$20.96 USD (0.814%)` WHILE ELIMINATING BTC & ETH STOPMAP LIQUIDATION TRAPS.
+
+#### 1. Autonomous MT5 Executions Landed (`#5126976`, All `retcode=10009`)
+- **Equity / Cap**: Balance `$2,570.35 USD` | Equity `$2,574.92 USD` | Free Margin `$2,366.55 USD` | `1.0%` Cap `$25.75 USD`.
+- **`BNBUSD.p` `#20432336` (`SELL 0.19 @ 560.90`, `+$2.43`)**: `TRADE_ACTION_SLTP` tightened **SL `586.08 -> 562.50`** (`TP 503.43` unchanged), dropping effective open risk **`$4.78 -> $0.30 USD`** (`+$4.48` risk freed) while clearing `Week POC 556.89`, `Narrative Stop 557.85`, and `Stopmap 560.90 ($444k)` above `+0.319` Spot bid imbalance.
+- **`UNIUSD.p` `#20475921` (`SELL 0.05 @ 4.740`, `+$1.55`)**: `TRADE_ACTION_SLTP` optimized **TP `4.490 -> 4.535`** (`2.05R`, `$10.25`; SL `4.840` held, risk `$5.00`), front-running the `4.515–4.497` Stopmap floor while capturing `4.607–4.576` liquidations.
+- **`BTCUSD.pi` `#20471818` (`SELL_LIMIT 0.01`)**: `TRADE_ACTION_MODIFY` re-anchored **`60,350 -> 60,625.0`, SL `60,850 -> 61,155.0`, TP `59,250 -> 59,280.0`** (`$5.30` risk, `$13.45` reward, `2.54R`), pulling SL out of `60,933 ($96.86M largestLevel)` and `61,133 ($67.35M)` Stopmap shelves.
+- **`ETHUSD.pi` (`#20473049 -> #20480855`)**: Removed `0.25 @ 1,692.0 / SL 1,712.0` (`TRADE_ACTION_REMOVE`) and placed **`0.20 @ 1,693.50, SL 1,718.50, TP 1,643.00`** (`TRADE_ACTION_PENDING`, `$5.00` risk, `2.02R`), lifting SL clear of `1,710` H4 ask wall & `1,710.89–1,716.52 ($29M/$25M/$20M)` Stopmaps.
+- **`EURUSD.pi` `#20467916` (`SELL 0.01 @ 1.09744`, `+$0.62`)**: Held unchanged (`SL 1.10280, TP 1.08615`, risk `$5.36`, `2.11R`; orthogonal `+0.008` crypto M15 correlation).
+- **Post-Execution Aggregate Risk**: Open `$10.66 (0.414%)` + Pending `$10.30 (0.400%)` = **`$20.96 USD` (`0.814%` <= `1.000%` Cap)** | Remaining Headroom: `$4.79 USD`. Verified `NO NEW TRADES` (`SOL` `+0.923` crypto beta + `spot_m15 +0.474`; `XAU`/`XAG` fail `minLot` `$5–$6` sizing at `$39.70`/`$27.50`).
+
+#### 2. Forensic Telemetry Findings & Honest Limitations (`WS-15`)
+- **Data Gaps Verified**: `summary_7d`/`1h` footprint files show `buy_vol=0.0` skeletons; `large_orders` empty `[]`; `BNB/UNI/ETH` `3d/7d/30d` cluster snapshots mirror identically (`BTC` splits `3d != 7d`); `EURUSD` Coinglass layers `UNAVAILABLE` (`mt5_ohlcv` feed); `coderabbit_coderabbit`/`cloudflare`/`harness-antigravity` MCP tools awaiting user sign-in (`list_plugin_accounts`).
+
+**Confidence:** VERIFIED (All 5 MT5 requests returned `retcode=10009` with immediate live blotter readback; `antigravity_selfcheck.py` re-verified post-write).
+
+
+### [2026-11-25T06:07:30Z] · Antigravity · AUTONOMOUS QUANT DESK REVIEW #14 (11:37 IST PORTFOLIO DEFENSE, TSL RATCHETS & LIMIT RE-ANCHOR)
+**Verdict:** 252-ASSET INVENTORY VERIFIED (`9.71 MB`, `0` malformed; `daemon` timeout bug logged where `EURUSD`/Tier-1 JSONs fell back to `null` snapshots at `05:57 UTC`, bypassed via live `:3000` + MT5 direct reads) · INTERLOCK `trade_allowed=True` PASSED · 4 LIVE MT5 ACTIONS EXECUTED (`retcode=10009`) LOCKING PROFIT ON `BNB` & `UNI`, CANCELLING ABANDONED `BTC` LIMIT, AND RE-ANCHORING `ETH` TO `1,689.50` · BOOK RISK REDUCED FROM `$20.96 (0.811%)` TO `$10.36 USD (0.401%)` WHILE OPEN EQUITY HIT `$2,583.56 USD`.
+
+#### 1. Autonomous MT5 Executions Landed (`#5126976`, All `retcode=10009`)
+- **Account Equity**: Balance `$2,570.35 USD` | Equity `$2,583.56 USD` (`+$13.28` open PnL) | Free Margin `$2,375.19 USD` | `1.0%` Cap `$25.84 USD`.
+- **`UNIUSD.p` `#20475921` (`SELL 0.05 @ 4.740`, `+$6.15 / +1.23R`)**: `TRADE_ACTION_SLTP` activated **`SL 4.840 -> 4.735`** (`TP 4.535` held), locking **`+$0.25` profit floor (`effRisk $0.00`, freeing `$5.00`)** cleanly above `dayHigh 4.732` and `Stopmap 4.7292`.
+- **`BNBUSD.p` `#20432336` (`SELL 0.19 @ 560.90`, `+$3.57`)**: `TRADE_ACTION_SLTP` ratcheted **`SL 562.50 -> 554.50`** (`TP 503.43` held), locking **`+$1.22` guaranteed profit (`effRisk $0.00`, freeing `$0.30`)** cleanly above `dayHigh 549.13`, `H1 EMA89 547.31`, and `Stopmap 551.91 ($290k)`.
+- **`EURUSD.pi` `#20467916` (`SELL 0.01 @ 1.09744`, `+$3.56 / +0.66R`)**: Kept unchanged (`SL 1.10280, TP 1.08615`, `effRisk $5.36`, `2.11R`; all `M15/H1/H4` EMAs aligned bearish at `1.09388`; `-0.010` crypto correlation).
+- **`BTCUSD.pi` `#20471818` (`SELL_LIMIT 0.01 @ 60,625.0`)**: **`TRADE_ACTION_REMOVE` CANCELLED** (`frees $5.30`). Spot dropped `-1,622 pts` to `59,002.5`, slicing past prior `TP 59,280`, while live `Narrative` shifted to `COMPRESSION_SQUEEZE NEUTRAL B(40) (ez=None)` and `minLot 0.01` prevents wide cold-zone stop clearance under `$6` cap.
+- **`ETHUSD.pi` `#20480855` (`SELL_LIMIT 0.20`)**: `TRADE_ACTION_MODIFY` re-anchored **`1,693.50 -> 1,689.50`, SL `1,718.50 -> 1,714.50`, TP `1,643.00 -> 1,639.50`** (`$5.00 risk`, `2.00R`), clearing `1,699.72 ($31.85M largestLevel)` + `1,706.55 ($17.17M)` + `Narrative 1,703.37` and targeting `1,639.61 ($19.44M)` Stopmap.
+- **Post-Execution Book Risk**: Open `$5.36 (0.207%)` + Pending `$5.00 (0.194%)` = **`$10.36 USD (0.401% <= 1.000% Cap)`** | Free Headroom: `$15.48 USD`. Verified `NO NEW TRADES` (`XAU`/`NAS100` violate `minLot` `$5–$6` stop sizing; `SOL` `+0.924` ETH beta + recent buy FP/CVD divergence at `68.45`).
+
+#### 2. Forensic Telemetry Alert & Code Verification (`@coderabbit` Local Triage)
+- **Pipeline Bug Detected**: `telemetry_daemon.py` (`05:57 UTC` sweep) overwrote `EURUSD.json` with `feed_type=coinglass_perp` and recorded `ticker: null / market_structure: null` on several majors (`BNB/BTC/ETH`) during heavy 161-asset HTTP queuing (`45s` per extended coin), causing `telemetry_16p_engine.py` to print `LAST=0.0000 / UNKNOWN` for cached files. Bypassed with direct live `:3000` + MT5 closed-bar calculations; code left untouched pending dedicated fix + review pass.
+
+**Confidence:** VERIFIED (Live MT5 retcodes `10009` + readback confirmed; `antigravity_selfcheck.py` re-verified post-COUNCIL update).
+
+### [2026-11-25T06:42:00Z] · Antigravity · AUTONOMOUS QUANT DESK REVIEW #15 (12:12 IST DEEP 16P, CORRELATION AUDIT & USWTI/ETH/UNI EXECUTION)
+**Verdict:** 252-ASSET INVENTORY VERIFIED (`telemetry_16p_engine.py --verify-gate` `40/40 <= 600s`; 45-SYMBOL LIQUID MT5 UNIVERSE + 180-BAR M15 CORRELATION MATRIX AUDITED) · INTERLOCK `trade_allowed=True` PASSED · 4 ATOMIC MT5 ACTIONS LANDED (`retcode=10009`: `UNI` TSL ratchet to `+$1.90` floor, `ETH` cold-zone replace `#20480855 -> #20496681` clearing ALL `3d/7d/30d` liq shelves `1,713.89-1,720.76`, and new orthogonal `USWTI.p` short limit `#20496682`) · BOOK RISK `$16.08 USD (0.622% <= 1.000% Cap $25.84)`.
+
+#### 1. Post-Execution Live MT5 Blotter (`#5126976`, Immediate Readback)
+- **Account**: Balance `$2,570.35 USD` | Equity `$2,583.91 USD` | Free Margin `$2,375.54 USD` | `1.0%` Cap `$25.84 USD`.
+- **`BNBUSD.p` `#20432336` (`SELL 0.19 @ 560.90`, `+$3.38`)**: Held (`SL 554.50, TP 503.43`, `effRisk $0.00`, `+$1.22` locked above `H4` ask walls `551.20/553.80/554.00`, `H1 EMA89 551.52`, and `Stopmap 552.38/553.65`; spot `BW[spot.m15] +0.4562` at `540-541` monitored closely).
+- **`EURUSD.pi` `#20467916` (`SELL 0.01 @ 1.09744`, `+$3.95 / +0.74R`)**: Held (`SL 1.10280, TP 1.08615`, `effRisk $5.36`, `2.11R`; all `M15/H1/H4` EMAs bearish; `-2.03σ` VWAP; awaits `+1.0R` at `1.09208` before BE ratchet).
+- **`UNIUSD.p` `#20475921` (`SELL 0.05 @ 4.740`, `+$6.30 / +1.26R`)**: `TRADE_ACTION_SLTP` (`retcode=10009`) ratcheted **`SL 4.735 -> 4.702`** (`TP 4.535` held), locking **`+$1.90` guaranteed profit (`+0.38R`, `effRisk $0.00`)** cleanly above `CG M15 EMA89 4.6943`, `Stopmap 4.6945`, and `4.64-4.68` ask walls (`$3.09M/$2.67M/$2.02M`).
+- **`ETHUSD.pi` `#20480855` -> `#20496681` (`SELL_LIMIT 0.18 @ 1,695.50`, `SL 1,724.50`, `TP 1,637.50`)**: Cancelled `#20480855` (`retcode=10009`) because `SL 1,714.50` sat inside `3d/7d/30d` short-liq cluster `1,713.89-1,720.76` (`3d str 100 @ 1,718.63`), and staged `#20496681` (`retcode=10009`, `risk $5.22`, `tp $10.44`, **`2.00R`**, `10.3%` spread) anchored at `H1 EMA89 1,696.69` / below `$24.01M H4 ask wall 1,699` targeting `Stopmap 1,637.48-1,640.20` + `30d str 100 @ 1,639.88`.
+- **`USWTI.p` `#20496682` (`SELL_LIMIT 0.05 @ 82.38`, `SL 83.48`, `TP 80.18`)**: Newly staged orthogonal `TC-09` energy short (`retcode=10009`, `risk $5.50`, `tp $11.00`, **`2.00R`**, `2.7%` spread) — `M15/H1/H4` EMAs bearish, CG `CL` `TREND_DOWN B(85)` (`BW[fut.m15] -0.0979`, `$3.00M H4 ask wall @ 82.00` basis-adjusted `+0.50` to `MT5`), near-zero M15 correlation vs active book (`BNB +0.08`, `EUR +0.12`, `UNI +0.06`, `ETH +0.08`).
+- **Skipped/Rejected Candidates**: `LNKUSD.p` (`71.6%` spr + `+0.93` ETH corr), `DOTUSD.pi` (`200%` spr + `RANGE_BALANCE SKIP`), `LTCUSD.pi` (`52.7%` spr), `XRPUSD.pi` (`$12.75 min1.5ATR`), `SOLUSD.p` (`20.6%` spr + `+0.93` corr), `EURAUD.pi` (`Short EURUSD + Long EURAUD ≈ synthetic AUDUSD short` with `+0.57` crypto beta).
+- **Post-Execution Aggregate Risk**: Open `$5.36 (0.207%)` + Pending `$10.72 (0.415%)` = **`$16.08 USD (0.622% <= 1.000% Cap $25.84)`** | Free Headroom: `$9.76 USD`.
+
+#### 2. Three-Way Register Reconciliation & Data Discrepancies (`WS-15` / `WS-16`)
+- `desk/log.md` synced alongside this round; `desk/state.json` (`updatedAt=2026-11-22T15:58:14Z`) retains historical `2026-11-22` `orders`/`positions` snapshot (`config` left untouched for operator ownership); live Blueberry MT5 `#5126976` readback governs runtime state.
+- Verified gaps disclosed: `CL.json` `va=null / cvd={} / fp_sigs=[]` (basis `+0.57` vs `USWTI.p`); `summary_7d` non-BNB/ETH/BTC skeletons; `BNB/UNI` `3d/7d/30d` identical snapshots; `EURUSD` perp layers N/A (`mt5_ohlcv`).
+
+**Confidence:** VERIFIED (All 4 MT5 requests returned `retcode=10009` with live readback).
+
+### [2026-11-25T07:05:00Z] · Antigravity · AUTONOMOUS QUANT DESK REVIEW #16 (12:35 IST — 252/252 FRESH AUDIT, BROADER MT5 SCREEN & HOLD)
+**Verdict:** 252/252 FRESH TELEMETRY (`<= 600s`, `0` stale, `0` malformed, `14.11 MB`) · MT5 `#5126976` LIVE BLOTTER VERIFIED (`Bal=$2,570.35`, `Eq=$2,584.06`, `Free=$2,375.69`, `0` deals in last 1h) · **HOLD ALL 3 OPEN + 2 PENDING (`$16.08 / 0.622% <= 1.0% Cap`) · NO NEW TRADES** (verified `0` US equity CFDs in `152`-symbol MT5 catalog; all remaining screened FX/Metals/Alts fail `TC-09`, `minLot <= $6.50`, `spread <= 20%`, or correlation diversity).
+
+#### 1. Active Book & `WS-14` Audit Summary
+- **`BNBUSD.p` `#20432336` (`SELL 0.19 @ 560.90`, `+$3.19`, `SL 554.50`, `TP 503.43`)**: `HOLD`. `SL 554.50` (`+$1.22` locked, `effRisk $0.00`) clears `H1 EMA89 (553.34)` and `H4` ask walls (`551.2/553.8/554.0`); spot `BW[spot.m15] +0.3802` / `CVD +15` compression squeeze monitored.
+- **`EURUSD.pi` `#20467916` (`SELL 0.01 @ 1.09744`, `+$3.74 / +0.70R`, `SL 1.10280`, `TP 1.08615`)**: `HOLD` (`effRisk $5.36`, `2.11R`; `-1.85σ` VWAP, all `M15/H1/H4` EMAs bear; awaits `1.09208` `+1.0R` BE trigger).
+- **`UNIUSD.p` `#20475921` (`SELL 0.05 @ 4.740`, `+$6.85 / +1.37R`, `SL 4.702`, `TP 4.535`)**: `HOLD` (`+$1.90` locked, `effRisk $0.00`; clears `CG M15 EMA89 4.6901`, `4.64/4.66` ask walls `$2.93M/$2.60M`).
+- **`ETHUSD.pi` `#20496681` (`SELL_LIMIT 0.18 @ 1,695.50`, `SL 1,724.50`, `TP 1,637.50`)**: `HOLD` (`$5.22 risk`, `2.00R`, `10.3%` spr; clears `MT5 H1 EMA233 1,723.72`, `2.07x ATR1h`, and basis-adjusted CG `1,725.78 - 3.8 = 1,721.98` — noted raw CG `1,725.78 str 100` shift on `06:53 UTC` snapshot to watch if price rallies above `1,680`).
+- **`USWTI.p` `#20496682` (`SELL_LIMIT 0.05 @ 82.38`, `SL 83.48`, `TP 80.18`)**: `HOLD` (`$5.50 risk`, `2.00R`, `2.7%` spr; `+0.08` crypto corr; `CL` dropped to `80.53` / `USWTI 81.35`, `BW[fut.m15]` deepened to `-0.1009 (5m -0.1585)`, entry sits cleanly on `MT5 M15 EMA233 82.23` / `CG H1 ask wall 81.40 + 0.80`).
+- **Disclosed Telemetry Bounds (`WS-15`)**: `stopmap?sym=...&mode=coin` returned `last=None` (`[]`) at `07:03 UTC`; `CL.json` lacks `va/cvd/fp_sigs`; `17/252` extended non-active files show `null` `market_structure`; `desk/state.json` `updatedAt=2026-11-22T15:58:14Z` stale vs live MT5 readback; `coderabbit_coderabbit`/`cloudflare`/`harness-antigravity` MCP tools waiting on user sign-in (`list_plugin_accounts`).
+
+**Confidence:** VERIFIED (Live MT5 readback + `252/252` fresh telemetry gate + `antigravity_selfcheck.py` post-write).
+
+### [2026-11-25T07:35:00Z] · Antigravity · AUTONOMOUS QUANT DESK REVIEW #17 (13:05 IST — UNI TSL RATCHET TO +$3.00 FLOOR, DAEMON CADENCE AUDIT & PORTFOLIO HOLD)
+**Verdict:** `ASSETS_DIR` (`252` files, `14.49 MB`, `0` malformed; `192/252` fresh `<= 600s` & `33/40` Tier-1 at `700-934s` while `task-22913` runs `~14-15m` 161-asset queue — live `:3000` + MT5 fallback active) · MT5 `#5126976` VERIFIED (`Bal=$2,570.35`, `Eq=$2,584.91`, `Free=$2,376.54`) · **EXECUTED `UNIUSD.p` `#20475921` `SL 4.702 -> 4.680` (`retcode=10009`, locks `+$3.00 / +0.60R`)** · HELD `BNB`, `EURUSD`, `ETH`, `USWTI` · **`$16.08 USD (0.622% <= 1.0% Cap $25.85)`**.
+
+#### 1. Autonomous MT5 Action & Live Blotter Readback
+- **`UNIUSD.p` `#20475921` (`SELL 0.05 @ 4.740`, `+$7.55 / +1.51R`, `bid 4.561`)**: `TRADE_ACTION_SLTP` (`retcode=10009`) tightened **`SL 4.702 -> 4.680`** (`TP 4.535` held because `23-24pt` ask fill already requires `bid <= 4.512` past `liq3d 4.525 str 50.7`). Locks **`+$3.00` (`+0.60R`, `effRisk $0.00`)** cleanly above `MT5 M15 EMA89 (4.6710)` (`~4.696` CG equiv above `4.6901`) and `4.64/4.66` ask walls (`$1.75M/$1.59M`).
+- **`BNBUSD.p` `#20432336` (`SELL 0.19 @ 560.90`, `+$3.38`, `SL 554.50`, `TP 503.43`)**: `HOLD` (`effRisk $0.00`, `+$1.22` locked above `MT5 H1 EMA89 551.30` & `:3000 H4` asks `551.2/553.8`).
+- **`EURUSD.pi` `#20467916` (`SELL 0.01 @ 1.09744`, `+$3.37`, `SL 1.10280`, `TP 1.08615`)**: `HOLD` (`effRisk $5.36`, `2.11R`, awaits `1.09208` `+1.0R` BE trigger).
+- **`ETHUSD.pi` `#20496681` (`SELL_LIMIT 0.18 @ 1,695.50`, `SL 1,724.50`, `TP 1,637.50`)**: `HOLD` (`$5.22`, `2.00R`; live `:3000 liq3d a=[1,693.50 str 97.6, 1,716.56 str 99.7, 1,718.86 str 94.6]`, `:3000 H4 a=[1,699 $11.68M, 1,700 $15.73M]`, `MT5 H1 EMA89 1,695.74 / EMA233 1,723.72`).
+- **`USWTI.p` `#20496682` (`SELL_LIMIT 0.05 @ 82.38`, `SL 83.48`, `TP 80.18`)**: `HOLD` (`$5.50`, `2.00R`, `2.7%` spr; `CL 80.68`, `MT5 81.48`, `M15 EMA233 82.22`, `H1 EMA89 82.80`, `:3000 H4 a82.00 $3.00M`).
+- **Universe Screen & Telemetry Notes**: `SP500/US2000/USDJPY/GBPUSD/EURJPY/CADCHF/USDCAD` remain `MIXED`; `AUDUSD/AUDCAD` already below `H4_20d` lows (`0.6587/0.9405`) + `+0.56-0.58` crypto beta. Disclosed `WS-15` gaps: `task-22913` 161-asset queue exceeded `600s` on `60/252` files (`33/40` Tier-1 stale on disk -> bypassed cleanly via live `:3000`); `coderabbit_coderabbit`/`cloudflare`/`harness-antigravity` MCP sign-ins pending; `desk/state.json` `2026-11-22` snapshot flagged stale.
+
+**Confidence:** VERIFIED (`retcode=10009` + live readback + `:3000` live checks + `antigravity_selfcheck.py`).

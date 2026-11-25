@@ -38,16 +38,20 @@ param(
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName Microsoft.VisualBasic
 
-# 2. P/Invoke user32.dll for wildcard EnumWindows lookup + foreground restoration
+# 2. P/Invoke user32.dll + kernel32.dll for wildcard EnumWindows lookup + reliable foreground focus
 $win32Type = @"
 using System;
 using System.Runtime.InteropServices;
 using System.Text;
 
-public class Win32Window {
+public class AgAutoWakeWin32V2 {
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool BringWindowToTop(IntPtr hWnd);
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -60,6 +64,18 @@ public class Win32Window {
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool IsWindowVisible(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+    [DllImport("user32.dll")]
+    public static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+
+    [DllImport("kernel32.dll")]
+    public static extern uint GetCurrentThreadId();
 
     [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
     public static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
@@ -77,8 +93,8 @@ public class Win32Window {
         MatchedTitle = "";
         EnumWindows(delegate(IntPtr hWnd, IntPtr lParam) {
             if (IsWindowVisible(hWnd)) {
-                StringBuilder sb = new StringBuilder(256);
-                GetWindowText(hWnd, sb, 256);
+                StringBuilder sb = new StringBuilder(512);
+                GetWindowText(hWnd, sb, 512);
                 string title = sb.ToString();
                 if (!string.IsNullOrEmpty(title) && title.IndexOf(needle, StringComparison.OrdinalIgnoreCase) >= 0) {
                     MatchedHandle = hWnd;
@@ -90,13 +106,34 @@ public class Win32Window {
         }, IntPtr.Zero);
         return MatchedHandle;
     }
+
+    public static bool ForceForeground(IntPtr hWnd) {
+        if (hWnd == IntPtr.Zero) return false;
+        if (IsIconic(hWnd)) {
+            ShowWindow(hWnd, 9); // SW_RESTORE
+        }
+        IntPtr fg = GetForegroundWindow();
+        uint dummy;
+        uint fgThread = (fg != IntPtr.Zero) ? GetWindowThreadProcessId(fg, out dummy) : 0;
+        uint curThread = GetCurrentThreadId();
+        bool attached = false;
+        try {
+            if (fgThread != 0 && fgThread != curThread) {
+                attached = AttachThreadInput(curThread, fgThread, true);
+            }
+            BringWindowToTop(hWnd);
+            return SetForegroundWindow(hWnd);
+        } finally {
+            if (attached) {
+                AttachThreadInput(curThread, fgThread, false);
+            }
+        }
+    }
 }
 "@
 
-try {
-    Add-Type -TypeDefinition $win32Type -ErrorAction SilentlyContinue
-} catch {
-    # Type already defined in current session
+if (-not ('AgAutoWakeWin32V2' -as [type])) {
+    Add-Type -TypeDefinition $win32Type -ErrorAction Stop
 }
 
 function Write-Log {
@@ -108,16 +145,18 @@ function Write-Log {
 function Find-AntigravityHandle {
     $script:matchedTitle = ""
     # Method A: Pure C# EnumWindows wildcard substring match (works when title is "<workspace> - Antigravity")
-    $hwnd = [Win32Window]::FindBySubstring("Antigravity")
-    if ($hwnd -ne [IntPtr]::Zero) {
-        $script:matchedTitle = [Win32Window]::MatchedTitle
+    $hwnd = [AgAutoWakeWin32V2]::FindBySubstring("Antigravity")
+    if ($null -ne $hwnd -and $hwnd -is [IntPtr] -and $hwnd -ne [IntPtr]::Zero) {
+        $script:matchedTitle = [AgAutoWakeWin32V2]::MatchedTitle
         return $hwnd
     }
 
-    # Method B: Process MainWindowHandle fallback
-    $procs = Get-Process -Name "Antigravity" -ErrorAction SilentlyContinue
+    # Method B: Process MainWindowHandle fallback (Electron process scan)
+    $procs = Get-Process -ErrorAction SilentlyContinue | Where-Object {
+        $_.ProcessName -like "*Antigravity*" -or $_.MainWindowTitle -like "*Antigravity*"
+    }
     foreach ($p in $procs) {
-        if ($p.MainWindowHandle -ne [IntPtr]::Zero) {
+        if ($null -ne $p.MainWindowHandle -and $p.MainWindowHandle -ne [IntPtr]::Zero) {
             $script:matchedTitle = $p.MainWindowTitle
             return $p.MainWindowHandle
         }
@@ -126,17 +165,21 @@ function Find-AntigravityHandle {
 }
 
 function Focus-AntigravityWindow {
-    $targetHandle = Find-AntigravityHandle
-    if ($targetHandle -ne [IntPtr]::Zero) {
-        if ([Win32Window]::IsIconic($targetHandle)) {
-            [Win32Window]::ShowWindow($targetHandle, 9) | Out-Null
-            Start-Sleep -Milliseconds 200
-        }
-        $success = [Win32Window]::SetForegroundWindow($targetHandle)
-        Start-Sleep -Milliseconds 400
-        if ($success) {
+    param([IntPtr]$TargetHandle)
+    if ($null -eq $TargetHandle -or $TargetHandle -eq [IntPtr]::Zero) {
+        return $false
+    }
+    $ok = [AgAutoWakeWin32V2]::ForceForeground($TargetHandle)
+    Start-Sleep -Milliseconds 350
+    if ($ok) { return $true }
+
+    # Fallback: AppActivate by exact matched title
+    if (-not [string]::IsNullOrWhiteSpace($script:matchedTitle)) {
+        try {
+            [Microsoft.VisualBasic.Interaction]::AppActivate($script:matchedTitle)
+            Start-Sleep -Milliseconds 350
             return $true
-        }
+        } catch {}
     }
     return $false
 }
@@ -156,15 +199,15 @@ function Send-PasteAndEnter {
     $preview = if ($clipboardText.Length -gt 60) { $clipboardText.Substring(0, 60).Replace("`r", "").Replace("`n", " ") + "..." } else { $clipboardText.Replace("`r", "").Replace("`n", " ") }
     Write-Log "Clipboard payload: '$preview'" -Color Cyan
 
+    $targetHandle = Find-AntigravityHandle
     if ($DryRun) {
-        $hwnd = Find-AntigravityHandle
-        Write-Log "DRY-RUN: Antigravity Window Handle=$hwnd | Title='$script:matchedTitle'" -Color Yellow
+        Write-Log "DRY-RUN: Antigravity Window Handle=$targetHandle | Title='$script:matchedTitle'" -Color Yellow
         Write-Log "DRY-RUN: Would focus window, paste payload via Ctrl+V, and send {ENTER}." -Color Yellow
         return
     }
 
     Write-Log "Activating Antigravity window ($script:matchedTitle)..." -Color Gray
-    $focused = Focus-AntigravityWindow
+    $focused = Focus-AntigravityWindow -TargetHandle $targetHandle
 
     if (-not $focused) {
         Write-Log "WARNING: Could not find or focus 'Antigravity' window. Skipping blind keystrokes to avoid pasting into wrong app!" -Color Red
@@ -173,7 +216,7 @@ function Send-PasteAndEnter {
     Write-Log "Antigravity window successfully brought to foreground." -Color Green
 
     # Small pause to ensure UI chat input field has focus (keep cursor in Antigravity chat box!)
-    Start-Sleep -Milliseconds 500
+    Start-Sleep -Milliseconds 450
     [System.Windows.Forms.SendKeys]::SendWait("^v")
     Write-Log "Sent Ctrl+V (Paste)" -Color Gray
     Start-Sleep -Milliseconds 600

@@ -41,3 +41,10 @@ On every reply, conclude with the `/kaizen-agent` Self-Optimization block:
 - **5-Whys Triage**: Root cause of any error, blocker, or rejected order.
 - **Surgical Refinement**: Minimal action taken to improve execution state.
 - **Anti-Regression Rule**: Concrete lesson logged to prevent recurrence.
+
+## 5. Default Anti-Drift Thinking Protocol (Active Every Turn)
+1. **Schema-First Inspection**: Before parsing any JSON/JSONL schema (transcripts, telemetry, API payloads) with a batch script, inspect 1 sample record/key list first so field-name mismatches (`args` vs `arguments`, `t` vs `type`) never produce false zeros.
+2. **Low-Contention `:3000` Querying**: When `telemetry_daemon.py` is running, never fire $> 4$ concurrent threads or `> 30` endpoints at `http://localhost:3000`; always run Python queries unbuffered (`python -u`) and check `manage_task(status)` before calling `kill`.
+3. **Timestamped Fallback Honesty**: If live `bookwalls`, `stopmap`, or `largeorder` returns `None`/`[]`, fall back to Tier-1 `/api/cg/livebook` / HL L2 depth OR explicitly label the layer `STALE (<timestamp>)` / `UNAVAILABLE` rather than reusing 10h-old imbalances silently.
+4. **Pre-Emit Verification Gate**: Never emit a final response with zero post-tool reflection; mentally cross-check every quoted price, R-multiple, `[x]` vs `[PARTIAL]` tag, and file path against observed current-turn tool outputs right before replying.
+5. **PowerShell CLR & Handle Safety**: In `.ps1` desktop automation, always version C# `Add-Type` class names (`V2`, `V3`, ...) on modification and validate handles with `($null -ne $h -and $h -is [IntPtr] -and $h -ne [IntPtr]::Zero)`.

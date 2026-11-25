@@ -203,4 +203,11 @@ Antigravity operates with strict empirical grounding under Bible 1 Invariant 6 (
 
 ---
 
-*Workspace boot layer — Trading-Strategies v2 · All 16 telemetry dimensions, wake-up checklist, WS-14 & WS-15 active.*
+## WS-16 — MANDATORY EXECUTION REGISTER SYNC & TELEMETRY FALLBACK INTEGRITY
+
+1. **Three-Way Register Sync (`PRE_TRADE_INTERLOCK_RULE §5`)**: After every live MT5 or Delta `retcode=10009` execution batch (open, modify, cancel, SL/TP ratchet), Antigravity MUST update [COUNCIL.md](file:///c:/Users/SIGMA/Documents/Trading-Strategies/desk/COUNCIL.md), append the concise `EXECUTE` / `MODIFY` block to [log.md](file:///c:/Users/SIGMA/Documents/Trading-Strategies/desk/log.md), and flag or reconcile open-order drift in [state.json](file:///c:/Users/SIGMA/Documents/Trading-Strategies/desk/state.json) without touching `config`.
+2. **Corrupted-Cache Detection & Guard**: If `telemetry_16p_engine.py` outputs `LAST=0.0000`, `UNKNOWN`, or `ticker=null` (or `EURUSD` shows `feed_type=coinglass_perp`), treat disk summaries as degraded, ground prices/EMAs/ATRs directly from `MetaTrader5` + serial `:3000` `/api/cg/market`, and immediately surface the daemon defect for fix.
+
+---
+
+*Workspace boot layer — Trading-Strategies v2.1 · All 16 telemetry dimensions, wake-up checklist, WS-14, WS-15 & WS-16 active.*
