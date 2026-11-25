@@ -54,6 +54,11 @@ import numpy as np
 import pandas as pd
 import requests
 
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+if os.path.join(_REPO_ROOT, "scripts") not in sys.path:
+    sys.path.insert(0, os.path.join(_REPO_ROOT, "scripts"))
+from delta_exec import DeltaLive, delta_contracts_for_risk, snap_tick  # noqa: E402
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CFG_PATH = os.path.join(ROOT, "engine", "config.json")
 DUMP_ENGINE = os.path.join(ROOT, "binance_orderflow", "binance_orderflow_dump.py")
@@ -1296,6 +1301,15 @@ def mode_selftest(cfg: dict) -> bool:
         3500.0, 3470.0, 5.5, 6.0, tick_value=1.0, tick_size=0.01, vmin=0.01, vmax=100.0, step=0.01)
     checks.append(("cfd sizing: oversize min-lot ($30 > $6) rejected cleanly",
                    rej_vol == 0.0 and rej_risk > 6.0 and "cap" in rej_why, True))
+    # ---- Delta Exchange contract sizing & tick snap (offline tests) ----
+    d_sz, d_r, d_why = delta_contracts_for_risk(60000.0, 59500.0, 2.0, 2.0, contract_value=0.001)
+    checks.append(("delta sizing: BTCUSD 0.001 cv stop=500 -> 4 contracts ($2.00 risk)",
+                   d_sz == 4 and abs(d_r - 2.0) < 1e-6 and d_why == "", True))
+    d0_sz, d0_r, d0_why = delta_contracts_for_risk(60000.0, 57000.0, 2.0, 2.0, contract_value=0.001)
+    checks.append(("delta sizing: oversize 1-contract ($3.00 > $2.00) rejected cleanly",
+                   d0_sz == 0 and d0_r > 2.0 and "cap" in d0_why, True))
+    checks.append(("delta snap_tick: 1648.67 -> 1648.65 at tick=0.05",
+                   snap_tick(1648.67, 0.05) == "1648.65", True))
     fails = [n_ for n_, got, want in checks if bool(got) != bool(want)]
     for n_, got, want in checks:
         print(f"  [{'OK' if bool(got) == bool(want) else 'FAIL'}] {n_}")
@@ -1553,6 +1567,11 @@ def mode_live(cfg: dict, do_update: bool) -> int:
     r_usd_m = float(risk.get("risk_usd_max", 6.0))
     spr_ratio_max = float(exec_.get("max_spread_risk_ratio", 0.20))
     book_now = bridge.total_book_risk_usd()
+    delta_cfg = cfg.get("delta") or {}
+    delta_bridge = DeltaLive(delta_cfg.get("symbol_map")) if delta_cfg.get("enabled", False) else None
+    if delta_bridge is not None:
+        d_ok, d_eq, d_av, d_err = delta_bridge.interlock_check()
+        print(f"  [delta] {'OK equity=$' + f'{d_eq:.2f} avail=${d_av:.2f}' if d_ok else 'ILK-01 HALT (MT5 unaffected): ' + d_err}", flush=True)
     print(f"  equity {day_start_equity:.2f} | per-trade <=${r_usd_m:.2f} ({risk['risk_per_trade_pct']}%) | "
           f"max concurrent {risk['max_concurrent']} | portfolio cap {max_port_pct:.2f}% "
           f"(live book risk ${book_now:.2f})", flush=True)
@@ -1583,6 +1602,32 @@ def mode_live(cfg: dict, do_update: bool) -> int:
                 frames = collect_frames(cfg, allow_rest=True)
                 sigs = evaluate_signals(cfg, frames, eq_now, bridge=bridge)
                 for s in sigs:
+                    last_ms = float(s.get("bar_ts") or 0) + tf_ms
+                    if data_is_stale(last_ms, now_ms, exec_.get("max_data_age_min", 20)):
+                        print(f"[live] stale data — {s['symbol']} signal discarded", flush=True)
+                        continue
+                    # ---- Parallel Delta Exchange India execution (independent of MT5 spread/min-lot) ----
+                    d_sig_id = f"delta:{s['signal_id']}"
+                    if delta_bridge is not None and not killed and not breaker and d_sig_id not in sent:
+                        if delta_bridge.map_symbol(s["symbol"]):
+                            d_res = delta_bridge.send_bracket(
+                                s["symbol"], s["side"], float(s["entry"]), float(s["stop"]),
+                                float(s.get("tp") or 0),
+                                risk_pct=float(delta_cfg.get("risk_per_trade_pct", 1.0)),
+                                risk_max_pct=float(delta_cfg.get("risk_max_pct", 1.0)),
+                                max_portfolio_risk_pct=float(delta_cfg.get("max_portfolio_risk_pct", 2.0)),
+                                max_concurrent=int(delta_cfg.get("max_concurrent", 4)),
+                                client_order_id=s["signal_id"],
+                                order_type=s.get("order_type", "limit"),
+                            )
+                            with open(LIVE_LOG_PATH, "a") as f:
+                                f.write(json.dumps({"t": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                                                    "phase": "DELTA_RECEIPT", "signal_id": d_sig_id, **d_res}) + "\n")
+                            if d_res.get("status") in ("OK", "SKIP"):
+                                sent.add(d_sig_id)
+                            print(f"[delta] {d_res.get('status')} {s['symbol']}->{d_res.get('symbol')} "
+                                  f"{s['side']} size={d_res.get('size', 0)} {d_res.get('why', '')}", flush=True)
+                    # ---- MT5 execution ----
                     if s["signal_id"] in sent:
                         continue
                     if killed:
@@ -1593,10 +1638,6 @@ def mode_live(cfg: dict, do_update: bool) -> int:
                         continue
                     if bridge.open_count() >= risk["max_concurrent"]:
                         print(f"[live] max_concurrent={risk['max_concurrent']} — {s['symbol']} held", flush=True)
-                        continue
-                    last_ms = float(s.get("bar_ts") or 0) + tf_ms
-                    if data_is_stale(last_ms, now_ms, exec_.get("max_data_age_min", 20)):
-                        print(f"[live] stale data — {s['symbol']} signal discarded", flush=True)
                         continue
                     spec = bridge.symbol_spec(s["mt5_symbol"])
                     if not spec:

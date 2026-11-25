@@ -43,6 +43,9 @@ ENGINE_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(ENGINE_DIR)
 CONFIG_PATH = os.path.join(ENGINE_DIR, "config.json")
 DATA_DIR = os.path.join(ENGINE_DIR, "data")
+if os.path.join(ROOT, "scripts") not in sys.path:
+    sys.path.insert(0, os.path.join(ROOT, "scripts"))
+from delta_exec import DeltaLive  # noqa: E402
 
 MT5_OK = True
 try:
@@ -668,6 +671,11 @@ def run_loop(cfg: dict, mode: str, loop_seconds: int | None = None):
     journal = Journal(os.path.join(ROOT, cfg["runtime"]["journal_csv"]))
     state = StateStore(os.path.join(ROOT, cfg["runtime"]["state_json"]))
     gov = Governor(cfg, journal, state, bridge if mode == "live" else None)
+    d_cfg = cfg.get("delta") or {}
+    delta_bridge = DeltaLive(d_cfg.get("symbol_map")) if (mode == "live" and d_cfg.get("enabled", False)) else None
+    if delta_bridge is not None:
+        d_ok, d_eq, d_av, d_err = delta_bridge.interlock_check()
+        print(f"[delta] {'OK equity=$' + f'{d_eq:.2f} avail=${d_av:.2f}' if d_ok else 'ILK-01 HALT (MT5 unaffected): ' + d_err}", flush=True)
     gov.journal.log("ENGINE_START", note=f"mode={mode}")
     poll = int(loop_seconds or cfg["runtime"]["poll_seconds"])
     bars_back = int(cfg["runtime"]["bars_back"])
@@ -765,6 +773,25 @@ def run_loop(cfg: dict, mode: str, loop_seconds: int | None = None):
                     if (side == 1 and not (sl < entry < tp)) or (side == -1 and not (tp < entry < sl)):
                         journal.log("REJECT", sleeve=sname, magic=magic, symbol=sym, note="bracket sides invalid")
                         continue
+                    # ---- Parallel Delta Exchange India routing (mapped symbols) ----
+                    if delta_bridge is not None and delta_bridge.map_symbol(sym):
+                        d_bars = state.get("delta_bars", {})
+                        if d_bars.get(key) != t0:
+                            d_res = delta_bridge.send_bracket(
+                                sym, "BUY" if side == 1 else "SELL", entry, sl, tp,
+                                risk_pct=float(d_cfg.get("risk_per_trade_pct", 1.0)),
+                                risk_max_pct=float(d_cfg.get("risk_max_pct", 1.0)),
+                                max_portfolio_risk_pct=float(d_cfg.get("max_portfolio_risk_pct", 2.0)),
+                                max_concurrent=int(d_cfg.get("max_concurrent", 2)),
+                                client_order_id=f"{sname[:6]}_{t0}",
+                                order_type="market",
+                            )
+                            if d_res.get("status") in ("OK", "SKIP"):
+                                state.set("delta_bars", {**d_bars, key: t0})
+                            journal.log(f"DELTA_{d_res.get('status')}", sleeve=sname, magic=magic, symbol=sym,
+                                        side="BUY" if side == 1 else "SELL", lots=float(d_res.get("size", 0)),
+                                        price=entry, sl=sl, tp=tp, note=d_res.get("why") or str(d_res.get("order_id", "")))
+                            print(f"[delta] {d_res.get('status')} {sname} {sym}->{d_res.get('symbol')} size={d_res.get('size',0)} {d_res.get('why','')}")
                     # ---- governor + sizing
                     ok, why = gov.gates(magic, bridge.positions() if mode == "live" else [])
                     if not ok:
