@@ -16,6 +16,7 @@ TOK_PATH = "/tmp/.gh_tok"
 CLEAN = "/tmp/cleanrepo"
 REPOS = ["karan1399/Trading-Strategies", "karan1399/Trading-Strategie"]
 WORK = "/tmp/userrepo"
+FOLDER = "footprint_alpha"  # suite lives in <repo>/footprint_alpha/ — user's existing folders untouched
 MY_NS = ("engine/", "binance_orderflow/", "desk/", "scripts/aec_", "scripts/orb_",
          "scripts/build_clean_repo.py", "scripts/gh_push_suite.py", "scripts/gh_token_recover.py",
          "scripts/run_universe20.sh", "QUICKSTART.md")
@@ -51,7 +52,7 @@ def main():
     # ---- clone
     if os.path.exists(WORK):
         shutil.rmtree(WORK)
-    r = sh(f"git clone {url} {WORK}", timeout=180)
+    r = sh(f"git clone {url} {WORK}", timeout=600)
     if r.returncode != 0:
         sys.exit(f"clone failed: {masked(r.stderr)[:300]}")
     theirs = set()
@@ -61,41 +62,36 @@ def main():
         for f in files:
             theirs.add(os.path.relpath(os.path.join(root, f), WORK))
     print(f"remote tree: {len(theirs)} files; top-level: {sorted({p.split('/')[0] for p in theirs})[:12]}")
-    # ---- additive merge
-    renamed, added, skipped = [], [], []
+    # ---- additive merge into <repo>/footprint_alpha/
+    if any(p == FOLDER or p.startswith(FOLDER + "/") for p in theirs):
+        sys.exit(f"'{FOLDER}/' already exists in the repo — aborting to avoid clobbering; pick another name")
+    added = []
     for root, dirs, files in os.walk(CLEAN):
         dirs[:] = [d for d in dirs if d != ".git"]
         for f in files:
             src = os.path.join(root, f)
-            rel = os.path.relpath(src, CLEAN)
+            rel = os.path.join(FOLDER, os.path.relpath(src, CLEAN))
             dst = os.path.join(WORK, rel)
-            in_ns = any(rel == ns or rel.startswith(ns) for ns in MY_NS)
-            if rel in theirs and not in_ns:
-                stem, ext = os.path.splitext(rel)
-                rel = f"{stem}.alpha{ext}"
-                dst = os.path.join(WORK, rel)
-                renamed.append(rel)
-            elif rel in theirs:
-                skipped.append(rel)
             os.makedirs(os.path.dirname(dst) or WORK, exist_ok=True)
             shutil.copy2(src, dst)
             added.append(rel)
-    print(f"merged: {len(added)} files added ({len(skipped)} suite files overwrote own copies), "
-          f"{len(renamed)} collisions renamed: {renamed[:6]}")
-    # QUICKSTART pointer
-    if renamed or "README.md" in theirs:
-        qs = os.path.join(WORK, "QUICKSTART.md")
-        if os.path.exists(qs) and "README.md" in theirs:
-            sh("printf '\\n## Alpha suite quickstart\\nSee QUICKSTART.md.\\n' >> README.md", cwd=WORK)
+    print(f"added {len(added)} files under {FOLDER}/ (repo root otherwise untouched)")
+    # root-level pointer so a pull-and-run user finds the suite
+    qs = os.path.join(WORK, "QUICKSTART.md")
+    if not os.path.exists(qs):
+        open(qs, "w").write(
+            "# Quickstart\n\nThe Binance footprint alpha suite lives in `footprint_alpha/`.\n\n"
+            "```bash\ncd footprint_alpha\npip install -r requirements.txt\n"
+            "# data fill + selftests + paper run: follow README.md (5 steps, ~30 min first fill)\n```\n")
     # ---- commit + push
     sh("git add -A && git config user.email z@container && git config user.name 'Z User'", cwd=WORK)
     c = sh(f"git commit -m '{AUTHORED_MSG}'", cwd=WORK)
     if c.returncode != 0:
         print("nothing to commit?", c.stdout[-200:], c.stderr[-200:])
-    r = sh(f"git push {url} HEAD:refs/heads/main", cwd=WORK, timeout=180)
+    r = sh(f"git push {url} HEAD:refs/heads/main", cwd=WORK, timeout=600)
     if r.returncode != 0 and "fetch first" in (r.stderr + r.stdout).lower():
-        sh("git pull --rebase=merges origin main", cwd=WORK, timeout=120)
-        r = sh(f"git push {url} HEAD:refs/heads/main", cwd=WORK, timeout=180)
+        sh("git pull --rebase=merges origin main", cwd=WORK, timeout=300)
+        r = sh(f"git push {url} HEAD:refs/heads/main", cwd=WORK, timeout=600)
     if r.returncode != 0:
         sys.exit(f"push failed: {masked(r.stderr)[:400]}")
     # ---- verify

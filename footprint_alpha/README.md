@@ -66,6 +66,40 @@ default), `mt5` (bridge hook for your terminal). Risk: `risk.risk_per_trade_pct`
 `max_concurrent` 4, `daily_loss_cap_pct` 1.5. Paper-validate forward before sizing real
 lots; the 54-day OOS window favored shorts (orderly bear leg) — re-validate monthly.
 
+## Going live — one command, hard-guarded
+
+```bash
+python3 engine/unified_alpha_pilot.py --live --i-understand-live-risk
+```
+
+Runs all three sleeves against your real MT5 terminal every 15 minutes (bar close +20s,
+incremental Binance gap-fill each pass). Guards — each one covered by a selftest:
+
+- **Preflight, all must pass before any order**: terminal connected, algo-trading
+  enabled, account tradeable, universe symbols `trade_mode=FULL`.
+- **Never stubs fills**: live requires the `MetaTrader5` module; missing/failed
+  bridge aborts (exit 2) — no fake fills, ever.
+- **Daily loss circuit breaker** (`risk.daily_loss_cap_pct`, default -1.5% vs the
+  UTC-day starting equity): no new entries for the rest of that UTC day.
+- **Max concurrent** 4 positions, fixed-fractional sizing from live account equity,
+  volume normalized to the broker's min/step/max.
+- **Kill switch**: `touch desk/KILL` (or Ctrl+C) stops new entries; open positions
+  keep their server-side SL/TP.
+- **Dedupe + restart safety**: stable signal ids; `desk/live_orders.jsonl` records
+  INTENT before and RECEIPT after every order; ids are never re-sent after a restart.
+- **Stale-data (>20 min) and spread-cap** guards discard dangerous conditions.
+
+## Are these strategies profitable? (honest read)
+
+Validated on 54 days of Binance orderflow with untouched OOS windows: ORB sleeve OOS
+PF 3.58 / 71.7% win @2R (n=548, ~0.42R avg), EMA-rej OOS PF ~2.0, AEC-Trend per-asset
+OOS PF 1.2–1.9 on the 11/20 assets that qualified. That is **positive expectancy, not
+a guarantee**: (1) the window favored shorts (orderly bear leg) — re-validate monthly;
+(2) OOS stats are maker-fill modeled; real MT5 CFD spreads/swaps/rejections can consume
+20–30 bps of a 30–60 bps edge — expect live below backtest; (3) assets without a
+verified config are not traded by design ("do not trade the nulls"). Run `--mode paper`
+at least two weeks and compare fills to the log before sizing real lots.
+
 ## Repo layout
 
 - `binance_orderflow/binance_orderflow_dump.py` — the data engine (single file)
