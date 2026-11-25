@@ -347,6 +347,18 @@ def build_compact_asset_summary(profile: Dict[str, Any]) -> Dict[str, Any]:
     h1 = fp.get("history_1h") or {}
     foi = profile.get("funding_and_oi") or {}
 
+    # Compute cross-horizon widest short/long wall prices from all present Model 1 coin horizons
+    all_max_shorts = []
+    all_max_longs = []
+    for k, sm_obj in smap.items():
+        if not isinstance(sm_obj, dict) or not str(k).startswith("m1_coin_"):
+            continue
+        w_obj = sm_obj.get("walls") if isinstance(sm_obj.get("walls"), dict) else {}
+        if isinstance(w_obj.get("max_short"), dict) and w_obj["max_short"].get("price") is not None:
+            all_max_shorts.append((k, w_obj["max_short"]))
+        if isinstance(w_obj.get("max_long"), dict) and w_obj["max_long"].get("price") is not None:
+            all_max_longs.append((k, w_obj["max_long"]))
+
     return {
         "symbol": sym,
         "feed_type": profile.get("feed_type"),
@@ -366,11 +378,14 @@ def build_compact_asset_summary(profile: Dict[str, Any]) -> Dict[str, Any]:
             "gex": (profile.get("options_deribit") or {}).get("gex"),
         } if profile.get("options_deribit") else None,
         "stopmap_summary": {
+            "horizons_present": sorted(smap.keys()),
             "largest_24h": ((smap.get("m1_coin_24h") or {}).get("overview") or {}).get("largestLevel"),
             "m1_3d_max_short": walls_meta.get("max_short"),
             "m1_3d_max_long": walls_meta.get("max_long"),
             "m1_3d_active_short_prices": walls_meta.get("active_short_prices", [])[:6],
             "m1_3d_active_long_prices": walls_meta.get("active_long_prices", [])[:6],
+            "all_tf_max_short": max(all_max_shorts, key=lambda item: float(item[1].get("mx_usd") or 0.0))[1] if all_max_shorts else None,
+            "all_tf_max_long": max(all_max_longs, key=lambda item: float(item[1].get("mx_usd") or 0.0))[1] if all_max_longs else None,
         },
         "book_walls_summary": {
             "m15_imbalance": bw_fut_m15.get("imbalance"),
@@ -703,6 +718,7 @@ class AsyncTelemetryHarvester:
     def __init__(self, concurrency: int = 6, cg_heavy_concurrency: int = 3, force_full_fp: bool = False):
         self.fast_sem = asyncio.Semaphore(max(2, min(concurrency, 8)))
         self.cg_heavy_sem = asyncio.Semaphore(max(1, min(cg_heavy_concurrency, 4)))
+        self.fapi_sm_sem = asyncio.Semaphore(1)
         self.force_full_fp = force_full_fp
         self.session: Optional[aiohttp.ClientSession] = None
 
@@ -713,7 +729,7 @@ class AsyncTelemetryHarvester:
             base_url=BASE_URL,
             connector=connector,
             timeout=timeout,
-            headers={"User-Agent": "Antigravity-TelemetryEngine/5.0", "Connection": "keep-alive"},
+            headers={"User-Agent": "Antigravity-TelemetryEngine/5.1", "Connection": "keep-alive"},
         )
         return self
 
@@ -722,16 +738,28 @@ class AsyncTelemetryHarvester:
             await self.session.close()
             self.session = None
 
-    async def fetch_json(self, path: str, timeout: float = 12.0, retries: int = 1, heavy: bool = False) -> Optional[Dict[str, Any]]:
+    async def fetch_json(
+        self,
+        path: str,
+        timeout: float = 12.0,
+        retries: int = 1,
+        heavy: bool = False,
+        fapi_pace: bool = False,
+    ) -> Optional[Dict[str, Any]]:
         assert self.session is not None
         attempts = max(1, retries + 1)
-        gate = self.cg_heavy_sem if heavy else self.fast_sem
+        gate = self.fapi_sm_sem if fapi_pace else (self.cg_heavy_sem if heavy else self.fast_sem)
         for attempt in range(attempts):
             try:
                 async with gate:
+                    req_t0 = time.time()
                     async with self.session.get(path, timeout=aiohttp.ClientTimeout(total=timeout)) as resp:
                         raw = await resp.read()
-                        if heavy:
+                        elapsed = time.time() - req_t0
+                        if fapi_pace and elapsed > 0.30:
+                            # Polite pacing only on upstream network hits (cache hits return immediately)
+                            await asyncio.sleep(0.35)
+                        elif heavy:
                             await asyncio.sleep(0.22)
                         if resp.status == 200:
                             return loads_bytes(raw)
@@ -756,20 +784,35 @@ class AsyncTelemetryHarvester:
         transform: Optional[Any] = None,
         heavy: bool = False,
         unsupported_ttl_secs: float = 3600.0,
+        fapi_pace: bool = False,
     ) -> Optional[Any]:
         cache = CACHES[cache_name]
         if ttl_secs > 0:
             hit = cache.get(key, ttl_secs=ttl_secs, allow_stale=False)
             if hit is not None:
-                return None if (isinstance(hit, dict) and hit.get("_err")) else hit
+                if isinstance(hit, dict) and hit.get("_err"):
+                    return None
+                # Do not serve long-cached cooldown fallback stubs once brief 45s cooldown window has elapsed
+                if (
+                    cache_name == "stopmap"
+                    and isinstance(hit, dict)
+                    and "cooldown-fallback" in str(hit.get("source") or "")
+                ):
+                    short_hit = cache.get(key, ttl_secs=45.0, allow_stale=False)
+                    if short_hit is not None:
+                        return short_hit
+                else:
+                    return hit
 
-        res = await self.fetch_json(endpoint, timeout=timeout, heavy=heavy)
+        res = await self.fetch_json(endpoint, timeout=timeout, heavy=heavy, fapi_pace=fapi_pace)
         if res and not res.get("_err"):
             val = transform(res) if transform else res
-            # Cache permanently unsupported assets (e.g. TradFi spot bookwalls) longer; retry temporary binance-fapi fallbacks quickly
+            # Cache permanently unsupported assets longer; retry temporary binance-fapi & cooldown fallbacks quickly
             if isinstance(val, dict) and val.get("supported") is False:
                 effective_ttl = unsupported_ttl_secs
             elif isinstance(val, dict) and res.get("source") in ("binance-fapi", "hl-xyz") and cache_name == "bw":
+                effective_ttl = min(ttl_secs, 45.0)
+            elif cache_name == "stopmap" and isinstance(val, dict) and "cooldown-fallback" in str(val.get("source") or ""):
                 effective_ttl = min(ttl_secs, 45.0)
             else:
                 effective_ttl = ttl_secs
@@ -975,6 +1018,16 @@ class AsyncTelemetryHarvester:
     async def harvest_single_asset(self, sym: str, is_prime: bool = True, mt5_quote: Optional[Dict[str, Any]] = None) -> Tuple[str, Dict[str, Any]]:
         t0 = time.time()
         iso_now = datetime.now(timezone.utc).isoformat()
+        existing_profile = _read_json_if_exists(os.path.join(ASSETS_DIR, f"{sym}.json"))
+        existing_smap: Dict[str, Any] = {}
+        if isinstance(existing_profile, dict):
+            raw_smap = (existing_profile.get("liquidations") or {}).get("stopmap")
+            if isinstance(raw_smap, dict):
+                existing_smap = {
+                    k: v for k, v in raw_smap.items()
+                    if isinstance(v, dict) and k != "rolling_archive_shared_across"
+                }
+        del existing_profile
         profile: Dict[str, Any] = {
             "symbol": sym,
             "feed_type": "coinglass_perp",
@@ -1123,23 +1176,24 @@ class AsyncTelemetryHarvester:
         if sym in ("BTC", "ETH"):
             tasks["opt"] = self.fetch_json(f"/api/cg/options?sym={sym}", timeout=8)
 
-        # Liquidation Clusters 3d / 7d / 30d (fast cache/REST)
-        for rng in ("3d", "7d", "30d"):
+        # Liquidation Clusters 3d / 7d / 14d / 30d (fast cache/REST)
+        for rng in ("3d", "7d", "14d", "30d"):
             tasks[f"liq_{rng}"] = self.cached_get(
                 "liq", (sym, rng), 90.0 if is_prime else 900.0,
                 f"/api/cg/liqlevels?sym={sym}&range={rng}", timeout=12, heavy=False
             )
 
-        # Fetch Model 1 24h (all) & Model 1 3d (Prime) concurrently; fetch 7d/M2/M3 when native or deep core
+        # Fetch Model 1 24h (all) & Model 1 3d (Prime) with polite Coinglass fapi pacing
         sm_first_tasks = [
             self.cached_get(
                 "stopmap",
                 (sym, "1", "coin", "24h"),
-                120.0 if is_prime else 900.0,
+                180.0 if is_prime else 900.0,
                 f"/api/cg/stopmap?sym={sym}&model=1&mode=coin&range=24h",
                 timeout=22,
                 transform=summarize_stopmap_payload,
                 heavy=True,
+                fapi_pace=True,
             )
         ]
         if is_prime:
@@ -1147,37 +1201,85 @@ class AsyncTelemetryHarvester:
                 self.cached_get(
                     "stopmap",
                     (sym, "1", "coin", "3d"),
-                    240.0,
+                    300.0,
                     f"/api/cg/stopmap?sym={sym}&model=1&mode=coin&range=3d",
                     timeout=22,
                     transform=summarize_stopmap_payload,
                     heavy=True,
+                    fapi_pace=True,
                 )
             )
         sm_first_res = await asyncio.gather(*sm_first_tasks, return_exceptions=True)
         sm_m1_24h = sm_first_res[0] if not isinstance(sm_first_res[0], Exception) else None
         sm_m1_3d = sm_first_res[1] if (len(sm_first_res) > 1 and not isinstance(sm_first_res[1], Exception)) else None
-        if sm_m1_24h:
-            profile["liquidations"]["stopmap"]["m1_coin_24h"] = sm_m1_24h
-        if sm_m1_3d:
-            profile["liquidations"]["stopmap"]["m1_coin_3d"] = sm_m1_3d
+
+        def _merge_stopmap_slot(slot_name: str, new_val: Optional[Dict[str, Any]]) -> None:
+            prev_val = existing_smap.get(slot_name)
+            prev_is_native = isinstance(prev_val, dict) and prev_val.get("kind") == "native_heatmap_grid"
+            new_is_native = isinstance(new_val, dict) and new_val.get("kind") == "native_heatmap_grid"
+            if new_is_native:
+                profile["liquidations"]["stopmap"][slot_name] = new_val
+            elif prev_is_native:
+                preserved = dict(prev_val)
+                preserved["preserved_on_fallback"] = True
+                profile["liquidations"]["stopmap"][slot_name] = preserved
+            elif new_val:
+                profile["liquidations"]["stopmap"][slot_name] = new_val
+            elif prev_val:
+                preserved = dict(prev_val)
+                preserved["preserved_on_fallback"] = True
+                profile["liquidations"]["stopmap"][slot_name] = preserved
+
+        # Seed existing valid stopmap slots first so transient fallback never erases multi-horizon data
+        for ex_slot in list(existing_smap.keys()):
+            _merge_stopmap_slot(ex_slot, None)
+        _merge_stopmap_slot("m1_coin_24h", sm_m1_24h)
+        if is_prime:
+            _merge_stopmap_slot("m1_coin_3d", sm_m1_3d)
 
         is_native_sm = bool(
             (sm_m1_24h and sm_m1_24h.get("kind") == "native_heatmap_grid")
             or (sm_m1_3d and sm_m1_3d.get("kind") == "native_heatmap_grid")
+            or any(
+                isinstance(v, dict) and v.get("kind") == "native_heatmap_grid"
+                for v in existing_smap.values()
+            )
         )
         sm_specs: List[Tuple[str, str, str, str, float]] = []
         if is_native_sm or is_deep_core:
-            sm_specs.append(("m1_coin_7d", "1", "coin", "7d", 600.0 if is_prime else 1800.0))
+            sm_specs.append(("m1_coin_7d", "1", "coin", "7d", 900.0 if is_prime else 2400.0))
             if not is_prime:
-                sm_specs.append(("m1_coin_3d", "1", "coin", "3d", 900.0))
+                sm_specs.append(("m1_coin_3d", "1", "coin", "3d", 1200.0))
             if is_deep_core:
                 sm_specs.extend([
-                    ("m2_coin_3d", "2", "coin", "3d", 600.0),
-                    ("m3_coin_3d", "3", "coin", "3d", 600.0),
+                    ("m2_coin_3d", "2", "coin", "3d", 900.0),
+                    ("m3_coin_3d", "3", "coin", "3d", 900.0),
                 ])
+            # Extended multi-horizon heatmaps (30d/14d/48h/12h/90d) with smart cold-miss staggering to avoid fapi 429
+            ext_specs = [
+                ("m1_coin_30d", "1", "coin", "30d", 1800.0 if is_prime else 3600.0),
+                ("m1_coin_14d", "1", "coin", "14d", 1800.0 if is_prime else 3600.0),
+                ("m1_coin_48h", "1", "coin", "48h", 900.0 if is_prime else 2400.0),
+                ("m1_coin_12h", "1", "coin", "12h", 900.0 if is_prime else 2400.0),
+                ("m1_coin_90d", "1", "coin", "90d", 3600.0),
+            ]
+            # Prioritize missing horizons first, then stale ones; bounded cold network fetches per asset cycle
+            ext_specs.sort(
+                key=lambda sp: (
+                    1 if (isinstance(existing_smap.get(sp[0]), dict) and existing_smap[sp[0]].get("kind") == "native_heatmap_grid") else 0,
+                    0 if sp[3] in ("30d", "14d", "48h", "12h") else 1,
+                )
+            )
+            cold_budget = int(os.environ.get("TELEMETRY_SM_COLD_BUDGET", "3"))
+            cold_used = 0
+            for slot, mdl, mode, rng, ttl_s in ext_specs:
+                cache_hit = CACHES["stopmap"].get((sym, mdl, mode, rng), ttl_secs=ttl_s, allow_stale=False)
+                if cache_hit is not None or cold_budget <= 0 or cold_used < cold_budget:
+                    sm_specs.append((slot, mdl, mode, rng, ttl_s))
+                    if cache_hit is None:
+                        cold_used += 1
         if sym == "BTC":
-            sm_specs.append(("m1_pair_24h", "1", "pair", "24h", 120.0))
+            sm_specs.append(("m1_pair_24h", "1", "pair", "24h", 180.0))
 
         for slot, mdl, mode, rng, ttl_s in sm_specs:
             tasks[f"sm_{slot}"] = self.cached_get(
@@ -1188,6 +1290,7 @@ class AsyncTelemetryHarvester:
                 timeout=22,
                 transform=summarize_stopmap_payload,
                 heavy=True,
+                fapi_pace=True,
             )
 
         # Book Walls across timeframes (m15/1h + spot m15 for all; 1m/5m/spot-1h for top 26 Core Flow; 4h for Deep Core)
@@ -1269,8 +1372,8 @@ class AsyncTelemetryHarvester:
                 "putCallRatio": opt.get("putCallRatio"),
             }
 
-        # Populate Liq Clusters
-        for rng in ("3d", "7d", "30d"):
+        # Populate Liq Clusters (3d / 7d / 14d / 30d)
+        for rng in ("3d", "7d", "14d", "30d"):
             l_res = res_map.get(f"liq_{rng}")
             if l_res and l_res.get("ok"):
                 profile["liquidations"]["clusters"][rng] = {
@@ -1279,14 +1382,12 @@ class AsyncTelemetryHarvester:
                     "livePrice": l_res.get("livePrice"),
                 }
 
-        # Populate Stopmaps
+        # Populate Stopmaps (non-clobbering: preserve native grids on transient fallback)
         for slot, _, _, _, _ in sm_specs:
-            sm_val = res_map.get(f"sm_{slot}")
-            if sm_val:
-                profile["liquidations"]["stopmap"][slot] = sm_val
+            _merge_stopmap_slot(slot, res_map.get(f"sm_{slot}"))
         if sm_m1_24h and not is_native_sm and "m1_coin_3d" not in profile["liquidations"]["stopmap"]:
             # Honest annotation when symbol relies on local rolling snapshot archive (range/model-invariant)
-            profile["liquidations"]["stopmap"]["rolling_archive_shared_across"] = ["m1_coin_24h", "m1_coin_3d", "m1_coin_7d"]
+            profile["liquidations"]["stopmap"]["rolling_archive_shared_across"] = ["m1_coin_12h", "m1_coin_24h", "m1_coin_48h", "m1_coin_3d", "m1_coin_7d", "m1_coin_14d", "m1_coin_30d"]
 
         # Populate Book Walls & grid-aligned live_binance
         m15_grid = None

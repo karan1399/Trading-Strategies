@@ -398,21 +398,68 @@ def audit_symbol_16p(
         "coverage": "BTC/ETH only" if sym in ("BTC", "ETH") else "Unsupported (Non-BTC/ETH)",
     }
 
-    # 8. Liquidations (3d/7d/30d clusters + Model 1 Stopmap 24h/3d/7d keyLevels + D12 LSR + D16 5m tape)
+    # 8. Liquidations (3d/7d/14d/30d clusters + Model 1/2/3 Stopmap ALL horizons 12h..90d + D12 LSR + D16 5m tape)
     liq = d.get("liquidations") or {}
     clusters = liq.get("clusters") or {}
     smap = liq.get("stopmap") or {}
     a3, b3 = _extract_shelf_extremes(clusters, "3d")
     a7, b7 = _extract_shelf_extremes(clusters, "7d")
+    a14, b14 = _extract_shelf_extremes(clusters, "14d")
     a30, b30 = _extract_shelf_extremes(clusters, "30d")
     sm24 = smap.get("m1_coin_24h") or {}
     sm3 = smap.get("m1_coin_3d") or {}
     sm3_kl = sm3.get("keyLevels") or {}
     sm3_walls = sm3.get("walls") if isinstance(sm3.get("walls"), dict) else {}
+
+    horizon_order = [
+        "m1_coin_12h", "m1_coin_24h", "m1_coin_48h", "m1_coin_3d",
+        "m1_coin_7d", "m1_coin_14d", "m1_coin_30d", "m1_coin_90d",
+        "m1_pair_24h", "m2_coin_3d", "m3_coin_3d",
+    ]
+    extra_keys = [k for k in sorted(smap.keys()) if k not in horizon_order and k != "rolling_archive_shared_across"]
+    stopmap_horizons: Dict[str, Any] = {}
+    all_max_shorts: List[Dict[str, Any]] = []
+    all_max_longs: List[Dict[str, Any]] = []
+    for hk in horizon_order + extra_keys:
+        sm_obj = smap.get(hk)
+        if not isinstance(sm_obj, dict):
+            continue
+        kl_h = sm_obj.get("keyLevels") if isinstance(sm_obj.get("keyLevels"), dict) else {}
+        w_h = sm_obj.get("walls") if isinstance(sm_obj.get("walls"), dict) else {}
+        ov_h = sm_obj.get("overview") if isinstance(sm_obj.get("overview"), dict) else {}
+        tots_h = sm_obj.get("totals") if isinstance(sm_obj.get("totals"), dict) else {}
+        ms_h = w_h.get("max_short") if isinstance(w_h.get("max_short"), dict) else None
+        ml_h = w_h.get("max_long") if isinstance(w_h.get("max_long"), dict) else None
+        if hk.startswith("m1_coin_") and ms_h and ms_h.get("price") is not None:
+            all_max_shorts.append({"horizon": hk, **ms_h})
+        if hk.startswith("m1_coin_") and ml_h and ml_h.get("price") is not None:
+            all_max_longs.append({"horizon": hk, **ml_h})
+        stopmap_horizons[hk] = {
+            "kind": sm_obj.get("kind"),
+            "source": sm_obj.get("source"),
+            "stale": sm_obj.get("stale"),
+            "preserved_on_fallback": sm_obj.get("preserved_on_fallback", False),
+            "largest_level": ov_h.get("largestLevel"),
+            "longs_total": ov_h.get("longs") if ov_h.get("longs") is not None else tots_h.get("longs"),
+            "shorts_total": ov_h.get("shorts") if ov_h.get("shorts") is not None else tots_h.get("shorts"),
+            "above": [x.get("price") for x in (kl_h.get("above") or [])[:5] if isinstance(x, dict)],
+            "below": [x.get("price") for x in (kl_h.get("below") or [])[:5] if isinstance(x, dict)],
+            "active_short_walls": (w_h.get("active_short_prices") or [])[:8],
+            "active_long_walls": (w_h.get("active_long_prices") or [])[:8],
+            "max_short": ms_h,
+            "max_long": ml_h,
+        }
+
+    widest_short_all_tf = max((w["price"] for w in all_max_shorts), default=None)
+    widest_long_all_tf = min((w["price"] for w in all_max_longs), default=None)
+    max_short_notional_all_tf = max(all_max_shorts, key=lambda w: float(w.get("mx_usd") or 0.0), default=None)
+    max_long_notional_all_tf = max(all_max_longs, key=lambda w: float(w.get("mx_usd") or 0.0), default=None)
+
     live_tape = liq.get("live_prints_tape") or {}
     p["8_liquidations"] = {
         "above_3d": a3, "below_3d": b3,
         "above_7d": a7, "below_7d": b7,
+        "above_14d": a14, "below_14d": b14,
         "above_30d": a30, "below_30d": b30,
         "stopmap_24h_largest": (sm24.get("overview") or {}).get("largestLevel"),
         "stopmap_3d_above": [x.get("price") for x in (sm3_kl.get("above") or [])[:5] if isinstance(x, dict)],
@@ -421,7 +468,12 @@ def audit_symbol_16p(
         "stopmap_3d_walls_active_long": sm3_walls.get("active_long_prices") or [],
         "stopmap_3d_max_short": sm3_walls.get("max_short"),
         "stopmap_3d_max_long": sm3_walls.get("max_long"),
-        "stopmap_models_present": sorted(smap.keys()),
+        "stopmap_horizons": stopmap_horizons,
+        "widest_short_wall_all_tf": widest_short_all_tf,
+        "widest_long_wall_all_tf": widest_long_all_tf,
+        "max_short_notional_all_tf": max_short_notional_all_tf,
+        "max_long_notional_all_tf": max_long_notional_all_tf,
+        "stopmap_models_present": sorted(k for k in smap.keys() if k != "rolling_archive_shared_across"),
         "lsr_3d": _compute_lsr(clusters, smap),
         "liq_5m_pace_usd": _compute_5m_liq_usd(live_tape) if live_tape else None,
         "liq_24h_usd": (live_tape.get("stats24h") or {}).get("usd") if live_tape else None,
