@@ -87,23 +87,61 @@ public class AgAutoWakeWin32V2 {
 
     public static IntPtr MatchedHandle = IntPtr.Zero;
     public static string MatchedTitle = "";
+    public static string MatchedProc = "";
 
-    public static IntPtr FindBySubstring(string needle) {
+    public static IntPtr FindAntigravityIdeWindow(string preferredWorkspace) {
         MatchedHandle = IntPtr.Zero;
         MatchedTitle = "";
+        MatchedProc = "";
+        IntPtr fallbackHandle = IntPtr.Zero;
+        string fallbackTitle = "";
+        string fallbackProc = "";
+
         EnumWindows(delegate(IntPtr hWnd, IntPtr lParam) {
-            if (IsWindowVisible(hWnd)) {
-                StringBuilder sb = new StringBuilder(512);
-                GetWindowText(hWnd, sb, 512);
-                string title = sb.ToString();
-                if (!string.IsNullOrEmpty(title) && title.IndexOf(needle, StringComparison.OrdinalIgnoreCase) >= 0) {
-                    MatchedHandle = hWnd;
-                    MatchedTitle = title;
-                    return false;
-                }
+            if (!IsWindowVisible(hWnd)) return true;
+            StringBuilder sb = new StringBuilder(512);
+            GetWindowText(hWnd, sb, 512);
+            string title = sb.ToString();
+            if (string.IsNullOrEmpty(title)) return true;
+
+            // Never target helper/sidecar tools (e.g., com.lbjlaq.antigravity-tools-siw)
+            if (title.IndexOf("antigravity-tools", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                title.IndexOf("lbjlaq", StringComparison.OrdinalIgnoreCase) >= 0) {
+                return true;
+            }
+
+            uint pid = 0;
+            GetWindowThreadProcessId(hWnd, out pid);
+            string procName = "";
+            try {
+                procName = System.Diagnostics.Process.GetProcessById((int)pid).ProcessName;
+            } catch {}
+
+            bool isIdeProc = procName.Equals("Antigravity", StringComparison.OrdinalIgnoreCase);
+            bool looksLikeIdeTitle = title.IndexOf("- Antigravity", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                     title.Equals("Antigravity", StringComparison.OrdinalIgnoreCase);
+            if (!isIdeProc && !looksLikeIdeTitle) return true;
+
+            if (!string.IsNullOrEmpty(preferredWorkspace) &&
+                title.IndexOf(preferredWorkspace, StringComparison.OrdinalIgnoreCase) >= 0) {
+                MatchedHandle = hWnd;
+                MatchedTitle = title;
+                MatchedProc = procName;
+                return false;
+            }
+            if (fallbackHandle == IntPtr.Zero) {
+                fallbackHandle = hWnd;
+                fallbackTitle = title;
+                fallbackProc = procName;
             }
             return true;
         }, IntPtr.Zero);
+
+        if (MatchedHandle == IntPtr.Zero && fallbackHandle != IntPtr.Zero) {
+            MatchedHandle = fallbackHandle;
+            MatchedTitle = fallbackTitle;
+            MatchedProc = fallbackProc;
+        }
         return MatchedHandle;
     }
 
@@ -144,20 +182,23 @@ function Write-Log {
 
 function Find-AntigravityHandle {
     $script:matchedTitle = ""
-    # Method A: Pure C# EnumWindows wildcard substring match (works when title is "<workspace> - Antigravity")
-    $hwnd = [AgAutoWakeWin32V2]::FindBySubstring("Antigravity")
+    $script:matchedProc = ""
+    # Method A: Pure C# EnumWindows filtering on Antigravity.exe / "- Antigravity" (excludes antigravity-tools!)
+    $hwnd = [AgAutoWakeWin32V2]::FindAntigravityIdeWindow("Trading-Strategies")
     if ($null -ne $hwnd -and $hwnd -is [IntPtr] -and $hwnd -ne [IntPtr]::Zero) {
         $script:matchedTitle = [AgAutoWakeWin32V2]::MatchedTitle
+        $script:matchedProc = [AgAutoWakeWin32V2]::MatchedProc
         return $hwnd
     }
 
-    # Method B: Process MainWindowHandle fallback (Electron process scan)
+    # Method B: Exact Antigravity IDE Electron process scan (excludes antigravity-tools)
     $procs = Get-Process -ErrorAction SilentlyContinue | Where-Object {
-        $_.ProcessName -like "*Antigravity*" -or $_.MainWindowTitle -like "*Antigravity*"
+        $_.ProcessName -eq "Antigravity" -and $_.MainWindowTitle -notlike "*antigravity-tools*"
     }
     foreach ($p in $procs) {
         if ($null -ne $p.MainWindowHandle -and $p.MainWindowHandle -ne [IntPtr]::Zero) {
             $script:matchedTitle = $p.MainWindowTitle
+            $script:matchedProc = $p.ProcessName
             return $p.MainWindowHandle
         }
     }
@@ -206,14 +247,19 @@ function Send-PasteAndEnter {
         return
     }
 
-    Write-Log "Activating Antigravity window ($script:matchedTitle)..." -Color Gray
+    Write-Log "Activating Antigravity IDE window (proc='$script:matchedProc' title='$script:matchedTitle')..." -Color Gray
     $focused = Focus-AntigravityWindow -TargetHandle $targetHandle
 
     if (-not $focused) {
-        Write-Log "WARNING: Could not find or focus 'Antigravity' window. Skipping blind keystrokes to avoid pasting into wrong app!" -Color Red
+        Write-Log "WARNING: Could not find or focus 'Antigravity' IDE window. Skipping blind keystrokes to avoid pasting into wrong app!" -Color Red
         return
     }
-    Write-Log "Antigravity window successfully brought to foreground." -Color Green
+    $fgNow = [AgAutoWakeWin32V2]::GetForegroundWindow()
+    if ($fgNow -ne $targetHandle) {
+        Write-Log "WARNING: Foreground handle ($fgNow) != Antigravity handle ($targetHandle). Aborting paste for safety." -Color Red
+        return
+    }
+    Write-Log "Antigravity IDE window verified in foreground." -Color Green
 
     # Small pause to ensure UI chat input field has focus (keep cursor in Antigravity chat box!)
     Start-Sleep -Milliseconds 450
