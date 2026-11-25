@@ -20232,3 +20232,8 @@ Cleared Delta ILK-01 (116.50.84.115), fixed delta_exec.py slot count, restarted 
   * AGENT MEMORY INIT: Created `data/agent_memory/{trade_postmortems.jsonl,regime_signal_weights.json,adaptive_playbook.md,prediction_calibration_log.jsonl}` (14 closed trades reconciled; anti-overfitting lifecycle enforced).
   * MT5 #5126976 (retcode=10009): Canceled `NOKJPY.pi #20501510` (spread=50.2% ATR15, -$5.48 risk); replaced `ETHUSD.pi #20501509` with `#20516480 SELL_LIMIT 0.09 @ 1660.0, SL 1715.0, TP 1550.0` ($4.95 risk, 2.00R). Book risk reduced `$31.50 -> $25.56 / $25.89` (0.987%).
   * DELTA #26902927: Verified `FILUSD -1 @ 0.5144` (`SL 0.5309, TP 0.4642`) + `#1714518260 FILUSD @ 0.534` + `#1714234905 ADAUSD @ 0.144` (`bal=$3.3109`, `net_eq=$3.4286`).
+
+## R32 HOLY GRAIL IG PORTFOLIO & UNIFIED ENGINE LAUNCH · 2026-11-25 14:51 UTC · Antigravity
+  * SEPARATE FOLDERS CREATED: `strategies/ig_s7_daily_pivot/`, `strategies/ig_s5_zscore_breakout/`, `strategies/ig_s1_williams_pullback/`, `strategies/ig_s2_rsi2_meanrev/`, `strategies/ig_s8_vol_target/` + `strategies/registry.py`.
+  * UNIFIED ENGINE WIRED (`engine/unified_alpha_pilot.py` + `engine/config.json`): Plugged magics `42006..42009` + `S8` vol-target risk bounds `[$5.00..$6.00]`, per-sleeve BE toggle (`be_lock_enabled`), `2x_spread <= 0.25R` live guard, and generic `max_hold_bars` exit. `SELFTEST: PASS` across all 8 sleeves (`S1..S6`).
+  * OOS PORTFOLIO UPLIFT (`370` days): `Baseline +20.1R (Sharpe 0.98, Sortino 0.67)` -> `Combined +244.9R (+64.4% @ 0.22% risk, Sharpe 1.52, Sortino 2.42, p=0.0329)`; `S8` vol-targeting cuts portfolio `DD` `138.1R -> 85.4R`, Calmar `1.65 -> 2.19`.
