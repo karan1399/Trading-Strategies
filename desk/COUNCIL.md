@@ -3777,3 +3777,19 @@ Empirical audit of today's MT5 deal history reveals the exact root causes of sto
 - **Code Fix (`engine/cg_sl_tp.py`):** `fetch_cg_context` now calls `/api/cg/stopmap?sym=<CG>&range=3d&mode=coin` and maps `model.keyLevels.{above,below}` onto `0..100` strength using `overview.largestLevel`.
 
 **Confidence:** VERIFIED (`MT5` `retcode=10009` & deal/position readback + live `:3000` `http_stopmap` + `Delta` MCP readback + unit test).
+
+### [2026-11-25T18:36:00Z] · Antigravity · R39 ZERO-GAP ENDPOINT PARITY FIX (`D01-D16`, `telemetry_daemon v4.1`, `telemetry_16p_engine` & MANDATE PROMPT V2) (00:06 IST)
+**Verdict:** Audited all 38 `:3000/api/cg/*` routes against `CANONICAL_MASTER_SPECIFICATION.md` (`D01-D16`), `scripts/telemetry_daemon.py`, and `scripts/telemetry_16p_engine.py`. Fixed 7 live data/schema drops & rate-limit/staleness causes, added `--live-continue` `:3000` HTTP enrichment, verified `8/8` unit tests (`test_telemetry_parity.py` + `test_cg_sl_tp_and_baskets.py`), restarted `telemetry_daemon.py v4.1 --no-git`, and authored `desk/INSTITUTIONAL_MANDATE_PROMPT.md` (V2).
+- **Schema & Endpoint Fixes (`scripts/telemetry_daemon.py` v4.1):**
+  - `market`: preserved `levels` (`pdh`, `pdl`, `pwh`, `pwl`, `sessionVwaps`).
+  - `oracle`: raised timeout `8s -> 16s` to eliminate silent Athena timeouts.
+  - `options` (`D13`): fixed `riskReversal25d` (`opt.get("skew")` was returning `None`) and added `gammaFlipPrice`, `gex`, `oiWalls`, `maxPainStrike`.
+  - `stopmap` & `liq-live` (`D11`/`D16`): added `m1_coin_3d` & `m1_coin_7d` stopmaps alongside `24h`, and ingested `/api/cg/liq-live` (`stats1h`, `stats24h`, `events[:25]`).
+  - `book_walls` (`D09`): added real-time Binance `/api/cg/livebook` (`live_binance`) and raised stored limits (`walls[:15]`, `events[:10]`).
+  - `lto` (`D10`) & `perpdepth`: added `/api/cg/lto?symbol=<CG>` (correct `symbol=` param instead of `sym=`), cached `/api/cg/largeorder` to cut Coinglass 429s, and added `/api/cg/perpdepth?sym=<CLASSIC>&quiet=1` for TradFi.
+  - `funding` & `oi` (`D14`/`D15`): preserved `funding_aggregate` (+ computed `apr_pct`) and `oi_aggregate` (`oiUsd`, `oiDelta1hPct`, `oiDelta4hPct`, `oiDelta24hPct`).
+  - **Freshness Fix:** Separated fast-lane `PRIME` (`<=600s` SLA every cycle, `3` workers) from rotating tail batch (`20`/cycle) so full cycle stays under `600s`.
+- **Reader & Continuation Fixes (`scripts/telemetry_16p_engine.py`):** Added full `D01-D16` extraction + pure in-memory `--live-continue` `:3000` enrichment for stale/incomplete disk caches (`WS-10` zero temp files).
+- **Prompt Fixed:** Saved zero-gap mandate prompt to `desk/INSTITUTIONAL_MANDATE_PROMPT.md` (fixing broken path `TradingStrategies` -> `Trading-Strategies`, mandating `D01-D16` schema parity + live `:3000` continuation).
+
+**Confidence:** VERIFIED (`8/8` pytest + `py_compile` + live `:3000` schema inspection + `telemetry_daemon.py v4.1` running).

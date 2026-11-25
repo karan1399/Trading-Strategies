@@ -20281,3 +20281,8 @@ Synced live MT5 #5126976 execution & `/thinking-red-team` backtest verification 
 - Executed MT5 `#20516480 ETHUSD.pi`: Partial close `0.02` (`Deal #18617569 @ 1694.63`, `-$0.69`, `0.08 -> 0.06` lots) + moved `SL 1728.50 -> 1748.00`, `TP 1523.00 -> 1484.00` (`$5.28` risk, `2.00R`, clears `1,743.32` chart band).
 - Logged `JP225.p #20502882` SL close (`Deal #18617439 @ 57050.39`, `-$2.64`). MT5 Book after: `Open=5`, `Eq=$2,536.77`, `Total SL Risk=$22.27 (0.878% <= 1.00% Cap)`.
 - Patched `engine/cg_sl_tp.py` (`fetch_cg_context` `http_stopmap` `model.keyLevels` parser) and added regression test in `tests/test_cg_sl_tp_and_baskets.py`.
+
+### [2026-11-25T18:36:00Z] · R39 · `D01-D16` ENDPOINT PARITY FIX & MANDATE PROMPT V2
+- Fixed 7 data/schema/freshness drops in `scripts/telemetry_daemon.py` (`v4.1`) & `scripts/telemetry_16p_engine.py` (`--live-continue` + full `D01-D16` extraction).
+- Passed `pytest tests/test_telemetry_parity.py tests/test_cg_sl_tp_and_baskets.py` (`8/8`).
+- Authored zero-gap `desk/INSTITUTIONAL_MANDATE_PROMPT.md` & restarted `telemetry_daemon.py --no-git`.
