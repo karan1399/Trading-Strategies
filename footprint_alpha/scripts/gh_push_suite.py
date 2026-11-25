@@ -20,9 +20,9 @@ FOLDER = "footprint_alpha"  # suite lives in <repo>/footprint_alpha/ — user's 
 MY_NS = ("engine/", "binance_orderflow/", "desk/", "scripts/aec_", "scripts/orb_",
          "scripts/build_clean_repo.py", "scripts/gh_push_suite.py", "scripts/gh_token_recover.py",
          "scripts/run_universe20.sh", "QUICKSTART.md")
-AUTHORED_MSG = ("feat: add Binance footprint alpha suite — orderflow dump engine, "
-                "per-asset AEC-Trend optimization (TP>=2R), ORB/EMA-rej footprint sleeves, "
-                "unified MT5 execution engine, pull-and-run guide")
+AUTHORED_MSG = ("feat(engine): --live single-command real-money mode — strict MT5 preflight, "
+                "daily-loss breaker, kill-file, dedupe + JSONL audit, never-stub fills; "
+                "README going-live guide + honest performance read")
 
 
 def sh(cmd, cwd=None, timeout=120):
@@ -62,9 +62,23 @@ def main():
         for f in files:
             theirs.add(os.path.relpath(os.path.join(root, f), WORK))
     print(f"remote tree: {len(theirs)} files; top-level: {sorted({p.split('/')[0] for p in theirs})[:12]}")
-    # ---- additive merge into <repo>/footprint_alpha/
-    if any(p == FOLDER or p.startswith(FOLDER + "/") for p in theirs):
-        sys.exit(f"'{FOLDER}/' already exists in the repo — aborting to avoid clobbering; pick another name")
+    # ---- sync <repo>/footprint_alpha/ (the suite owns this folder; repo root untouched)
+    suite_dst = os.path.join(WORK, FOLDER)
+    if os.path.isdir(suite_dst):
+        keep = set()
+        for root, dirs, files in os.walk(CLEAN):
+            dirs[:] = [d for d in dirs if d != ".git"]
+            for f in files:
+                keep.add(os.path.relpath(os.path.join(root, f), CLEAN))
+        stale = []
+        for root, dirs, files in os.walk(suite_dst):
+            dirs[:] = [d for d in dirs if d != "__pycache__"]
+            for f in files:
+                rel = os.path.relpath(os.path.join(root, f), suite_dst)
+                if rel not in keep and not rel.endswith(".jsonl"):
+                    os.remove(os.path.join(root, f))
+                    stale.append(rel)
+        print(f"sync: removed {len(stale)} stale suite file(s): {stale[:5]}")
     added = []
     for root, dirs, files in os.walk(CLEAN):
         dirs[:] = [d for d in dirs if d != ".git"]

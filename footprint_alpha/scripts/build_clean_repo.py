@@ -21,13 +21,31 @@ README = f"""# Trading Alpha Suite — Binance footprint/orderflow signals, MT5 
 
 Live signals are computed from **Binance USDT-M footprint + orderflow** (Vision monthly
 dumps, incremental API gap-fill); every emitted signal carries the matching **MT5 CFD
-symbol** (`mt5_symbol`) so execution targets the MT5 candle. Three sleeves ship wired:
+symbol** (`mt5_symbol`) so execution targets the MT5 candle. Six sleeves ship wired —
+the three footprint-alpha sleeves plus faithful ports of the repo's other strategy
+families, all sharing one signal → guards → sizing → audit pipeline:
 
-| sleeve | entry logic | default target |
-| --- | --- | --- |
-| `aec_trend` | pullback/reclaim in EMA-regime with auction-complete (footprint) trigger | per-asset, TP ≥ 2R enforced |
-| `ema_rej` | EMA 89/233 wick-kiss / pierce-fail rejection + AC-event confirm | 2R |
-| `orb` | UTC 60-min opening-range breakout, close-through + delta>2% + volume ≥1.2× | 2R |
+| sleeve | lineage | entry logic | target | pooled crypto-15m PF* | default |
+| --- | --- | --- | --- | --- | --- |
+| `aec_trend` | NEW (this suite) | pullback/reclaim in EMA-regime with auction-complete (footprint) trigger | per-asset, TP ≥ 2R | 1.02 pooled — the per-asset overrides carry the edge | **ON** |
+| `ema_rej` | upgraded | EMA 89/233 wick-kiss / pierce-fail rejection + AC-event confirm | 2R | 1.20 | **ON** |
+| `orb` | upgraded | UTC 60-min opening-range breakout, close-through + delta>2% + volume ≥1.2× | 2R | 0.89 on the fixed deployed config (research grid OOS PF 3.58 — re-tune before sizing) | **ON** |
+| `dfib_vwap` | ported (Delta-Fibonacci) | 5-pattern level rejection (pinbar/two-bar/sweep/cluster/double-tap) at session VWAP ±1,2 SD bands | 2R, floor 1.2 ATR | 0.76 | off |
+| `dfib_ema` | ported (Delta-Fibonacci) | same patterns at the EMA50 "kiss and bounce" | 2R, floor 1.2 ATR | 0.77 | off |
+| `vc_breakout` | ported (Volatility_compression) | BB(20,2)-in-KC(20,1.5×ATR) squeeze ≥3 bars → close beyond KC band, EMA200+momentum gates | 2R, floor 1.2 ATR | 0.87 | off |
+
+\* Pooled over the full 54-day store, engine fills, 4/11 bps costs — see
+`desk/BACKTEST_ALL_SLEEVES.txt`. All six sleeves are integrated and share the same
+signal → guards → sizing → audit pipeline; the three ported ones are **selftest-verified
+but default-off** because they were validated on metals/FX 4H/1H history, not crypto 15m
+— enable any of them by adding `dfib_vwap` / `dfib_ema` / `vc_breakout` to `sleeves` in
+`engine/config.json` (per-asset optimization recommended first: the AEC per-asset
+workflow in `scripts/` is the template).
+
+HFT (`HFT/` in the repo) intentionally stays a separate process: it is market-making
+microstructure on websocket cadence, not a 15-minute bar sleeve — folding it in would
+break its design. Its risk-governor caps (max positions, daily loss, kill switch) are
+embodied in this engine's live guards.
 
 12/20 assets have OOS-verified per-asset configs (`engine` auto-loads
 `binance_orderflow/data/research/aec_asset_overrides.json`); assets without a verified
@@ -91,7 +109,8 @@ lots; the 54-day OOS window favored shorts (orderly bear leg) — re-validate mo
 python3 engine/unified_alpha_pilot.py --live --i-understand-live-risk
 ```
 
-Runs all three sleeves against your real MT5 terminal every 15 minutes (bar close +20s,
+Runs all six sleeves (footprint-alpha + Delta-Fibonacci + volatility-compression ports)
+against your real MT5 terminal every 15 minutes (bar close +20s,
 incremental Binance gap-fill each pass). Guards — each one covered by a selftest:
 
 - **Preflight, all must pass before any order**: terminal connected, algo-trading
@@ -118,6 +137,12 @@ a guarantee**: (1) the window favored shorts (orderly bear leg) — re-validate 
 20–30 bps of a 30–60 bps edge — expect live below backtest; (3) assets without a
 verified config are not traded by design ("do not trade the nulls"). Run `--mode paper`
 at least two weeks and compare fills to the log before sizing real lots.
+
+The ported Delta-Fibonacci and volatility-compression sleeves are code-faithful to
+their engines but **their own research was on metals/FX/indices 4H/1H** — pooled on
+crypto 15m over this window they are net negative (PF 0.76–0.87), which is why they
+ship integrated but default-off. Treat them as a starting point for per-asset
+optimization, not as ready crypto edges.
 
 ## Repo layout
 

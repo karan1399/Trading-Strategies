@@ -82,6 +82,14 @@ DEFAULT_CFG = {
     },
     "risk": {"risk_per_trade_pct": 0.5, "max_concurrent": 4, "daily_loss_cap_pct": 1.5},
     "data": {"store": "binance_orderflow/data", "bar_tf": "15m", "symbols": "SUITE"},
+    "dfib": {"tp_r": 2.0, "wick_tol_atr": 0.15, "ema_period": 50},
+    "vc": {"tp_r": 2.0, "bb_period": 20, "bb_mult": 2.0, "kc_mult": 1.5,
+           "min_squeeze_bars": 3, "cooldown_bars": 6},
+    # All six sleeves are integrated; defaults enable the positive-expectancy ones.
+    # dfib/vc ported 1:1 but pooled crypto-15m PF 0.76-0.87 over the validated window
+    # (they were validated on metals/FX 4H/1H) — enable per-asset after optimization:
+    # add "dfib_vwap"/"dfib_ema"/"vc_breakout" to sleeves in engine/config.json.
+    # Full per-sleeve numbers: desk/BACKTEST_ALL_SLEEVES.txt
     "sleeves": ["aec_trend", "ema_rej", "orb"],
     "universe_mt5": {
         "BTCUSDT": "BTCUSD.pi", "ETHUSDT": "ETHUSD.pi", "SOLUSDT": "SOLUSD.p",
@@ -387,6 +395,357 @@ def check_signal_orb(df: pd.DataFrame, i: int, cfg: dict) -> dict | None:
             "entry": entry, "stop": float(stop), "tp": float(tp), "signal_ts": int(p["ts"]),
             "sleeve": "orb", "atr": float(p["atr"]),
             "reasons": [f"ORB-breakout({P.get('tp_r', 2.0)}R)", "delta+volume confirm"]}
+
+
+# ================================================ legacy sleeves (ported) ====
+# Faithful ports of the repo's other strategy families into this engine's
+# signal -> guards -> sizing -> audit pipeline:
+#   dfib_vwap / dfib_ema : Delta-Fibonacci-Institutional-Business/engine/
+#                          candle_rejection.py — the 5 level-rejection patterns
+#                          (pinbar kiss, two-bar reversal, three-bar sweep, cluster
+#                          stall, double-tap) at session VWAP bands or the EMA50
+#                          "kiss and bounce"; structural SL (level +/- 0.2 ATR,
+#                          floor 1.2 ATR); market-style entry at the next open.
+#   vc_breakout          : Volatility_compression/quant_volatility_compression.py —
+#                          BB(20,2) inside KC(20,1.5*ATR14) for >=3 bars, then close
+#                          beyond the KC band with EMA200 + momentum + candle gates;
+#                          SL beyond the squeeze basis (floor 1.2 ATR); fixed R.
+#   HFT intentionally stays a separate process — it is market-making microstructure
+#   (websocket quoting cadence), not a 15m bar sleeve; its risk-governor caps
+#   (max positions, daily loss, kill switch) are embodied in this engine's guards.
+
+def wilder_atr_np(h: np.ndarray, l: np.ndarray, c: np.ndarray, period: int = 14) -> np.ndarray:
+    n = len(c)
+    atr = np.zeros(n)
+    if n <= period:
+        return atr
+    tr = np.zeros(n)
+    tr[0] = h[0] - l[0]
+    for i in range(1, n):
+        tr[i] = max(h[i] - l[i], abs(h[i] - c[i - 1]), abs(l[i] - c[i - 1]))
+    atr[period - 1] = tr[:period].mean()
+    for i in range(period, n):
+        atr[i] = (atr[i - 1] * (period - 1) + tr[i]) / period
+    return atr
+
+
+def _ensure_atr14w(d: pd.DataFrame) -> pd.DataFrame:
+    if "atr14w" not in d.columns:
+        d["atr14w"] = wilder_atr_np(d["h"].to_numpy(float), d["l"].to_numpy(float),
+                                    d["c"].to_numpy(float), 14)
+    return d
+
+
+def _dfib_bands(d: pd.DataFrame) -> pd.DataFrame:
+    """Session (UTC-day) VWAP +/- 1,2 SD bands + close-EMA50, computed once per frame.
+    Volume weight = vol_base (real traded volume from the orderflow store)."""
+    if "vwap" in d.columns:
+        return d
+    _ensure_atr14w(d)
+    ts = pd.to_datetime(d["ts"], unit="ms", utc=True)
+    vol = d["vol_base"].clip(lower=1e-9)
+    tp = (d["h"] + d["l"] + d["c"]) / 3.0
+    sid = ts.dt.date
+    pv, pv2 = tp * vol, vol * tp ** 2
+    cum = vol.groupby(sid).cumsum()
+    d["vwap"] = (pv.groupby(sid).cumsum() / cum).to_numpy()
+    var = (pv2.groupby(sid).cumsum() / cum).to_numpy() - d["vwap"].to_numpy() ** 2
+    std = np.sqrt(np.maximum(0.0, var))
+    d["vwap_p1"] = d["vwap"].to_numpy() + std
+    d["vwap_p2"] = d["vwap"].to_numpy() + 2 * std
+    d["vwap_m1"] = d["vwap"].to_numpy() - std
+    d["vwap_m2"] = d["vwap"].to_numpy() - 2 * std
+    d["ema50c"] = ema(d["c"], 50)
+    return d
+
+
+def _rejection_wick(open_p: float, high_p: float, low_p: float, close_p: float,
+                    min_wick_ratio: float = 0.35):
+    """Single-bar structural rejection wick (hammer/pinbar/star) — faithful port."""
+    rng = max(1e-6, high_p - low_p)
+    body_top, body_bot = max(open_p, close_p), min(open_p, close_p)
+    lower_w = (body_bot - low_p) / rng
+    upper_w = (high_p - body_top) / rng
+    is_bull = lower_w >= min_wick_ratio and (close_p - low_p) / rng >= 0.35
+    is_bear = upper_w >= min_wick_ratio and (high_p - close_p) / rng >= 0.35
+    return is_bull, is_bear, lower_w, upper_w
+
+
+def _two_bar_rev(o, h, l, c, atr, idx, level, side_bias):
+    if idx < 1:
+        return None
+    tol = max(1e-5, 0.20 * atr[idx])
+    if side_bias == -1:
+        b1 = h[idx - 1] >= (level - tol)
+        b2 = h[idx] >= (level - tol) and c[idx] <= level
+        if (b1 or b2) and c[idx] < o[idx] and c[idx] < (o[idx - 1] + c[idx - 1]) / 2.0 \
+                and c[idx] <= level:
+            sl = max(h[idx - 1], h[idx]) + 0.20 * atr[idx]
+            return {"pattern": "TWO_BAR_BEARISH", "structural_sl": sl,
+                    "risk_dist": max(sl - c[idx], 1.2 * atr[idx])}
+    else:
+        b1 = l[idx - 1] <= (level + tol)
+        b2 = l[idx] <= (level + tol) and c[idx] >= level
+        if (b1 or b2) and c[idx] > o[idx] and c[idx] > (o[idx - 1] + c[idx - 1]) / 2.0 \
+                and c[idx] >= level:
+            sl = min(l[idx - 1], l[idx]) - 0.20 * atr[idx]
+            return {"pattern": "TWO_BAR_BULLISH", "structural_sl": sl,
+                    "risk_dist": max(c[idx] - sl, 1.2 * atr[idx])}
+    return None
+
+
+def _three_bar_sweep(o, h, l, c, atr, idx, level, side_bias):
+    if idx < 2:
+        return None
+    tol = max(1e-5, 0.20 * atr[idx])
+    if side_bias == -1:
+        swept = max(h[idx - 2], h[idx - 1], h[idx]) >= (level - tol)
+        peak = max(h[idx - 1], h[idx]) >= level
+        reclaimed = c[idx] <= level and c[idx] < o[idx]
+        engulfed = c[idx] < min(o[idx - 1], c[idx - 1]) or c[idx] < (h[idx - 1] + l[idx - 1]) / 2.0
+        if swept and peak and reclaimed and engulfed:
+            sl = max(h[idx - 2], h[idx - 1], h[idx]) + 0.20 * atr[idx]
+            return {"pattern": "THREE_BAR_SWEEP_BEARISH", "structural_sl": sl,
+                    "risk_dist": max(sl - c[idx], 1.2 * atr[idx])}
+    else:
+        swept = min(l[idx - 2], l[idx - 1], l[idx]) <= (level + tol)
+        dip = min(l[idx - 1], l[idx]) <= level
+        reclaimed = c[idx] >= level and c[idx] > o[idx]
+        engulfed = c[idx] > max(o[idx - 1], c[idx - 1]) or c[idx] > (h[idx - 1] + l[idx - 1]) / 2.0
+        if swept and dip and reclaimed and engulfed:
+            sl = min(l[idx - 2], l[idx - 1], l[idx]) - 0.20 * atr[idx]
+            return {"pattern": "THREE_BAR_SWEEP_BULLISH", "structural_sl": sl,
+                    "risk_dist": max(c[idx] - sl, 1.2 * atr[idx])}
+    return None
+
+
+def _cluster_stall(o, h, l, c, atr, idx, level, side_bias):
+    if idx < 3:
+        return None
+    tol = max(1e-5, 0.20 * atr[idx])
+    ch, cl, cc = h[idx - 3:idx], l[idx - 3:idx], c[idx - 3:idx]
+    if side_bias == -1:
+        touches = sum(1 for k in range(3) if ch[k] >= (level - tol))
+        if touches >= 2 and max(cc) <= (level + 0.15 * atr[idx]) and c[idx] < min(cl) \
+                and c[idx] <= level:
+            sl = max(max(ch), h[idx]) + 0.20 * atr[idx]
+            return {"pattern": "CLUSTER_STALL_BEARISH", "structural_sl": sl,
+                    "risk_dist": max(sl - c[idx], 1.2 * atr[idx])}
+    else:
+        touches = sum(1 for k in range(3) if cl[k] <= (level + tol))
+        if touches >= 2 and min(cc) >= (level - 0.15 * atr[idx]) and c[idx] > max(ch) \
+                and c[idx] >= level:
+            sl = min(min(cl), l[idx]) - 0.20 * atr[idx]
+            return {"pattern": "CLUSTER_STALL_BULLISH", "structural_sl": sl,
+                    "risk_dist": max(c[idx] - sl, 1.2 * atr[idx])}
+    return None
+
+
+def _double_tap(o, h, l, c, atr, idx, level, side_bias, min_gap=3, max_gap=15):
+    if idx < max_gap:
+        return None
+    tol = max(1e-5, 0.20 * atr[idx])
+    if side_bias == -1:
+        if h[idx] >= (level - tol) and c[idx] <= level and c[idx] <= o[idx]:
+            for k in range(max(0, idx - max_gap), idx - min_gap):
+                if h[k] >= (level - tol) and c[k] <= level:
+                    valley = min(l[k + 1:idx]) if idx > k + 1 else np.inf
+                    if valley <= level - 0.40 * atr[idx]:
+                        sl = max(h[idx], h[k]) + 0.20 * atr[idx]
+                        return {"pattern": "DOUBLE_TAP_BEARISH", "structural_sl": sl,
+                                "risk_dist": max(sl - c[idx], 1.2 * atr[idx])}
+    else:
+        if l[idx] <= (level + tol) and c[idx] >= level and c[idx] >= o[idx]:
+            for k in range(max(0, idx - max_gap), idx - min_gap):
+                if l[k] <= (level + tol) and c[k] >= level:
+                    peak = max(h[k + 1:idx]) if idx > k + 1 else -np.inf
+                    if peak >= level + 0.40 * atr[idx]:
+                        sl = min(l[idx], l[k]) - 0.20 * atr[idx]
+                        return {"pattern": "DOUBLE_TAP_BULLISH", "structural_sl": sl,
+                                "risk_dist": max(c[idx] - sl, 1.2 * atr[idx])}
+    return None
+
+
+def _level_rejection(o, h, l, c, atr, idx, level, side_bias):
+    """Unified evaluator — all 5 variants at a level, faithful order of their engine."""
+    tol = max(1e-5, 0.20 * atr[idx])
+    is_bull, is_bear, _, _ = _rejection_wick(o[idx], h[idx], l[idx], c[idx])
+    if side_bias == -1 and is_bear and h[idx] >= level - tol and c[idx] <= level:
+        sl = h[idx] + 0.20 * atr[idx]
+        return {"pattern": "PINBAR_KISS", "structural_sl": sl,
+                "risk_dist": max(sl - c[idx], 1.2 * atr[idx])}
+    if side_bias == 1 and is_bull and l[idx] <= level + tol and c[idx] >= level:
+        sl = l[idx] - 0.20 * atr[idx]
+        return {"pattern": "PINBAR_KISS", "structural_sl": sl,
+                "risk_dist": max(c[idx] - sl, 1.2 * atr[idx])}
+    for fn in (_two_bar_rev, _three_bar_sweep, _cluster_stall, _double_tap):
+        r = fn(o, h, l, c, atr, idx, level, side_bias)
+        if r:
+            return r
+    return None
+
+
+def _check_vwap_band_signal(o, h, l, c, i, atr, vwap, p1, p2, m1, m2, tol_wick=0.15):
+    is_bull, is_bear, _, _ = _rejection_wick(o[i], h[i], l[i], c[i])
+    tol = max(1e-5, tol_wick * atr[i])
+    if is_bull and l[i] <= m2 + tol and c[i] >= m2:
+        return {"side": 1, "setup": "VWAP_M2_LONG", "level": m2}
+    if is_bear and h[i] >= p2 - tol and c[i] <= p2:
+        return {"side": -1, "setup": "VWAP_P2_SHORT", "level": p2}
+    if is_bear and c[i - 1] <= vwap + tol and c[i] <= vwap and h[i] >= vwap - tol:
+        return {"side": -1, "setup": "VWAP_0_SHORT", "level": vwap}
+    if is_bear and c[i - 1] <= m1 + tol and c[i] <= m1 and h[i] >= m1 - tol:
+        return {"side": -1, "setup": "VWAP_M1_SHORT", "level": m1}
+    if is_bull and c[i - 1] >= vwap - tol and c[i] >= vwap and l[i] <= vwap + tol:
+        return {"side": 1, "setup": "VWAP_0_LONG", "level": vwap}
+    if is_bull and c[i - 1] >= p1 - tol and c[i] >= p1 and l[i] <= p1 + tol:
+        return {"side": 1, "setup": "VWAP_P1_LONG", "level": p1}
+    return {"side": 0, "setup": "NONE", "level": 0.0}
+
+
+def _check_ema_rejection_signal(o, h, l, c, i, atr, ema_val, ema_prev, tol_wick=0.15,
+                                ema_period=50):
+    is_bull, is_bear, _, _ = _rejection_wick(o[i], h[i], l[i], c[i])
+    tol = max(1e-5, tol_wick * atr[i])
+    if is_bull and l[i] <= ema_val + tol and c[i] >= ema_val and ema_val >= ema_prev * 0.9995:
+        return {"side": 1, "setup": f"EMA{ema_period}_BOUNCE", "level": ema_val}
+    if is_bear and h[i] >= ema_val - tol and c[i] <= ema_val and ema_val <= ema_prev * 1.0005:
+        return {"side": -1, "setup": f"EMA{ema_period}_REJECTION", "level": ema_val}
+    return {"side": 0, "setup": "NONE", "level": 0.0}
+
+
+def check_signal_dfib(d: pd.DataFrame, i: int, cfg: dict, family: str) -> dict | None:
+    """Delta-Fibonacci sleeve. Market-style entry at the next open (their semantics);
+    structural SL — standard band signals stop beyond the level, pattern variants
+    carry the pattern's structural stop; risk-distance floor 1.2 ATR; fixed-R target."""
+    d = _dfib_bands(d)
+    o = d["o"].to_numpy(float)
+    h = d["h"].to_numpy(float)
+    l = d["l"].to_numpy(float)
+    c = d["c"].to_numpy(float)
+    atr = d["atr14w"].to_numpy()
+    if i < 60 or atr[i] <= 0 or not np.isfinite(atr[i]):
+        return None
+    P = cfg.get("dfib", {})
+    tp_r = float(P.get("tp_r", 2.0))
+    tol_wick = float(P.get("wick_tol_atr", 0.15))
+    side, level, setup, mv_sl = 0, 0.0, "", None
+    if family == "vwap":
+        std_sig = _check_vwap_band_signal(o, h, l, c, i, atr, d["vwap"].iloc[i],
+                                          d["vwap_p1"].iloc[i], d["vwap_p2"].iloc[i],
+                                          d["vwap_m1"].iloc[i], d["vwap_m2"].iloc[i], tol_wick)
+        if std_sig["side"] != 0:
+            side, level, setup = std_sig["side"], std_sig["level"], std_sig["setup"]
+        else:
+            tol = max(1e-5, 0.20 * atr[i])
+            vwap, p2, m2 = d["vwap"].iloc[i], d["vwap_p2"].iloc[i], d["vwap_m2"].iloc[i]
+            if l[i] <= m2 + tol:
+                mv = _level_rejection(o, h, l, c, atr, i, m2, 1)
+                if mv:
+                    side, level, setup, mv_sl = 1, m2, "VWAP_M2_" + mv["pattern"], mv["structural_sl"]
+            elif h[i] >= p2 - tol:
+                mv = _level_rejection(o, h, l, c, atr, i, p2, -1)
+                if mv:
+                    side, level, setup, mv_sl = -1, p2, "VWAP_P2_" + mv["pattern"], mv["structural_sl"]
+            elif c[i - 1] <= vwap + tol and h[i] >= vwap - tol:
+                mv = _level_rejection(o, h, l, c, atr, i, vwap, -1)
+                if mv:
+                    side, level, setup, mv_sl = -1, vwap, "VWAP_0_" + mv["pattern"], mv["structural_sl"]
+            elif c[i - 1] >= vwap - tol and l[i] <= vwap + tol:
+                mv = _level_rejection(o, h, l, c, atr, i, vwap, 1)
+                if mv:
+                    side, level, setup, mv_sl = 1, vwap, "VWAP_0_" + mv["pattern"], mv["structural_sl"]
+    elif family == "ema":
+        ema_val, ema_prev = d["ema50c"].iloc[i], d["ema50c"].iloc[i - 1]
+        std_sig = _check_ema_rejection_signal(o, h, l, c, i, atr, ema_val, ema_prev,
+                                              tol_wick, int(P.get("ema_period", 50)))
+        if std_sig["side"] != 0:
+            side, level, setup = std_sig["side"], std_sig["level"], std_sig["setup"]
+        else:
+            tol = max(1e-5, 0.20 * atr[i])
+            if ema_val >= ema_prev * 0.9995 and l[i] <= ema_val + tol:
+                mv = _level_rejection(o, h, l, c, atr, i, ema_val, 1)
+                if mv:
+                    side, setup, mv_sl = 1, f"EMA50_{mv['pattern']}", mv["structural_sl"]
+            elif ema_val <= ema_prev * 1.0005 and h[i] >= ema_val - tol:
+                mv = _level_rejection(o, h, l, c, atr, i, ema_val, -1)
+                if mv:
+                    side, setup, mv_sl = -1, f"EMA50_{mv['pattern']}", mv["structural_sl"]
+    if side == 0:
+        return None
+    if mv_sl is None:                      # standard band signal: structural stop beyond level
+        mv_sl = level - 0.20 * atr[i] if side == 1 else level + 0.20 * atr[i]
+    rd = max(abs(c[i] - mv_sl), 1.2 * atr[i])
+    entry = c[i]                           # market-style: filled at the next bar open
+    tp = entry + side * tp_r * rd
+    return {"side": "long" if side == 1 else "short", "entry": entry, "stop": mv_sl,
+            "tp": tp, "setup": setup, "reasons": [f"dfib-{family}:{setup}"],
+            "sleeve": f"dfib_{family}", "entry_style": "market"}
+
+
+def _vc_frame(d: pd.DataFrame, bb_period=20, kc_mult=1.5) -> pd.DataFrame:
+    if "sqz_cnt" in d.columns:
+        return d
+    _ensure_atr14w(d)
+    c = d["c"].to_numpy(float)
+    basis = pd.Series(c).rolling(bb_period).mean().to_numpy()
+    rstd = pd.Series(c).rolling(bb_period).std(ddof=0).to_numpy()
+    atrw = d["atr14w"].to_numpy()
+    d["vc_basis"] = basis
+    d["vc_kc_up"] = basis + kc_mult * atrw
+    d["vc_kc_dn"] = basis - kc_mult * atrw
+    d["vc_bb_up"] = basis + 2.0 * rstd
+    d["vc_bb_dn"] = basis - 2.0 * rstd
+    d["vc_ema200"] = ema(d["c"], 200)
+    squeezed = (d["vc_bb_up"].to_numpy() <= d["vc_kc_up"].to_numpy()) & \
+               (d["vc_bb_dn"].to_numpy() >= d["vc_kc_dn"].to_numpy())
+    cnt = np.zeros(len(c), dtype=int)
+    for k in range(1, len(c)):
+        cnt[k] = cnt[k - 1] + 1 if squeezed[k] else 0
+    d["sqz_cnt"] = cnt
+    d["vc_squeezed"] = squeezed
+    return d
+
+
+def check_signal_vc(d: pd.DataFrame, i: int, cfg: dict) -> dict | None:
+    """Volatility-compression squeeze breakout (their engine's semantics): a matured
+    BB-in-KC squeeze, then close beyond the KC band with the EMA200 trend, momentum
+    and candle-color gates. Market entry at the next open; SL beyond the squeeze
+    basis with a 1.2 ATR floor; fixed-R target (2R default)."""
+    P = cfg.get("vc", {})
+    bb_period = int(P.get("bb_period", 20))
+    kc_mult = float(P.get("kc_mult", 1.5))
+    min_sqz = int(P.get("min_squeeze_bars", 3))
+    tp_r = float(P.get("tp_r", 2.0))
+    d = _vc_frame(d, bb_period, kc_mult)
+    if i < 210:
+        return None
+    o = d["o"].to_numpy(float)
+    c = d["c"].to_numpy(float)
+    sqz = d["sqz_cnt"].to_numpy()
+    sq = d["vc_squeezed"].to_numpy()
+    prev_sqz = sqz[i - 1] >= min_sqz or (sqz[i - 2] >= min_sqz and sq[i - 1])
+    if not prev_sqz:
+        return None
+    atrw = d["atr14w"].to_numpy()
+    basis = d["vc_basis"].iloc[i]
+    kc_up, kc_dn = d["vc_kc_up"].iloc[i], d["vc_kc_dn"].iloc[i]
+    ema200 = d["vc_ema200"].iloc[i]
+    mom = c[i] - basis
+    if c[i] > kc_up and c[i] > ema200 and mom > 0 and c[i] > o[i]:
+        side = 1
+    elif c[i] < kc_dn and c[i] < ema200 and mom < 0 and c[i] < o[i]:
+        side = -1
+    else:
+        return None
+    rd = max(abs(c[i] - basis), 1.2 * atrw[i])
+    sl = c[i] - side * rd
+    tp = c[i] + side * tp_r * rd
+    return {"side": "long" if side == 1 else "short", "entry": c[i], "stop": sl, "tp": tp,
+            "setup": f"VC_SQUEEZE_BREAKOUT_{min_sqz}b",
+            "reasons": [f"vc: {sqz[i - 1]}-bar squeeze -> {'up' if side == 1 else 'down'} "
+                        f"breakout, EMA200 {'above' if side == 1 else 'below'}"],
+            "sleeve": "vc_breakout", "entry_style": "market"}
 
 
 # =============================================================== execution ==
@@ -695,6 +1054,38 @@ def mode_selftest(cfg: dict) -> bool:
     checks.append(("kill file cleared when absent", not kill_file_present(kf), True))
     checks.append(("dedupe: same bar+prices -> same id",
                    signal_id(sig_live) == signal_id(dict(sig_live)), True))
+    # ---- legacy-sleeve ports (Delta-Fibonacci + Volatility-compression) ----
+    nd = 80
+    tsn = 1795305600000 + np.arange(nd) * 900000          # one UTC day -> one VWAP session
+    cc = np.where(np.arange(nd) % 2 == 0, 99.7, 100.3)
+    oo = cc + np.where(np.arange(nd) % 2 == 0, 0.3, -0.3)
+    hh = np.maximum(oo, cc) + 0.3
+    ll = np.minimum(oo, cc) - 0.3
+    ddf = pd.DataFrame({"ts": tsn, "o": oo, "h": hh, "l": ll, "c": cc, "vol_base": 1.0})
+    ddf.loc[70] = dict(ts=tsn[70], o=100.0, h=100.1, l=98.0, c=99.9, vol_base=1.0)  # hammer
+    sdfib = check_signal_dfib(ddf, 70, cfg, "vwap")
+    checks.append(("dfib vwap: hammer at -2SD band fires long",
+                   sdfib is not None and sdfib["side"] == "long" and "VWAP_M2" in sdfib["setup"], True))
+    checks.append(("dfib vwap: structural stop below entry, target >= 2R",
+                   sdfib is not None and sdfib["stop"] < sdfib["entry"]
+                   and (sdfib["tp"] - sdfib["entry"]) >= 2.0 * (sdfib["entry"] - sdfib["stop"]) - 1e-9,
+                   True))
+    nv = 220
+    tsv = 1795305600000 + np.arange(nv) * 900000
+    cv = np.concatenate([np.linspace(100.0, 110.0, 150), 110.0 + 0.01 * np.sin(np.arange(70))])
+    ov2 = cv - 0.01
+    hv2 = cv + 0.02
+    lv2 = cv - 0.02
+    ov2[-1], hv2[-1], lv2[-1], cv[-1] = 110.05, 111.1, 110.04, 111.0   # breakout bar
+    dvc = pd.DataFrame({"ts": tsv, "o": ov2, "h": hv2, "l": lv2, "c": cv, "vol_base": 1.0})
+    svc = check_signal_vc(dvc, 219, cfg)
+    checks.append(("vc breakout: matured squeeze -> long", svc is not None and svc["side"] == "long", True))
+    checks.append(("vc breakout: exactly 2R geometry",
+                   svc is not None
+                   and abs((svc["tp"] - svc["entry"]) / (svc["entry"] - svc["stop"]) - 2.0) < 1e-6, True))
+    dvc2 = dvc.copy()
+    dvc2.loc[219] = dict(ts=tsv[219], o=110.0, h=110.03, l=109.97, c=110.01, vol_base=1.0)
+    checks.append(("vc: no breakout bar -> no signal", check_signal_vc(dvc2, 219, cfg) is None, True))
     fails = [n_ for n_, got, want in checks if bool(got) != bool(want)]
     for n_, got, want in checks:
         print(f"  [{'OK' if bool(got) == bool(want) else 'FAIL'}] {n_}")
@@ -718,24 +1109,61 @@ def collect_frames(cfg: dict) -> dict[str, pd.DataFrame]:
 
 
 def mode_backtest(cfg: dict) -> None:
-    """Sanity backtest of the deployed config over the whole store (maker entries)."""
+    """Per-sleeve backtest over the whole store. aec_trend fills maker-style (limit
+    retest); dfib/vc fill market-style at the next open — faithful to their engines.
+    Costs: 4 bps TP / 11 bps other exits, same model as the research pipeline."""
     P = cfg["params"]
     frames = collect_frames(cfg)
     print(f"backtest over {len(frames)} symbols from {cfg['data']['store']}")
-    tot = []
-    for sym, d in frames.items():
-        trades = []
-        i = 60
-        while i < len(d) - 1:
-            s = check_signal(d, i, cfg)
-            if s:
-                side = 1 if s["side"] == "long" else -1
-                entry, stop, tp = s["entry"], s["stop"], s["tp"]
-                # maker fill: price must retrace to the limit on the next bar
-                fill = d["l"].iloc[i + 1] <= entry if side == 1 else d["h"].iloc[i + 1] >= entry
-                if not fill:
+    sleeves = cfg.get("sleeves", ["aec_trend"])
+    for sleeve in sleeves:
+        tot = []
+        for sym, d in frames.items():
+            cfg_sym = json.loads(json.dumps(cfg))
+            ov = (cfg.get("asset_overrides") or {}).get(sym, {})
+            if ov:
+                p_ = cfg_sym["params"]
+                p_["regime"] = ov.get("regime", p_["regime"])
+                p_["stop_mult"] = float(ov.get("stop_mult", p_["stop_mult"]))
+                p_["tp_r"] = float(ov.get("tp_r", p_["tp_r"]))
+                if ov.get("side") == "short":
+                    cfg_sym["_side_gate"] = -1
+                elif ov.get("side") == "long":
+                    cfg_sym["_side_gate"] = 1
+            trades = []
+            i = 60
+            while i < len(d) - 1:
+                if sleeve == "aec_trend":
+                    s = check_signal(d, i, cfg_sym)
+                    gate = cfg_sym.get("_side_gate")
+                    if s and gate and {"long": 1, "short": -1}[s["side"]] != gate:
+                        s = None
+                elif sleeve == "ema_rej":
+                    s = check_signal_emarej(d, i, cfg_sym)
+                elif sleeve == "orb":
+                    s = check_signal_orb(d, i, cfg_sym)
+                elif sleeve == "dfib_vwap":
+                    s = check_signal_dfib(d, i, cfg_sym, "vwap")
+                elif sleeve == "dfib_ema":
+                    s = check_signal_dfib(d, i, cfg_sym, "ema")
+                elif sleeve == "vc_breakout":
+                    s = check_signal_vc(d, i, cfg_sym)
+                else:
+                    s = None
+                if not s:
                     i += 1
                     continue
+                side = 1 if s["side"] == "long" else -1
+                if s.get("entry_style") == "market":
+                    entry = float(d["o"].iloc[i + 1])       # their engines: next-bar open
+                else:
+                    entry = s["entry"]                      # maker limit at the signal close
+                    fill_ok = d["l"].iloc[i + 1] <= entry if side == 1 \
+                        else d["h"].iloc[i + 1] >= entry
+                    if not fill_ok:
+                        i += 1
+                        continue
+                stop, tp = s["stop"], s["tp"]
                 exit_px = None
                 j = i + 1
                 while j < len(d):
@@ -745,14 +1173,14 @@ def mode_backtest(cfg: dict) -> None:
                             exit_px, kind = min(d["o"].iloc[j], stop), "stop"; break
                         if h >= tp:
                             exit_px, kind = tp, "tp"; break
-                        if P["use_ema_exit"] and c < d["ema50b"].iloc[j]:
+                        if P["use_ema_exit"] and sleeve == "aec_trend" and c < d["ema50b"].iloc[j]:
                             exit_px, kind = c, "ema50"; break
                     else:
                         if h >= stop:
                             exit_px, kind = max(d["o"].iloc[j], stop), "stop"; break
                         if l <= tp:
                             exit_px, kind = tp, "tp"; break
-                        if P["use_ema_exit"] and c > d["ema50b"].iloc[j]:
+                        if P["use_ema_exit"] and sleeve == "aec_trend" and c > d["ema50b"].iloc[j]:
                             exit_px, kind = c, "ema50"; break
                     if j - i >= P["max_trade_bars"]:
                         exit_px, kind = c, "time"; break
@@ -762,21 +1190,19 @@ def mode_backtest(cfg: dict) -> None:
                 gross = (exit_px - entry) / entry * side
                 net = gross - (0.0004 if kind == "tp" else 0.0011)
                 trades.append(net * 10000)
-                i = j + 1
-            else:
-                i += 1
-        r = np.array(trades)
-        if len(r):
+                i = j + (int(cfg.get("vc", {}).get("cooldown_bars", 6))
+                         if sleeve in ("dfib_vwap", "dfib_ema", "vc_breakout") else 1)
+            r = np.array(trades)
+            if len(r):
+                pf = r[r > 0].sum() / max(1e-9, -r[r < 0].sum())
+                tot += list(r)
+                print(f"  {sleeve:12s} {sym:14s} n={len(r):4d} win={(r>0).mean()*100:5.1f}% "
+                      f"avg={r.mean():7.1f}bps pf={pf:5.2f} total={r.sum()/100:6.1f}%")
+        if tot:
+            r = np.array(tot)
             pf = r[r > 0].sum() / max(1e-9, -r[r < 0].sum())
-            tot += list(r)
-            print(f"  {sym:14s} n={len(r):4d} win={(r>0).mean()*100:5.1f}% "
-                  f"avg={r.mean():7.1f}bps pf={pf:5.2f} total={r.sum()/100:6.1f}%")
-        else:
-            print(f"  {sym:14s} n=0")
-    if tot:
-        r = np.array(tot)
-        pf = r[r > 0].sum() / max(1e-9, -r[r < 0].sum())
-        print(f"  {'TOTAL':14s} n={len(r)} win={(r>0).mean()*100:.1f}% avg={r.mean():.1f}bps pf={pf:.2f}")
+            print(f"  {sleeve:12s} {'TOTAL':14s} n={len(r)} win={(r>0).mean()*100:.1f}% "
+                  f"avg={r.mean():.1f}bps pf={pf:.2f}")
 
 
 def evaluate_signals(cfg: dict, frames: dict, equity: float) -> list:
@@ -808,6 +1234,12 @@ def evaluate_signals(cfg: dict, frames: dict, equity: float) -> list:
                 s = check_signal_emarej(d, i, cfg_sym)
             elif sleeve == "orb":
                 s = check_signal_orb(d, i, cfg_sym)
+            elif sleeve == "dfib_vwap":
+                s = check_signal_dfib(d, i, cfg_sym, "vwap")
+            elif sleeve == "dfib_ema":
+                s = check_signal_dfib(d, i, cfg_sym, "ema")
+            elif sleeve == "vc_breakout":
+                s = check_signal_vc(d, i, cfg_sym)
             else:
                 continue
             if s:
