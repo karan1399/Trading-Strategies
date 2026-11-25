@@ -788,15 +788,15 @@ def check_signal_dfib(d: pd.DataFrame, i: int, cfg: dict, family: str) -> dict |
     rd = max(abs(c[i] - mv_sl), 1.2 * atr[i])
     entry = c[i]                           # market-style: filled at the next bar open
     tp = entry + side * tp_r * rd
-    return {"side": "long" if side == 1 else "short", "entry": entry, "stop": mv_sl,
-            "tp": tp, "setup": setup, "reasons": [f"dfib-{family}:{setup}"],
+    return {"side": "long" if side == 1 else "short", "order_type": "market", "entry": entry,
+            "stop": mv_sl, "tp": tp, "setup": setup, "reasons": [f"dfib-{family}:{setup}"],
             "sleeve": f"dfib_{family}", "entry_style": "market"}
 
 
 def _vc_frame(d: pd.DataFrame, bb_period=20, kc_mult=1.5) -> pd.DataFrame:
     if "sqz_cnt" in d.columns:
         return d
-    _ensure_atr14w(d)
+    d = _ensure_atr14w(d).copy()
     c = d["c"].to_numpy(float)
     basis = pd.Series(c).rolling(bb_period).mean().to_numpy()
     rstd = pd.Series(c).rolling(bb_period).std(ddof=0).to_numpy()
@@ -851,8 +851,8 @@ def check_signal_vc(d: pd.DataFrame, i: int, cfg: dict) -> dict | None:
     rd = max(abs(c[i] - basis), 1.2 * atrw[i])
     sl = c[i] - side * rd
     tp = c[i] + side * tp_r * rd
-    return {"side": "long" if side == 1 else "short", "entry": c[i], "stop": sl, "tp": tp,
-            "setup": f"VC_SQUEEZE_BREAKOUT_{min_sqz}b",
+    return {"side": "long" if side == 1 else "short", "order_type": "market", "entry": c[i],
+            "stop": sl, "tp": tp, "setup": f"VC_SQUEEZE_BREAKOUT_{min_sqz}b",
             "reasons": [f"vc: {sqz[i - 1]}-bar squeeze -> {'up' if side == 1 else 'down'} "
                         f"breakout, EMA200 {'above' if side == 1 else 'below'}"],
             "sleeve": "vc_breakout", "entry_style": "market"}
@@ -930,6 +930,31 @@ def normalize_volume(vol: float, vmin: float, vmax: float, step: float) -> float
     return round(vmin + steps * step, 8)
 
 
+def mt5_lots_for_risk(entry: float, stop: float, risk_target_usd: float, risk_max_usd: float,
+                      tick_value: float = 1.0, tick_size: float = 1.0,
+                      vmin: float = 0.01, vmax: float = 100.0, step: float = 0.01) -> tuple[float, float, str]:
+    """Contract-aware CFD lot sizing: uses tick_value/tick_size and NEVER clamps up past risk_max_usd."""
+    dist = abs(entry - stop)
+    if dist <= 0 or tick_value <= 0 or tick_size <= 0 or risk_target_usd <= 0:
+        return 0.0, 0.0, "invalid sizing input"
+    unit_val = tick_value / tick_size
+    risk_per_lot = dist * unit_val
+    if risk_per_lot <= 0:
+        return 0.0, 0.0, "non-positive risk_per_lot"
+    raw = risk_target_usd / risk_per_lot
+    if raw < vmin - 1e-9:
+        min_risk = vmin * risk_per_lot
+        if min_risk <= risk_max_usd + 1e-9:
+            return round(vmin, 8), round(min_risk, 4), ""
+        return 0.0, round(min_risk, 4), f"min-lot risk ${min_risk:.2f} > cap ${risk_max_usd:.2f}"
+    steps = math.floor((min(vmax, raw) - vmin) / (step if step > 0 else 0.01) + 1e-9)
+    vol = round(vmin + steps * (step if step > 0 else 0.01), 8)
+    actual_risk = round(vol * risk_per_lot, 4)
+    if actual_risk > risk_max_usd + 1e-9:
+        return 0.0, actual_risk, f"sized risk ${actual_risk:.2f} > cap ${risk_max_usd:.2f}"
+    return vol, actual_risk, ""
+
+
 def daily_breaker_tripped(equity_now: float, day_start_equity: float, cap_pct: float) -> bool:
     if day_start_equity <= 0 or cap_pct <= 0:
         return False
@@ -945,12 +970,27 @@ def kill_file_present(path: str = KILL_PATH) -> bool:
 
 
 def build_order_intent(sig: dict, equity: float, risk_pct: float, magic: int,
-                       deviation_points: int) -> dict:
-    """Uniform order intent for every venue (paper, stub, live) — one sizing path."""
-    vol = position_volume(sig["entry"], sig["stop"], equity, risk_pct)
+                       deviation_points: int, risk_usd_target: float | None = None,
+                       risk_usd_max: float | None = None, spec: dict | None = None) -> dict:
+    """Uniform order intent: contract-aware when spec or USD caps supplied, else unit-compatible."""
+    if spec is not None or risk_usd_target is not None:
+        target = min(equity * risk_pct / 100.0, risk_usd_target) if risk_usd_target else equity * risk_pct / 100.0
+        cap = risk_usd_max if risk_usd_max else target * 1.2
+        s = spec or {}
+        vol, est_risk, reason = mt5_lots_for_risk(
+            float(sig["entry"]), float(sig["stop"]), target, cap,
+            float(s.get("tick_value", 1.0)), float(s.get("tick_size", 1.0)),
+            float(s.get("vol_min", 0.01)), float(s.get("vol_max", 100.0)), float(s.get("vol_step", 0.01))
+        )
+    else:
+        vol = position_volume(sig["entry"], sig["stop"], equity, risk_pct)
+        est_risk = round(vol * abs(float(sig["entry"]) - float(sig["stop"])), 4)
+        reason = ""
     return {"symbol": sig["mt5_symbol"], "raw_symbol": sig.get("symbol"),
-            "sleeve": sig.get("sleeve"), "side": sig["side"], "entry": sig["entry"],
-            "stop": sig["stop"], "tp": sig.get("tp"), "volume": vol,
+            "sleeve": sig.get("sleeve", "aec_trend"), "order_type": sig.get("order_type", "market"),
+            "side": sig["side"], "entry": float(sig["entry"]),
+            "stop": float(sig["stop"]), "tp": float(sig["tp"]) if sig.get("tp") is not None else None,
+            "volume": vol, "est_risk_usd": est_risk, "size_reason": reason,
             "risk_pct": risk_pct, "magic": magic, "deviation_points": deviation_points,
             "signal_id": signal_id(sig)}
 
@@ -1022,6 +1062,38 @@ class MT5Live:
         poss = self.mt5.positions_get() or []
         return sum(1 for p in poss if p.magic == self.magic)
 
+    def total_book_risk_usd(self) -> float:
+        """Aggregate open+pending SL risk across ALL MT5 magics and manual trades."""
+        total = 0.0
+        for p in (self.mt5.positions_get() or []):
+            si = self.mt5.symbol_info(p.symbol)
+            if not si or si.trade_tick_size <= 0 or si.trade_tick_value <= 0:
+                continue
+            if p.sl <= 0:
+                return 1e9  # Fail-safe block if any open position lacks a stop
+            raw_dist = (p.price_open - p.sl) if p.type == 0 else (p.sl - p.price_open)
+            if raw_dist > 0:
+                total += (raw_dist / si.trade_tick_size) * si.trade_tick_value * p.volume
+        for o in (self.mt5.orders_get() or []):
+            si = self.mt5.symbol_info(o.symbol)
+            if not si or si.trade_tick_size <= 0 or si.trade_tick_value <= 0:
+                continue
+            if o.sl <= 0:
+                continue
+            is_buy = o.type in (2, 4, 6)
+            raw_dist = (o.price_open - o.sl) if is_buy else (o.sl - o.price_open)
+            if raw_dist > 0:
+                total += (raw_dist / si.trade_tick_size) * si.trade_tick_value * o.volume_current
+        return round(total, 4)
+
+    def symbol_spec(self, symbol: str) -> dict | None:
+        si = self.mt5.symbol_info(symbol)
+        if not si:
+            return None
+        return {"tick_value": float(si.trade_tick_value), "tick_size": float(si.trade_tick_size),
+                "vol_min": float(si.volume_min), "vol_max": float(si.volume_max),
+                "vol_step": float(si.volume_step), "digits": int(si.digits), "spread": int(si.spread)}
+
     def spread_points(self, symbol: str):
         si = self.mt5.symbol_info(symbol)
         return None if si is None else si.spread
@@ -1034,16 +1106,35 @@ class MT5Live:
 
     def send(self, order: dict) -> dict:
         m = self.mt5
-        vmin, vmax, step = self.symbol_volume_bounds(order["symbol"])
-        vol = normalize_volume(order["volume"], vmin, vmax, step)
-        if vol <= 0:
-            return {"status": "SKIP", "why": "volume below broker minimum", "order": order}
-        kind = m.ORDER_TYPE_BUY if order["side"] == "long" else m.ORDER_TYPE_SELL
-        req = {"action": m.TRADE_ACTION_DEAL, "symbol": order["symbol"], "volume": vol,
-               "type": kind, "price": order["entry"], "sl": order["stop"],
-               "tp": order.get("tp") or 0.0, "deviation": self.deviation,
-               "magic": self.magic, "comment": f"fp-{order['signal_id']}"[:26],
-               "type_filling": m.ORDER_FILLING_IOC}
+        si = m.symbol_info(order["symbol"])
+        tk = m.symbol_info_tick(order["symbol"])
+        if not si or not tk or tk.bid <= 0 or tk.ask <= 0:
+            return {"status": "ERROR", "why": "missing symbol_info or live tick", "order": order}
+        vol = float(order.get("volume", 0.0))
+        if vol < float(si.volume_min) - 1e-9:
+            return {"status": "SKIP", "why": order.get("size_reason") or "volume below broker minimum", "order": order}
+        is_long = order["side"] == "long"
+        digs = int(si.digits)
+        sl = round(float(order["stop"]), digs)
+        tp = round(float(order["tp"]), digs) if order.get("tp") is not None else 0.0
+        entry = round(float(order["entry"]), digs)
+        want_limit = order.get("order_type") == "limit"
+        use_pending = want_limit and ((is_long and entry < tk.ask) or ((not is_long) and entry > tk.bid))
+        if use_pending:
+            kind = m.ORDER_TYPE_BUY_LIMIT if is_long else m.ORDER_TYPE_SELL_LIMIT
+            req = {"action": m.TRADE_ACTION_PENDING, "symbol": order["symbol"], "volume": vol,
+                   "type": kind, "price": entry, "sl": sl, "tp": tp,
+                   "type_time": m.ORDER_TIME_GTC, "type_filling": m.ORDER_FILLING_RETURN,
+                   "magic": self.magic, "comment": f"fp-{order['signal_id']}"[:26]}
+        else:
+            exec_px = tk.ask if is_long else tk.bid
+            if (is_long and not (sl < exec_px < tp)) or ((not is_long) and not (tp < exec_px < sl)):
+                return {"status": "SKIP", "why": f"live quote {exec_px} invalid vs sl={sl} tp={tp}", "order": order}
+            kind = m.ORDER_TYPE_BUY if is_long else m.ORDER_TYPE_SELL
+            req = {"action": m.TRADE_ACTION_DEAL, "symbol": order["symbol"], "volume": vol,
+                   "type": kind, "price": exec_px, "sl": sl, "tp": tp,
+                   "deviation": self.deviation, "magic": self.magic,
+                   "comment": f"fp-{order['signal_id']}"[:26], "type_filling": m.ORDER_FILLING_IOC}
         res = m.order_send(req)
         if res is None:
             return {"status": "ERROR", "why": str(m.last_error()), "order": order}
@@ -1193,9 +1284,18 @@ def mode_selftest(cfg: dict) -> bool:
     checks.append(("vc breakout: exactly 2R geometry",
                    svc is not None
                    and abs((svc["tp"] - svc["entry"]) / (svc["entry"] - svc["stop"]) - 2.0) < 1e-6, True))
-    dvc2 = dvc.copy()
+    dvc2 = dvc[["ts", "o", "h", "l", "c", "vol_base"]].copy()
     dvc2.loc[219] = dict(ts=tsv[219], o=110.0, h=110.03, l=109.97, c=110.01, vol_base=1.0)
     checks.append(("vc: no breakout bar -> no signal", check_signal_vc(dvc2, 219, cfg) is None, True))
+    # ---- contract-aware MT5 CFD sizing & min-lot risk cap (offline tests) ----
+    sol_vol, sol_risk, sol_why = mt5_lots_for_risk(
+        68.0, 63.0, 5.5, 6.0, tick_value=1.0, tick_size=0.01, vmin=0.01, vmax=100.0, step=0.01)
+    checks.append(("cfd sizing: SOL 100x mult stop=5.0 -> 0.01 lot ($5.00 risk)",
+                   abs(sol_vol - 0.01) < 1e-9 and abs(sol_risk - 5.0) < 1e-6 and sol_why == "", True))
+    rej_vol, rej_risk, rej_why = mt5_lots_for_risk(
+        3500.0, 3470.0, 5.5, 6.0, tick_value=1.0, tick_size=0.01, vmin=0.01, vmax=100.0, step=0.01)
+    checks.append(("cfd sizing: oversize min-lot ($30 > $6) rejected cleanly",
+                   rej_vol == 0.0 and rej_risk > 6.0 and "cap" in rej_why, True))
     fails = [n_ for n_, got, want in checks if bool(got) != bool(want)]
     for n_, got, want in checks:
         print(f"  [{'OK' if bool(got) == bool(want) else 'FAIL'}] {n_}")
@@ -1203,17 +1303,30 @@ def mode_selftest(cfg: dict) -> bool:
     return not fails
 
 
-def collect_frames(cfg: dict) -> dict[str, pd.DataFrame]:
+def collect_frames(cfg: dict, allow_rest: bool = False) -> dict[str, pd.DataFrame]:
     store = cfg["data"]["store"]
     assets = cfg["data"]["symbols"]
-    syms = sorted(os.path.basename(p) for p in glob.glob(f"{store}/derived/*") if os.path.isdir(p))
-    if assets != "SUITE" and assets != "ALL":
-        syms = [s for s in assets.split(",") if s in syms]
+    disk_syms = sorted(os.path.basename(p) for p in glob.glob(f"{store}/derived/*") if os.path.isdir(p))
+    if assets in ("SUITE", "ALL"):
+        syms = sorted(set(disk_syms) | set(cfg.get("universe_mt5", {}).keys()))
+    else:
+        syms = [s.strip() for s in assets.split(",") if s.strip()]
     out = {}
     tf = cfg["data"].get("bar_tf", "15m")
+    tf_ms = TF_MS.get(tf, 900_000)
+    now_ms = int(time.time() * 1000)
+    max_age_min = float(cfg.get("execution", {}).get("max_data_age_min", 20))
     for sym in syms:
-        d = build_5m_frames(sym, store, tf)
-        if d is not None and len(d) > 300:
+        d = build_5m_frames(sym, store, tf) if sym in disk_syms else None
+        stale_or_missing = d is None or len(d) < 250 or (
+            allow_rest and len(d) >= 2 and data_is_stale(float(d["ts"].iloc[-2]) + tf_ms, now_ms, max_age_min)
+        )
+        if allow_rest and stale_or_missing:
+            d_live = _build_fapi_tail_frame(sym, tf)
+            if d_live is not None and len(d_live) >= 250:
+                d = d_live
+            time.sleep(0.05)
+        if d is not None and len(d) >= 250:
             out[sym] = d
     return out
 
@@ -1315,12 +1428,16 @@ def mode_backtest(cfg: dict) -> None:
                   f"avg={r.mean():.1f}bps pf={pf:.2f}")
 
 
-def evaluate_signals(cfg: dict, frames: dict, equity: float) -> list:
+def evaluate_signals(cfg: dict, frames: dict, equity: float, bridge=None) -> list:
     """All sleeves × all assets on the last CLOSED bar — the single source both paper
     and live modes consume (one tested path; per-asset overrides applied here)."""
     signals = []
     now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     overrides = cfg.get("asset_overrides", {})
+    risk_cfg = cfg["risk"]
+    r_pct = float(risk_cfg.get("risk_per_trade_pct", 0.22))
+    r_usd_t = risk_cfg.get("risk_usd_target")
+    r_usd_m = risk_cfg.get("risk_usd_max")
     for sym, d in frames.items():
         i = len(d) - 2           # last CLOSED bar (maker limit at its close)
         ov = overrides.get(sym, {})
@@ -1340,6 +1457,8 @@ def evaluate_signals(cfg: dict, frames: dict, equity: float) -> list:
                 gate = cfg_sym.get("_side_gate")
                 if s and gate and {"long": 1, "short": -1}[s["side"]] != gate:
                     s = None
+                if s:
+                    s.setdefault("sleeve", "aec_trend")
             elif sleeve == "ema_rej":
                 s = check_signal_emarej(d, i, cfg_sym)
             elif sleeve == "orb":
@@ -1358,10 +1477,15 @@ def evaluate_signals(cfg: dict, frames: dict, equity: float) -> list:
                 s["bar_ts"] = int(d["ts"].iloc[i])
                 s["emitted_at"] = now
                 s["signal_id"] = signal_id(s)
-                intent = build_order_intent(s, equity, cfg["risk"]["risk_per_trade_pct"],
-                                            cfg["execution"]["magic"],
-                                            cfg["execution"]["deviation_points"])
+                spec = bridge.symbol_spec(s["mt5_symbol"]) if bridge is not None else None
+                intent = build_order_intent(
+                    s, equity, r_pct, cfg["execution"]["magic"],
+                    cfg["execution"]["deviation_points"],
+                    risk_usd_target=r_usd_t, risk_usd_max=r_usd_m, spec=spec
+                )
                 s["volume"] = intent["volume"]
+                s["est_risk_usd"] = intent["est_risk_usd"]
+                s["size_reason"] = intent.get("size_reason", "")
                 signals.append(s)
     return signals
 
@@ -1371,13 +1495,14 @@ def mode_signal(cfg: dict, do_update: bool, persist: bool) -> int:
         print("[data] gap-filling store via binance_orderflow_dump.py --update …")
         subprocess.run([sys.executable, DUMP_ENGINE, "--assets", "SUITE", "--update"],
                        cwd=ROOT, check=False)
-    frames = collect_frames(cfg)
+    frames = collect_frames(cfg, allow_rest=True)
     venue = make_venue(cfg["execution"]["venue"])
     signals = evaluate_signals(cfg, frames, 10000.0)
     for s in signals:
         print(f"SIGNAL {s['emitted_at']} {s['symbol']}({s['mt5_symbol']}) {s['sleeve']} "
-              f"{s['side'].upper()} entry={s['entry']} stop={s['stop']} tp={s.get('tp')}")
-        if cfg["execution"]["venue"] in ("paper", "mt5"):
+              f"{s['side'].upper()} entry={s['entry']} stop={s['stop']} tp={s.get('tp')} "
+              f"vol={s['volume']}")
+        if cfg["execution"]["venue"] == "paper":
             res = venue.send({**s, "magic": cfg["execution"]["magic"],
                               "deviation_points": cfg["execution"]["deviation_points"]})
             print(f"  venue: {res.get('status')}")
@@ -1399,7 +1524,7 @@ def mode_live(cfg: dict, do_update: bool) -> int:
     wanted = sorted(set(cfg.get("universe_mt5", {}).values())) or ["BTCUSD.pi"]
     try:
         bridge = MT5Live(exec_["magic"], exec_["deviation_points"],
-                         exec_.get("max_spread_points", 150))
+                         exec_.get("max_spread_points", 350))
     except LivePreflightError as e:
         print(f"LIVE ABORT — {e}")
         return 2
@@ -1408,8 +1533,11 @@ def mode_live(cfg: dict, do_update: bool) -> int:
     print("=" * 78)
     failed = 0
     for name, ok, note in bridge.preflight(wanted):
-        print(f"  [{'OK' if ok else 'FAIL'}] {name:34s} {note}")
-        failed += 0 if ok else 1
+        is_sym = name.startswith("symbol ")
+        tag = "OK" if ok else ("WARN" if is_sym else "FAIL")
+        print(f"  [{tag}] {name:34s} {note}", flush=True)
+        if not ok and not is_sym:
+            failed += 1
     if failed:
         bridge.shutdown()
         print(f"\nLIVE ABORT — {failed} preflight check(s) failed. Nothing was sent. "
@@ -1420,77 +1548,102 @@ def mode_live(cfg: dict, do_update: bool) -> int:
         bridge.shutdown()
         print("\nLIVE ABORT — could not read account equity. Nothing was sent.")
         return 2
-    print(f"  equity {day_start_equity:.2f} | risk/trade {risk['risk_per_trade_pct']}% | "
-          f"max concurrent {risk['max_concurrent']} | daily loss cap {risk['daily_loss_cap_pct']}%")
-    print("  safety: create desk/KILL (touch desk/KILL) or Ctrl+C to stop NEW entries any time.")
-    for t in range(8, 0, -1):
-        print(f"  live orders armed in {t}s — Ctrl+C to abort ", end="\r")
+    max_port_pct = float(risk.get("max_portfolio_risk_pct", 1.0))
+    r_usd_t = float(risk.get("risk_usd_target", 5.5))
+    r_usd_m = float(risk.get("risk_usd_max", 6.0))
+    spr_ratio_max = float(exec_.get("max_spread_risk_ratio", 0.20))
+    book_now = bridge.total_book_risk_usd()
+    print(f"  equity {day_start_equity:.2f} | per-trade <=${r_usd_m:.2f} ({risk['risk_per_trade_pct']}%) | "
+          f"max concurrent {risk['max_concurrent']} | portfolio cap {max_port_pct:.2f}% "
+          f"(live book risk ${book_now:.2f})", flush=True)
+    print("  safety: create desk/KILL (touch desk/KILL) or Ctrl+C to stop NEW entries any time.", flush=True)
+    for t in range(3, 0, -1):
+        print(f"  live orders armed in {t}s — Ctrl+C to abort ", end="\r", flush=True)
         time.sleep(1)
-    print(" " * 70, end="\r")
+    print(" " * 70, end="\r", flush=True)
     sent = load_sent_ids()
     os.makedirs(os.path.dirname(LIVE_LOG_PATH), exist_ok=True)
     tf_ms = TF_MS[cfg["data"].get("bar_tf", "15m")]
     day_key = time.strftime("%Y-%m-%d", time.gmtime())
-    print(f"[live] armed — {len(sent)} previously-ordered ids loaded from audit log")
+    print(f"[live] armed — {len(sent)} previously-ordered ids loaded from audit log", flush=True)
     try:
         while True:
-            now_ms = int(time.time() * 1000)
-            today = time.strftime("%Y-%m-%d", time.gmtime())
-            if today != day_key:                       # UTC daily reset
-                day_key, day_start_equity = today, bridge.equity()
-                print(f"[live] new UTC day — day-start equity re-armed at {day_start_equity:.2f}")
-            breaker = daily_breaker_tripped(bridge.equity(), day_start_equity,
-                                            risk["daily_loss_cap_pct"])
-            killed = kill_file_present()
-            if do_update:
-                subprocess.run([sys.executable, DUMP_ENGINE, "--assets", "SUITE", "--update"],
-                               cwd=ROOT, check=False)
-            sigs = evaluate_signals(cfg, collect_frames(cfg), bridge.equity())
-            for s in sigs:
-                if s["signal_id"] in sent:
-                    continue
-                if killed:
-                    print(f"[live] KILL file present — holding {s['symbol']} {s['sleeve']}")
-                    continue
-                if breaker:
-                    print(f"[live] DAILY LOSS BREAKER — no new entries ({s['symbol']} held)")
-                    continue
-                if bridge.open_count() >= risk["max_concurrent"]:
-                    print(f"[live] max_concurrent={risk['max_concurrent']} — {s['symbol']} held")
-                    continue
-                last_ms = float(s.get("bar_ts") or 0) + tf_ms
-                if data_is_stale(last_ms, now_ms, exec_.get("max_data_age_min", 20)):
-                    print(f"[live] stale data — {s['symbol']} signal discarded")
-                    continue
-                sp = bridge.spread_points(s["mt5_symbol"])
-                if sp is not None and sp > exec_.get("max_spread_points", 150):
-                    print(f"[live] spread {sp} pts > cap {exec_.get('max_spread_points', 150)} — "
-                          f"{s['symbol']} held")
-                    continue
-                if s["volume"] <= 0:
-                    print(f"[live] size 0 — {s['symbol']} skipped")
-                    continue
-                intent = build_order_intent(s, bridge.equity(), risk["risk_per_trade_pct"],
-                                            exec_["magic"], exec_["deviation_points"])
-                with open(LIVE_LOG_PATH, "a") as f:
-                    f.write(json.dumps({"t": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                                        "phase": "INTENT", **intent}) + "\n")
-                res = bridge.send(intent)
-                with open(LIVE_LOG_PATH, "a") as f:
-                    f.write(json.dumps({"t": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                                        "phase": "RECEIPT", "signal_id": intent["signal_id"],
-                                        "status": res.get("status"), "retcode": res.get("retcode"),
-                                        "ticket": res.get("ticket"),
-                                        "volume": res.get("volume")}) + "\n")
-                sent.add(intent["signal_id"])
-                print(f"[live] ORDER {res.get('status')} {intent['symbol']} {intent['side']} "
-                      f"vol={res.get('volume')} entry={intent['entry']} sl={intent['stop']} "
-                      f"tp={intent['tp']} id={intent['signal_id']}")
+            try:
+                now_ms = int(time.time() * 1000)
+                today = time.strftime("%Y-%m-%d", time.gmtime())
+                if today != day_key:                       # UTC daily reset
+                    day_key, day_start_equity = today, bridge.equity()
+                    print(f"[live] new UTC day — day-start equity re-armed at {day_start_equity:.2f}", flush=True)
+                eq_now = bridge.equity()
+                breaker = daily_breaker_tripped(eq_now, day_start_equity, risk["daily_loss_cap_pct"])
+                killed = kill_file_present()
+                if do_update:
+                    subprocess.run([sys.executable, DUMP_ENGINE, "--assets", "SUITE", "--update"],
+                                   cwd=ROOT, check=False)
+                frames = collect_frames(cfg, allow_rest=True)
+                sigs = evaluate_signals(cfg, frames, eq_now, bridge=bridge)
+                for s in sigs:
+                    if s["signal_id"] in sent:
+                        continue
+                    if killed:
+                        print(f"[live] KILL file present — holding {s['symbol']} {s['sleeve']}", flush=True)
+                        continue
+                    if breaker:
+                        print(f"[live] DAILY LOSS BREAKER — no new entries ({s['symbol']} held)", flush=True)
+                        continue
+                    if bridge.open_count() >= risk["max_concurrent"]:
+                        print(f"[live] max_concurrent={risk['max_concurrent']} — {s['symbol']} held", flush=True)
+                        continue
+                    last_ms = float(s.get("bar_ts") or 0) + tf_ms
+                    if data_is_stale(last_ms, now_ms, exec_.get("max_data_age_min", 20)):
+                        print(f"[live] stale data — {s['symbol']} signal discarded", flush=True)
+                        continue
+                    spec = bridge.symbol_spec(s["mt5_symbol"])
+                    if not spec:
+                        print(f"[live] no MT5 spec — {s['mt5_symbol']} skipped", flush=True)
+                        continue
+                    intent = build_order_intent(
+                        s, eq_now, risk["risk_per_trade_pct"], exec_["magic"], exec_["deviation_points"],
+                        risk_usd_target=r_usd_t, risk_usd_max=r_usd_m, spec=spec
+                    )
+                    if intent["volume"] <= 0:
+                        print(f"[live] size 0 ({intent.get('size_reason')}) — {s['symbol']} skipped", flush=True)
+                        continue
+                    sp = spec["spread"]
+                    if sp > exec_.get("max_spread_points", 350):
+                        print(f"[live] spread {sp} pts > cap {exec_.get('max_spread_points', 350)} — {s['symbol']} held", flush=True)
+                        continue
+                    tk = bridge.mt5.symbol_info_tick(s["mt5_symbol"])
+                    spr_usd = (((tk.ask - tk.bid) / spec["tick_size"]) * spec["tick_value"] * intent["volume"]) if tk else 0.0
+                    if intent["est_risk_usd"] > 0 and spr_usd > spr_ratio_max * intent["est_risk_usd"]:
+                        print(f"[live] spread ${spr_usd:.2f} > {spr_ratio_max*100:.0f}% of risk ${intent['est_risk_usd']:.2f} — {s['symbol']} held", flush=True)
+                        continue
+                    book_risk = bridge.total_book_risk_usd()
+                    max_book_usd = eq_now * max_port_pct / 100.0
+                    if book_risk + intent["est_risk_usd"] > max_book_usd + 1e-9:
+                        print(f"[live] PORTFOLIO CAP ${book_risk:.2f}+${intent['est_risk_usd']:.2f} > ${max_book_usd:.2f} — {s['symbol']} held", flush=True)
+                        continue
+                    with open(LIVE_LOG_PATH, "a") as f:
+                        f.write(json.dumps({"t": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                                            "phase": "INTENT", **intent}) + "\n")
+                    res = bridge.send(intent)
+                    with open(LIVE_LOG_PATH, "a") as f:
+                        f.write(json.dumps({"t": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                                            "phase": "RECEIPT", "signal_id": intent["signal_id"],
+                                            "status": res.get("status"), "retcode": res.get("retcode"),
+                                            "ticket": res.get("ticket"),
+                                            "volume": res.get("volume")}) + "\n")
+                    sent.add(intent["signal_id"])
+                    print(f"[live] ORDER {res.get('status')} {intent['symbol']} {intent['side']} "
+                          f"vol={res.get('volume')} risk=${intent['est_risk_usd']:.2f} entry={intent['entry']} "
+                          f"sl={intent['stop']} tp={intent['tp']} id={intent['signal_id']}", flush=True)
+            except Exception as exc:
+                print(f"[live] pass error: {exc}", flush=True)
             now = time.time()
             nxt = (int(now * 1000) // tf_ms + 1) * tf_ms / 1000.0 + 20
             time.sleep(max(5.0, min(nxt - now, tf_ms / 1000.0)))
     except KeyboardInterrupt:
-        print("\n[live] Ctrl+C — clean shutdown (open positions keep their SL/TP).")
+        print("\n[live] Ctrl+C — clean shutdown (open positions keep their SL/TP).", flush=True)
     finally:
         bridge.shutdown()
     return 0
