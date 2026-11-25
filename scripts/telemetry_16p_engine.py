@@ -10,6 +10,7 @@ import glob
 import json
 import os
 import time
+import urllib.request
 from typing import Any, Dict, List, Optional, Tuple
 
 
@@ -21,6 +22,119 @@ DEFAULT_CURATED = [
 ]
 
 
+def _http_get_json(url: str, timeout_s: float = 2.0) -> Optional[dict]:
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "Antigravity-16P-Continuation/1.0"})
+        with urllib.request.urlopen(req, timeout=timeout_s) as resp:
+            if resp.status == 200:
+                return json.loads(resp.read().decode("utf-8"))
+    except Exception:
+        return None
+    return None
+
+
+def _live_continue_enrich(
+    sym: str,
+    d: Dict[str, Any],
+    base_url: str = "http://127.0.0.1:3000",
+    timeout_s: float = 2.0,
+) -> bool:
+    """In-memory live HTTP continuation (WS-10: zero disk writes) for stale/incomplete fields."""
+    if d.get("feed_type") == "mt5_ohlcv":
+        return False
+    base = base_url.rstrip("/")
+    enriched = False
+
+    mkt = _http_get_json(f"{base}/api/cg/market?sym={sym}", timeout_s=timeout_s)
+    if mkt and mkt.get("ok"):
+        d["market_structure"] = {
+            "price": mkt.get("price"),
+            "auction": mkt.get("auction"),
+            "vwap": mkt.get("vwap"),
+            "emas": mkt.get("ema") or mkt.get("emas"),
+            "rsi": mkt.get("rsi"),
+            "levels": mkt.get("levels"),
+        }
+        enriched = True
+
+    sm3 = _http_get_json(f"{base}/api/cg/stopmap?sym={sym}&model=1&mode=coin&range=3d", timeout_s=timeout_s)
+    if sm3 and sm3.get("ok"):
+        smod = sm3.get("model") or sm3
+        liq = d.setdefault("liquidations", {})
+        smap = liq.setdefault("stopmap", {})
+        smap["m1_coin_3d"] = {
+            "keyLevels": smod.get("keyLevels"),
+            "overview": smod.get("overview"),
+            "source": sm3.get("source"),
+            "stale": sm3.get("stale"),
+        }
+        enriched = True
+
+    ll = _http_get_json(f"{base}/api/cg/liq-live?sym={sym}", timeout_s=timeout_s)
+    if ll and ll.get("ok"):
+        la = ll.get("asset") or {}
+        d.setdefault("liquidations", {})["live_prints_tape"] = {
+            "supported": la.get("supported", True),
+            "stats1h": la.get("stats1h"),
+            "stats24h": la.get("stats24h"),
+            "events": (la.get("events") or [])[:25],
+            "ageMs": ll.get("ageMs"),
+            "stale": ll.get("stale"),
+            "source": ll.get("source"),
+        }
+        enriched = True
+
+    lb = _http_get_json(f"{base}/api/cg/livebook?sym={sym}", timeout_s=timeout_s)
+    if lb and lb.get("ok"):
+        lmod = lb.get("model") or {}
+        d.setdefault("book_walls", {})["live_binance"] = {
+            "covered": lb.get("covered"),
+            "imbalance": lmod.get("imbalance"),
+            "imbalance5mAgo": lmod.get("imbalance5mAgo"),
+            "bidDepth": lmod.get("bidDepth") or ((lmod.get("depth") or {}).get("bidUsd") if isinstance(lmod.get("depth"), dict) else None),
+            "askDepth": lmod.get("askDepth") or ((lmod.get("depth") or {}).get("askUsd") if isinstance(lmod.get("depth"), dict) else None),
+            "largestBid": lmod.get("largestBid"),
+            "largestAsk": lmod.get("largestAsk"),
+            "walls": (lmod.get("walls") or [])[:15],
+        }
+        enriched = True
+
+    fnd = _http_get_json(f"{base}/api/cg/funding?sym={sym}", timeout_s=timeout_s)
+    oi = _http_get_json(f"{base}/api/cg/oi?sym={sym}", timeout_s=timeout_s)
+    foi = d.setdefault("funding_and_oi", {})
+    if fnd and fnd.get("ok"):
+        f_agg = dict(fnd.get("aggregate") or {})
+        if f_agg.get("fundingPct8h") is not None:
+            f_agg["apr_pct"] = round(float(f_agg["fundingPct8h"]) * 3.0 * 365.0, 2)
+        foi["funding"] = fnd.get("venues")
+        foi["funding_aggregate"] = f_agg
+        enriched = True
+    if oi and oi.get("ok"):
+        foi["open_interest"] = oi.get("venues")
+        foi["oi_aggregate"] = oi.get("aggregate")
+        enriched = True
+
+    if sym in ("BTC", "ETH"):
+        opt = _http_get_json(f"{base}/api/cg/options?sym={sym}", timeout_s=timeout_s)
+        if opt and opt.get("ok"):
+            rr25 = opt.get("riskReversal25d") or opt.get("skew")
+            d["options_deribit"] = {
+                "dvol": opt.get("dvol"),
+                "termStructure": opt.get("termStructure"),
+                "riskReversal25d": rr25,
+                "skew": rr25,
+                "maxPain": opt.get("maxPain"),
+                "maxPainStrike": opt.get("maxPainStrike"),
+                "gammaFlipPrice": opt.get("gammaFlipPrice"),
+                "gex": opt.get("gex"),
+                "oiWalls": opt.get("oiWalls"),
+                "putCallRatio": opt.get("putCallRatio"),
+            }
+            enriched = True
+
+    return enriched
+
+
 def _extract_shelf_extremes(clusters: dict, rng: str) -> Tuple[Optional[float], Optional[float]]:
     kl = (((clusters.get(rng) or {}).get("stats") or {}).get("keyLevels")) or {}
     above = kl.get("above") or []
@@ -28,6 +142,32 @@ def _extract_shelf_extremes(clusters: dict, rng: str) -> Tuple[Optional[float], 
     p_above = above[0].get("price") if above and isinstance(above[0], dict) else None
     p_below = below[0].get("price") if below and isinstance(below[0], dict) else None
     return p_above, p_below
+
+
+def _compute_lsr(clusters: dict, smap: dict) -> Optional[float]:
+    tots = ((clusters.get("3d") or {}).get("stats") or {}).get("totals") or {}
+    lg = float(tots.get("longs") or 0)
+    sh = float(tots.get("shorts") or 0)
+    if lg <= 0 and sh <= 0:
+        ov = ((smap.get("m1_coin_3d") or smap.get("m1_coin_24h") or {}).get("overview")) or {}
+        lg = float(ov.get("longs") or 0)
+        sh = float(ov.get("shorts") or 0)
+    if lg > 0 and sh > 0:
+        return round(max(lg, sh) / min(lg, sh), 2)
+    return None
+
+
+def _compute_5m_liq_usd(live_tape: dict, now_ms: Optional[float] = None) -> Optional[float]:
+    events = live_tape.get("events") or []
+    if not events and not live_tape.get("stats1h"):
+        return None
+    ref_ms = now_ms if now_ms is not None else (time.time() * 1000.0)
+    cutoff = ref_ms - 300_000.0
+    total = 0.0
+    for ev in events:
+        if isinstance(ev, dict) and float(ev.get("t") or 0) >= cutoff:
+            total += float(ev.get("usd") or 0)
+    return round(total, 2)
 
 
 def _inspect_closed_finished_auctions(sym: str, footprint_dir: str, tf_file: str) -> Dict[str, Any]:
@@ -69,6 +209,8 @@ def audit_symbol_16p(
     assets_dir: str = "data/telemetry/assets",
     footprint_dir: str = "data/telemetry/footprint",
     max_stale_sec: int = 600,
+    live_continue: bool = False,
+    base_url: str = "http://127.0.0.1:3000",
 ) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
     fpath = os.path.join(assets_dir, f"{sym}.json")
     if not os.path.exists(fpath):
@@ -82,6 +224,14 @@ def audit_symbol_16p(
         return None, f"File read error: {e}"
 
     is_fresh = age_sec <= max_stale_sec
+    needs_http = live_continue and (
+        not is_fresh
+        or not ((d.get("liquidations") or {}).get("stopmap") or {}).get("m1_coin_3d")
+        or not ((d.get("liquidations") or {}).get("live_prints_tape"))
+        or not ((d.get("funding_and_oi") or {}).get("oi_aggregate"))
+    )
+    live_http_ok = _live_continue_enrich(sym, d, base_url=base_url) if needs_http else False
+    effective_fresh = is_fresh or live_http_ok
     p: Dict[str, Any] = {
         "_meta": {
             "sym": sym,
@@ -89,6 +239,9 @@ def audit_symbol_16p(
             "mt5_sym": (d.get("mt5") or {}).get("symbol"),
             "age_sec": age_sec,
             "is_fresh": is_fresh,
+            "live_http_enriched": live_http_ok,
+            "effective_fresh": effective_fresh,
+            "continuation": "DISK_FRESH" if is_fresh else ("DISK_STALE+LIVE_HTTP" if live_http_ok else "DISK_STALE_OFFLINE"),
             "updated_at": d.get("updated_at"),
         }
     }
@@ -153,17 +306,27 @@ def audit_symbol_16p(
         "sess_poc": sess_auc.get("poc"),
         "sess_vah": sess_auc.get("vah"),
         "sess_val": sess_auc.get("val"),
+        "week_poc": (auc.get("week") or {}).get("poc"),
+        "month_poc": (auc.get("month") or {}).get("poc"),
+        "levels": ms.get("levels"),
         "vwap": vwap_val,
         "sd1": sd1,
         "vwap_z": z_score,
+        "e13_h4": h4_ema.get("e13"),
         "e89_m15": e89_m15,
         "e233_m15": e233_m15,
         "e89_h1": e89_h1,
         "e233_h1": e233_h1,
+        "e89_h4": h4_ema.get("e89"),
         "e233_h4": e233_h4,
+        "e13_d1": (emas.get("d1") or {}).get("e13"),
+        "e89_d1": (emas.get("d1") or {}).get("e89"),
+        "e233_d1": (emas.get("d1") or {}).get("e233"),
         "tc09_dir": "SHORT" if (m15_short and h1_short) else ("LONG" if (m15_long and h1_long) else ("M15_SHORT" if m15_short else ("M15_LONG" if m15_long else "MIXED"))),
         "rsi_m15": rsi.get("m15"),
         "rsi_h1": rsi.get("h1"),
+        "rsi_h4": rsi.get("h4"),
+        "rsi_d1": rsi.get("d1"),
     }
 
     # 3. Narrative Engine
@@ -185,7 +348,7 @@ def audit_symbol_16p(
         "factors": {f.get("id"): f.get("score") for f in (athena.get("factors") or []) if isinstance(f, dict)},
     }
 
-    # 5. Microstructure L2/L3 (Coinglass + MT5 BBO)
+    # 5. Microstructure L2/L3 (Coinglass + MT5 BBO + TradFi perpdepth)
     micro = d.get("microstructure_l2_l3") or {}
     hl = micro.get("hl") or {}
     mt5_q = d.get("mt5") or {}
@@ -195,52 +358,85 @@ def audit_symbol_16p(
         "mark_vs_oracle_pct": hl.get("markVsOraclePct"),
         "vol24h_usd": hl.get("vol24hUsd"),
         "mt5_spread_bps": mt5_q.get("spread_bps"),
+        "tradfi_perpdepth": (micro.get("tradfi_perpdepth") or {}).get("lead"),
     }
 
-    # 6. Quant Positioning
+    # 6. Quant Positioning (15m/1h/4h L/S + OI quadrant + D01 Basis)
     qp = d.get("quant_positioning") or {}
     ls15 = (qp.get("lsRatios") or {}).get("15m") or {}
+    ls1h = (qp.get("lsRatios") or {}).get("1h") or {}
+    ls4h = (qp.get("lsRatios") or {}).get("4h") or {}
     p["6_quant_positioning"] = {
         "ls_ratio_15m": (ls15.get("global") or {}).get("ratio"),
         "top_accounts_ratio": (ls15.get("topAccounts") or {}).get("ratio"),
+        "ls_ratio_1h": (ls1h.get("global") or {}).get("ratio"),
+        "ls_ratio_4h": (ls4h.get("global") or {}).get("ratio"),
         "oi_quadrant": qp.get("oiQuadrant"),
+        "basis": qp.get("basis"),
     }
 
-    # 7. Options Deribit (BTC/ETH only)
+    # 7. Options Deribit (BTC/ETH only — D13 DVOL, GEX, Gamma Flip, MaxPain, 25d Skew)
     opt = d.get("options_deribit") or {}
+    rr25 = opt.get("riskReversal25d") or opt.get("skew")
+    gex_obj = opt.get("gex") if isinstance(opt, dict) else None
     p["7_options_deribit"] = {
         "dvol": (opt.get("dvol") or {}).get("value") if isinstance(opt, dict) else None,
+        "risk_reversal_25d": rr25.get("value") if isinstance(rr25, dict) else rr25,
+        "gamma_flip_price": opt.get("gammaFlipPrice") if isinstance(opt, dict) else None,
+        "gex_regime": gex_obj.get("regime") if isinstance(gex_obj, dict) else None,
+        "net_gex_1pct_usd": gex_obj.get("netGexUsdPer1Pct") if isinstance(gex_obj, dict) else None,
+        "max_pain_strike": opt.get("maxPainStrike") if isinstance(opt, dict) else None,
+        "term_structure": opt.get("termStructure") if isinstance(opt, dict) else None,
         "coverage": "BTC/ETH only" if sym in ("BTC", "ETH") else "Unsupported (Non-BTC/ETH)",
     }
 
-    # 8. Liquidations (3d, 7d, 30d shelves + Stopmap m1_coin_24h)
+    # 8. Liquidations (3d/7d/30d clusters + Model 1 Stopmap 24h/3d/7d keyLevels + D12 LSR + D16 5m tape)
     liq = d.get("liquidations") or {}
     clusters = liq.get("clusters") or {}
+    smap = liq.get("stopmap") or {}
     a3, b3 = _extract_shelf_extremes(clusters, "3d")
     a7, b7 = _extract_shelf_extremes(clusters, "7d")
     a30, b30 = _extract_shelf_extremes(clusters, "30d")
-    sm = (liq.get("stopmap") or {}).get("m1_coin_24h") or {}
+    sm24 = smap.get("m1_coin_24h") or {}
+    sm3 = smap.get("m1_coin_3d") or {}
+    sm3_kl = sm3.get("keyLevels") or {}
+    live_tape = liq.get("live_prints_tape") or {}
     p["8_liquidations"] = {
         "above_3d": a3, "below_3d": b3,
         "above_7d": a7, "below_7d": b7,
         "above_30d": a30, "below_30d": b30,
-        "stopmap_largest": (sm.get("overview") or {}).get("largestLevel"),
+        "stopmap_24h_largest": (sm24.get("overview") or {}).get("largestLevel"),
+        "stopmap_3d_above": [x.get("price") for x in (sm3_kl.get("above") or [])[:5] if isinstance(x, dict)],
+        "stopmap_3d_below": [x.get("price") for x in (sm3_kl.get("below") or [])[:5] if isinstance(x, dict)],
+        "lsr_3d": _compute_lsr(clusters, smap),
+        "liq_5m_pace_usd": _compute_5m_liq_usd(live_tape) if live_tape else None,
+        "liq_24h_usd": (live_tape.get("stats24h") or {}).get("usd") if live_tape else None,
     }
 
-    # 9. Book Walls
+    # 9. Book Walls (Futures + Spot m15/h1 + Live Binance top-1000 D09)
     bw = d.get("book_walls") or {}
     bw_fut = (bw.get("futures") or {}).get("m15") or {}
+    bw_spot = (bw.get("spot") or {}).get("m15") or {}
+    bw_h1 = (bw.get("futures") or {}).get("h1") or {}
+    bw_live = bw.get("live_binance") or {}
     p["9_book_walls"] = {
         "imbalance": bw_fut.get("imbalance"),
         "imbalance_5m_ago": bw_fut.get("imbalance5mAgo"),
         "bid_depth": bw_fut.get("bidDepth"),
         "ask_depth": bw_fut.get("askDepth"),
+        "spot_imbalance": bw_spot.get("imbalance"),
+        "h1_imbalance": bw_h1.get("imbalance"),
+        "live_binance_imbalance": bw_live.get("imbalance"),
+        "largest_bid": bw_fut.get("largestBid") or bw_live.get("largestBid"),
+        "largest_ask": bw_fut.get("largestAsk") or bw_live.get("largestAsk"),
+        "wall_count": len(bw_fut.get("walls") or []) + len(bw_spot.get("walls") or []),
     }
 
-    # 10. CVD (Perp + Spot)
+    # 10. CVD (Perp + Spot + Split across m15/h1 D08)
     cvd = d.get("cvd") or {}
     perp_k = (((cvd.get("perp") or {}).get("m15") or {}).get("kpis")) or {}
     spot_k = (((cvd.get("spot") or {}).get("m15") or {}).get("kpis")) or {}
+    perp_h1 = (((cvd.get("perp") or {}).get("h1") or {}).get("kpis")) or {}
     buy = perp_k.get("perpBuy", 0) or 0
     sell = perp_k.get("perpSell", 0) or 0
     p["10_cvd"] = {
@@ -248,10 +444,12 @@ def audit_symbol_16p(
         "perp_sell": sell,
         "perp_delta": buy - sell,
         "spot_delta": (spot_k.get("spotBuy", 0) or 0) - (spot_k.get("spotSell", 0) or 0),
+        "perp_h1_delta": (perp_h1.get("perpBuy", 0) or 0) - (perp_h1.get("perpSell", 0) or 0),
         "divs_15m": len((((cvd.get("perp") or {}).get("m15") or {}).get("divergences")) or []),
+        "latest_div": perp_k.get("latestDiv"),
     }
 
-    # 11. Footprint (Signals 7D + 15m/1h Finished Auction Zero-Print)
+    # 11. Footprint (Signals 7D + 15m/1h Finished Auction Zero-Print + D06 Bar CumDelta)
     fp_counts = {"abs": 0, "trap": 0, "exh": 0, "div": 0}
     fp_file = os.path.join(footprint_dir, sym, "signals_7d.json")
     if os.path.exists(fp_file):
@@ -266,16 +464,23 @@ def audit_symbol_16p(
             pass
     fa_15m = _inspect_closed_finished_auctions(sym, footprint_dir, "summary_7d.json")
     fa_1h = _inspect_closed_finished_auctions(sym, footprint_dir, "summary_1h.json")
+    fp_obj = d.get("footprint") or {}
     p["11_footprint"] = {
         "signals_7d": fp_counts,
         "fa_15m": fa_15m,
         "fa_1h": fa_1h,
+        "cum_delta_7d": (fp_obj.get("history_7d") or {}).get("cum_delta_7d"),
+        "cum_delta_1h": (fp_obj.get("history_1h") or {}).get("cum_delta_1h"),
     }
 
-    # 12. Large Orders
+    # 12. Large Orders & D10 LTO
     lo = d.get("large_orders") or {}
+    lto_obj = lo.get("large_taker_orders_100k") or {}
     p["12_large_orders"] = {
         "count_24h": len((lo.get("resting_and_executed") or {}).get("24h") or []),
+        "lto_supported": lto_obj.get("supported") if isinstance(lto_obj, dict) else None,
+        "lto_groups": len(lto_obj.get("groups") or []) if isinstance(lto_obj, dict) else 0,
+        "lto_active_exchanges": lto_obj.get("activeExchanges") if isinstance(lto_obj, dict) else [],
     }
 
     # 13. Playbook Cards
@@ -301,13 +506,27 @@ def audit_symbol_16p(
         "reason": cot.get("reason", "N/A"),
     }
 
-    # 16. Funding & OI
+    # 16. Funding & OI (D14 4H OI + D15 Annualized Funding APR)
     foi = d.get("funding_and_oi") or {}
     f_list = foi.get("funding") or []
     oi_list = foi.get("open_interest") or []
+    f_agg = foi.get("funding_aggregate") or {}
+    oi_agg = foi.get("oi_aggregate") or {}
     binance_rate = next((x.get("rate8h") for x in f_list if x.get("name") == "Binance"), None)
+    weighted_8h = f_agg.get("fundingPct8h")
+    apr_pct = f_agg.get("apr_pct")
+    if apr_pct is None and weighted_8h is not None:
+        apr_pct = round(float(weighted_8h) * 3.0 * 365.0, 2)
+    elif apr_pct is None and binance_rate is not None:
+        apr_pct = round(float(binance_rate) * 3.0 * 365.0, 2)
     p["16_funding_and_oi"] = {
         "binance_rate_8h": binance_rate,
+        "weighted_rate_8h": weighted_8h,
+        "annualized_apr_pct": apr_pct,
+        "oi_usd": oi_agg.get("oiUsd"),
+        "oi_delta_1h_pct": oi_agg.get("oiDelta1hPct"),
+        "oi_delta_4h_pct": oi_agg.get("oiDelta4hPct"),
+        "oi_delta_24h_pct": oi_agg.get("oiDelta24hPct"),
         "funding_venues": len(f_list),
         "oi_venues": len(oi_list),
     }
@@ -356,7 +575,12 @@ def audit_symbol_16p(
     return p, None
 
 
-def audit_universe(symbols: Optional[List[str]] = None, include_all_files: bool = False, mt5_only: bool = False) -> Dict[str, Any]:
+def audit_universe(
+    symbols: Optional[List[str]] = None,
+    include_all_files: bool = False,
+    mt5_only: bool = False,
+    live_continue: bool = False,
+) -> Dict[str, Any]:
     assets_dir = "data/telemetry/assets"
     if include_all_files or mt5_only:
         symbols = sorted(os.path.basename(f).replace(".json", "") for f in glob.glob(os.path.join(assets_dir, "*.json")))
@@ -367,14 +591,14 @@ def audit_universe(symbols: Optional[List[str]] = None, include_all_files: bool 
     stale = []
     missing = []
     for s in symbols:
-        res, err = audit_symbol_16p(s, assets_dir=assets_dir)
+        res, err = audit_symbol_16p(s, assets_dir=assets_dir, live_continue=live_continue)
         if err:
             missing.append((s, err))
         elif res:
             if mt5_only and not res["_meta"].get("mt5_sym"):
                 continue
             audited[s] = res
-            if not res["_meta"]["is_fresh"]:
+            if not res["_meta"]["effective_fresh"]:
                 stale.append((s, res["_meta"]["age_sec"]))
     return {"audited": audited, "stale": stale, "missing": missing}
 
@@ -384,27 +608,28 @@ if __name__ == "__main__":
     parser.add_argument("--sym", type=str, help="Single symbol detailed 16-parameter JSON output")
     parser.add_argument("--all", action="store_true", help="Audit all files in data/telemetry/assets/ instead of curated 40")
     parser.add_argument("--mt5", action="store_true", help="Audit all MT5-available asset files in data/telemetry/assets/")
+    parser.add_argument("--live-continue", action="store_true", help="Automatically continue via live :3000 HTTP endpoints when disk cache is stale or missing subfields")
     parser.add_argument("--top", type=int, default=20, help="Show top N ranked candidates")
     parser.add_argument("--verify-gate", action="store_true", help="Print empirical WS-15 audit verification stats")
     args = parser.parse_args()
 
     if args.sym:
-        res, err = audit_symbol_16p(args.sym.upper())
+        res, err = audit_symbol_16p(args.sym.upper(), live_continue=True)
         print(json.dumps(res or {"error": err}, indent=2))
         raise SystemExit(0 if res else 1)
 
-    out = audit_universe(include_all_files=args.all, mt5_only=args.mt5)
+    out = audit_universe(include_all_files=args.all, mt5_only=args.mt5, live_continue=args.live_continue)
     audited = out["audited"]
-    fresh_items = [(sym, d) for sym, d in audited.items() if d["_meta"]["is_fresh"]]
+    fresh_items = [(sym, d) for sym, d in audited.items() if d["_meta"]["effective_fresh"]]
     fresh_items.sort(key=lambda kv: kv[1]["_meta"]["composite_score"], reverse=True)
 
-    print("=" * 136)
-    print(f"16-PARAMETER TELEMETRY MATRIX | Fresh: {len(fresh_items)} | Stale(>600s): {len(out['stale'])} | Missing: {len(out['missing'])}")
-    print("=" * 136)
-    print("%-8s | %-10s | %-6s | %-10s | %-9s | %-5s | %-7s | %-4s | %-20s | %-6s | %-5s" % (
-        "SYM", "LAST", "Z-VWAP", "VA LOC", "TC-09", "ATH", "L/S-15m", "CVD", "FP (A/T/E/D)", "DVOL", "SCORE"
+    print("=" * 150)
+    print(f"16-PARAMETER TELEMETRY MATRIX | Effective Fresh: {len(fresh_items)} | Offline Stale(>600s): {len(out['stale'])} | Missing: {len(out['missing'])}")
+    print("=" * 150)
+    print("%-8s | %-10s | %-6s | %-10s | %-9s | %-5s | %-7s | %-5s | %-14s | %-6s | %-6s | %-7s | %-5s" % (
+        "SYM", "LAST", "Z-VWAP", "VA LOC", "TC-09", "ATH", "L/S-15m", "CVD", "FP (A/T/E/D)", "APR%", "OI4H%", "DVOL", "SCORE"
     ))
-    print("-" * 136)
+    print("-" * 150)
     for sym, d in fresh_items[: args.top]:
         ms = d["2_market_structure"]
         ath = d["4_athena_oracle"].get("score")
@@ -412,8 +637,10 @@ if __name__ == "__main__":
         cvd_d = d["10_cvd"]["perp_delta"]
         fp = d["11_footprint"]["signals_7d"]
         fp_str = f"{fp['abs']}/{fp['trap']}/{fp['exh']}/{fp['div']}"
+        apr = d["16_funding_and_oi"].get("annualized_apr_pct")
+        oi4 = d["16_funding_and_oi"].get("oi_delta_4h_pct")
         dvol = d["7_options_deribit"].get("dvol")
-        print("%-8s | %-10.4f | %-6.2f | %-10s | %-9s | %-5s | %-7s | %-4s | %-20s | %-6s | %-5.2f" % (
+        print("%-8s | %-10.4f | %-6.2f | %-10s | %-9s | %-5s | %-7s | %-5s | %-14s | %-6s | %-6s | %-7s | %-5.2f" % (
             sym,
             ms["last"] or 0.0,
             ms["vwap_z"],
@@ -423,11 +650,15 @@ if __name__ == "__main__":
             f"{ls:.2f}" if ls is not None else "-",
             str(cvd_d),
             fp_str,
+            f"{apr:.1f}" if apr is not None else "-",
+            f"{oi4:+.2f}" if oi4 is not None else "-",
             f"{dvol:.1f}" if dvol is not None else "N/A",
             d["_meta"]["composite_score"],
         ))
     if args.verify_gate:
-        print("-" * 136)
-        print(f"WS-15 GATE STATS: Total Checked={len(audited)} | Fresh<=600s={len(fresh_items)} | Stale={len(out['stale'])}")
+        disk_fresh_n = sum(1 for _, v in audited.items() if v["_meta"]["is_fresh"])
+        http_cont_n = sum(1 for _, v in audited.items() if v["_meta"].get("live_http_enriched"))
+        print("-" * 150)
+        print(f"WS-15 GATE STATS: Total={len(audited)} | DiskFresh<=600s={disk_fresh_n} | LiveHttpContinuation={http_cont_n} | OfflineStale={len(out['stale'])}")
         if out["stale"]:
             print("STALE SYMBOLS VETOED (WS-08):", out["stale"][:10])
