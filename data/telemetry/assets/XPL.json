@@ -1,28 +1,156 @@
 {
   "symbol": "XPL",
   "feed_type": "coinglass_perp",
-  "updated_at": "2026-11-25T01:16:54.877591+00:00",
-  "updated_epoch": 1795569414.8776078,
+  "updated_at": "2026-11-25T01:38:25.572807+00:00",
+  "updated_epoch": 1795570705.5728202,
   "mt5": null,
-  "ticker": null,
-  "market_structure": null,
+  "ticker": {
+    "price": 0.04394,
+    "dir": "down",
+    "source": "binance-fapi",
+    "updatedAt": null
+  },
+  "market_structure": {
+    "price": {
+      "last": 0.04394,
+      "prevDayClose": 0.04412,
+      "chgDayPct": -0.40797824116047054,
+      "dayHigh": 0.04443,
+      "dayLow": 0.04382,
+      "dayVolBase": 28906534
+    },
+    "auction": {
+      "session": {
+        "poc": 0.043945,
+        "vah": 0.044365,
+        "val": 0.043525,
+        "high": 0.0451,
+        "low": 0.0433,
+        "volume": 181350780,
+        "bins": 60
+      },
+      "day": {
+        "poc": 0.04411991666666666,
+        "vah": 0.04416058333333333,
+        "val": 0.04387591666666667,
+        "high": 0.04443,
+        "low": 0.04382,
+        "volume": 28906533.99999999,
+        "bins": 60
+      },
+      "week": {
+        "poc": 0.04581483333333333,
+        "vah": 0.0464515,
+        "val": 0.0443505,
+        "high": 0.04903,
+        "low": 0.0433,
+        "volume": 1753730242.9999988,
+        "bins": 90
+      },
+      "month": {
+        "poc": 0.04503270833333333,
+        "vah": 0.058835708333333334,
+        "val": 0.04043170833333333,
+        "high": 0.08625,
+        "low": 0.04024,
+        "volume": 15465807598.000015,
+        "bins": 120
+      }
+    },
+    "vwap": {
+      "anchorTs": 1795564800000,
+      "vwap": 0.04405355833817134,
+      "bands": {
+        "sd1": 0.00011631950118333409,
+        "sd2": 0.00023263900236666817,
+        "sd3": 0.0003489585035500023
+      },
+      "open": 0.04413,
+      "high": 0.04443,
+      "low": 0.04382,
+      "bars": 7
+    },
+    "emas": {
+      "m15": {
+        "e13": 0.04405756437338306,
+        "e89": 0.04480140119902971,
+        "e233": 0.0452395296106686
+      },
+      "h1": {
+        "e13": 0.04444481930546012,
+        "e89": 0.04533421146273225,
+        "e233": 0.04644357196398837
+      },
+      "h4": {
+        "e13": 0.04503741770790356,
+        "e89": 0.048439311570234726,
+        "e233": 0.059415661543134914
+      },
+      "d1": {
+        "e13": 0.04697475723123625,
+        "e89": 0.07064607085390523,
+        "e233": 0.1112490075176383
+      }
+    },
+    "rsi": {
+      "m15": 43.78706522163704,
+      "h1": 36.09807075104268,
+      "h4": 40.55840668316496,
+      "d1": 28.9496099916863
+    }
+  },
   "narrative_engine": {
-    "regime": "RANGE_BALANCE",
-    "activeModel": "NO_TRADE",
-    "direction": "NEUTRAL",
-    "grade": "SKIP",
-    "confidence": 0,
-    "thesis": "No live market snapshot is available for XPL right now \u2014 the narrative engine refuses to trade blind.",
+    "regime": "TREND_DOWN",
+    "activeModel": "M1_TREND_PULLBACK",
+    "direction": "SHORT",
+    "grade": "B",
+    "confidence": 85,
+    "thesis": "trend down context (H4 stack down \u00b7 D1 stack down \u00b7 EMA spread -5.33 ATR \u00b7 price holds below Day VWAP) set the SHORT bias. Price pulled back into the confluence zone 0.04410-0.04517 (VWAP band \u00b7 POC \u00b7 EMA pocket \u00b7 PDH/PDL flip) \u2014 the trigger is still pending. Risk is defined beyond 0.04549; the first objective pays 0.44R at 0.04388.",
     "plan": {
-      "entryZone": null,
-      "triggerRule": "n/a",
-      "stop": null,
-      "invalidation": "no data",
-      "targets": [],
-      "bestR": null,
-      "vetoes": [
-        "market feed unavailable"
-      ]
+      "entryZone": [
+        0.04409683512982881,
+        0.04517461516989144
+      ],
+      "ladder": [
+        {
+          "level": 0.04411991666666666,
+          "weightPct": 40,
+          "label": "L1 \u00b7 40% at POC"
+        },
+        {
+          "level": 0.04416987783935467,
+          "weightPct": 40,
+          "label": "L2 \u00b7 40% at +1\u03c3 VWAP band"
+        },
+        {
+          "level": 0.045254413316311845,
+          "weightPct": 20,
+          "label": "L3 \u00b7 20% at zone ceiling"
+        }
+      ],
+      "compositeEntry": 0.0443668004656709,
+      "triggerRule": "await bearish footprint confirmation (absorption / strong divergence / trap) or wall+CVD confluence at 0.04410-0.04517",
+      "stop": 0.045493807755573046,
+      "invalidation": "structure beyond 0.04549 (signal zone / \u00b12\u03c3 VWAP / 0.5 ATR buffer)",
+      "targets": [
+        {
+          "level": 0.04387591666666667,
+          "label": "T1 \u00b7 Day VAH/VAL or \u00b11.5\u03c3",
+          "rMultiple": 0.435563996260271
+        },
+        {
+          "level": 0.04043170833333333,
+          "label": "T2 \u00b7 same-direction liquidation cluster",
+          "rMultiple": 3.49162970603256
+        },
+        {
+          "level": 0.04395,
+          "label": "T3 \u00b7 whale wall / PWH-PWL",
+          "rMultiple": 0.36982943181058736
+        }
+      ],
+      "bestR": 3.49162970603256,
+      "vetoes": []
     },
     "probabilities": {
       "pFill": null,
@@ -33,17 +161,17 @@
     }
   },
   "athena_oracle": {
-    "score": 50,
-    "verdict": "Neutral equilibrium 50/100 \u2014 signals mixed, no dominant driver",
-    "regime": null,
+    "score": 38,
+    "verdict": "Cautious bearish lean 38/100 \u2014 trend broken",
+    "regime": "trend",
     "factors": [
       {
         "id": "apollo",
         "name": "Trend & Momentum",
         "icon": "sun",
-        "score": 50,
+        "score": 2,
         "weight": 0.25,
-        "detail": "source unavailable"
+        "detail": "EMA20<50<200, RSI 44, EMA50 -0.62%/3h"
       },
       {
         "id": "poseidon",
@@ -73,9 +201,9 @@
         "id": "atlas",
         "name": "Wall Pressure",
         "icon": "mountain",
-        "score": 53,
+        "score": 50,
         "weight": 0.15,
-        "detail": "bid wall $458k -1.6% \u00b7 ask wall $386k +1.1%"
+        "detail": "bid wall $376k -1.1% \u00b7 ask wall $384k +1.6%"
       },
       {
         "id": "nemesis",
@@ -87,11 +215,9 @@
       }
     ],
     "partial": [
-      "apollo",
       "poseidon",
       "hades",
-      "zeus",
-      "regime"
+      "zeus"
     ]
   },
   "microstructure_l2_l3": {
@@ -106,31 +232,30 @@
       "venues": [
         {
           "venue": "binance",
-          "ok": false,
-          "bid": null,
-          "ask": null,
-          "mid": null,
-          "spreadBps": null,
-          "reason": "fapi IP ban active until 2026-11-25T01:17:02.218Z",
-          "at": 1795569417375
+          "ok": true,
+          "bid": 0.04394,
+          "ask": 0.04395,
+          "mid": 0.043945,
+          "spreadBps": 2.276,
+          "at": 1795570707000
         },
         {
           "venue": "okx",
           "ok": true,
-          "bid": 0.04406,
-          "ask": 0.04407,
-          "mid": 0.044065,
-          "spreadBps": 2.269,
-          "at": 1795569417530
+          "bid": 0.04395,
+          "ask": 0.04396,
+          "mid": 0.043955,
+          "spreadBps": 2.275,
+          "at": 1795570706997
         },
         {
           "venue": "bybit",
           "ok": true,
-          "bid": 0.04407,
-          "ask": 0.04408,
-          "mid": 0.044075,
-          "spreadBps": 2.269,
-          "at": 1795569417525
+          "bid": 0.04396,
+          "ask": 0.04397,
+          "mid": 0.043965,
+          "spreadBps": 2.275,
+          "at": 1795570707003
         },
         {
           "venue": "coinbase",
@@ -140,46 +265,101 @@
           "mid": null,
           "spreadBps": null,
           "reason": "not applicable \u2014 Coinbase spot ticker is mapped for BTC/ETH/SOL/DOGE/XRP/LINK only",
-          "at": 1795569417375
+          "at": 1795570706851
         }
       ],
       "best": {
         "venue": "okx",
-        "bid": 0.04406,
-        "ask": 0.04407,
-        "mid": 0.044065,
-        "spreadBps": 2.269
+        "bid": 0.04395,
+        "ask": 0.04396,
+        "mid": 0.043955,
+        "spreadBps": 2.275
       },
       "missingVenues": [
-        "binance",
         "coinbase"
       ],
-      "at": 1795569417530
+      "at": 1795570707003
     },
     "missingVenues": [
-      "binance",
       "coinbase"
     ]
   },
   "quant_positioning": {
     "lsRatios": {
       "15m": {
-        "global": null,
-        "topAccounts": null,
-        "topPositions": null,
-        "taker": null
+        "global": {
+          "ratio": 0.8653,
+          "longPct": 46.39,
+          "shortPct": 53.61,
+          "chgPct": 0.2
+        },
+        "topAccounts": {
+          "ratio": 1.3041,
+          "longPct": 56.6,
+          "shortPct": 43.4,
+          "chgPct": -0.05
+        },
+        "topPositions": {
+          "ratio": 3.4962,
+          "longPct": 77.76,
+          "shortPct": 22.24,
+          "chgPct": -0.13
+        },
+        "taker": {
+          "buySellRatio": 0.6231,
+          "buyVolUsd": 34896,
+          "sellVolUsd": 56006
+        }
       },
       "1h": {
-        "global": null,
-        "topAccounts": null,
-        "topPositions": null,
-        "taker": null
+        "global": {
+          "ratio": 0.8639,
+          "longPct": 46.35,
+          "shortPct": 53.65,
+          "chgPct": -1.2
+        },
+        "topAccounts": {
+          "ratio": 1.3004,
+          "longPct": 56.53,
+          "shortPct": 43.47,
+          "chgPct": -1.58
+        },
+        "topPositions": {
+          "ratio": 3.502,
+          "longPct": 77.79,
+          "shortPct": 22.21,
+          "chgPct": -0.02
+        },
+        "taker": {
+          "buySellRatio": 0.9017,
+          "buyVolUsd": 424909,
+          "sellVolUsd": 471235
+        }
       },
       "4h": {
-        "global": null,
-        "topAccounts": null,
-        "topPositions": null,
-        "taker": null
+        "global": {
+          "ratio": 0.8744,
+          "longPct": 46.65,
+          "shortPct": 53.35,
+          "chgPct": -6.85
+        },
+        "topAccounts": {
+          "ratio": 1.3213,
+          "longPct": 56.92,
+          "shortPct": 43.08,
+          "chgPct": -4.91
+        },
+        "topPositions": {
+          "ratio": 3.5026,
+          "longPct": 77.79,
+          "shortPct": 22.21,
+          "chgPct": -1
+        },
+        "taker": {
+          "buySellRatio": 1.0527,
+          "buyVolUsd": 3105810,
+          "sellVolUsd": 2950322
+        }
       }
     },
     "oiQuadrant": {
@@ -193,22 +373,22 @@
       "venues": [
         {
           "name": "Binance",
-          "rate": 0.0031,
-          "rate8h": 0.0062,
+          "rate": 0.002883,
+          "rate8h": 0.005766,
           "nextFundingTime": 1795579200000,
           "fundingIntervalHours": 4
         },
         {
           "name": "OKX",
-          "rate": -4.82e-05,
-          "rate8h": -9.639e-05,
+          "rate": -0.00052901,
+          "rate8h": -0.00105801,
           "nextFundingTime": 1795579200000,
           "fundingIntervalHours": 4
         },
         {
           "name": "Bybit",
-          "rate": 0.004941,
-          "rate8h": 0.009882,
+          "rate": 0.005,
+          "rate8h": 0.01,
           "nextFundingTime": 1795579200000,
           "fundingIntervalHours": 4
         },
@@ -216,13 +396,13 @@
           "name": "KuCoin",
           "rate": 0.005,
           "rate8h": 0.01,
-          "nextFundingTime": 1795579185576,
+          "nextFundingTime": 1795579155640,
           "fundingIntervalHours": 4
         },
         {
           "name": "MEXC",
-          "rate": 0.0028,
-          "rate8h": 0.0056,
+          "rate": 0.0029,
+          "rate8h": 0.0058,
           "nextFundingTime": 1795579200000,
           "fundingIntervalHours": 4
         },
@@ -249,8 +429,8 @@
         },
         {
           "name": "Bitunix",
-          "rate": 0.001004,
-          "rate8h": 0.001004,
+          "rate": 0.001728,
+          "rate8h": 0.001728,
           "nextFundingTime": null,
           "fundingIntervalHours": 8
         },
@@ -270,8 +450,8 @@
         },
         {
           "name": "LBank",
-          "rate": 0.0027,
-          "rate8h": 0.0054,
+          "rate": 0.0031,
+          "rate8h": 0.0062,
           "nextFundingTime": 1795579200000,
           "fundingIntervalHours": 4
         },
@@ -297,25 +477,24 @@
           "fundingIntervalHours": 1
         }
       ],
-      "oiWeightedRate8h": 0.00688037,
-      "annualizedAprPct": 7.534,
-      "fundingSpreadBps": 1.01,
+      "oiWeightedRate8h": 0.00691013,
+      "annualizedAprPct": 7.5666,
+      "fundingSpreadBps": 1.11,
       "spreadVenues": [
-        "KuCoin",
+        "Bybit",
         "OKX"
       ]
     },
     "basis": {
       "spotPair": "XPLUSDT",
-      "spotPrice": 0.0441,
-      "perpPrice": null,
-      "basisPct": null,
-      "fundingImpliedAprPct": 7.534,
+      "spotPrice": 0.04399,
+      "perpPrice": 0.04394,
+      "basisPct": -0.1137,
+      "fundingImpliedAprPct": 7.5666,
       "coinbasePremiumBps": null,
       "coinbaseReason": "Coinbase premium tracked for BTC/ETH/SOL only"
     },
     "notes": [
-      "lsRatios: all Binance /futures/data endpoints failed for this pair",
       "taker buyVolUsd/sellVolUsd = Binance base-asset taker volume converted at the perp last price",
       "funding: no per-venue OI available \u2014 oiWeightedRate8h is the equal-weight mean",
       "funding rates are percent per interval; annualizedAprPct = oiWeightedRate8h(%) x 3 x 365",
@@ -327,69 +506,13 @@
     "clusters": {
       "3d": {
         "stats": {
-          "last": 0.04486,
+          "last": 0.04394,
           "keyLevels": {
             "above": [
               {
                 "side": "short",
-                "price": 0.04647,
-                "distPct": 3.6,
-                "lev": "High",
-                "strength": 32.6,
-                "usd": 18852856.639999993,
-                "venues": [
-                  "Binance",
-                  "OKX",
-                  "Bybit",
-                  "Bitget"
-                ]
-              },
-              {
-                "side": "short",
-                "price": 0.0461,
-                "distPct": 2.76,
-                "lev": "Mid",
-                "strength": 21.5,
-                "usd": 12421028.17,
-                "venues": [
-                  "Binance",
-                  "OKX",
-                  "Bybit",
-                  "Bitget"
-                ]
-              },
-              {
-                "side": "short",
-                "price": 0.04586,
-                "distPct": 2.22,
-                "lev": "High",
-                "strength": 19,
-                "usd": 11008585.610000003,
-                "venues": [
-                  "Binance",
-                  "OKX",
-                  "Bybit",
-                  "Bitget"
-                ]
-              },
-              {
-                "side": "short",
-                "price": 0.04572,
-                "distPct": 1.92,
-                "lev": "High",
-                "strength": 19.2,
-                "usd": 11106141.840000002,
-                "venues": [
-                  "Binance",
-                  "OKX",
-                  "Bybit",
-                  "Bitget"
-                ]
-              },
-              {
-                "side": "short",
                 "price": 0.04492,
-                "distPct": 0.13,
+                "distPct": 2.23,
                 "lev": "High",
                 "strength": 38.6,
                 "usd": 22359409.7,
@@ -398,13 +521,11 @@
                   "OKX",
                   "Bybit"
                 ]
-              }
-            ],
-            "below": [
+              },
               {
-                "side": "long",
+                "side": "short",
                 "price": 0.04481,
-                "distPct": -0.11,
+                "distPct": 1.99,
                 "lev": "High",
                 "strength": 100,
                 "usd": 57863110.4,
@@ -416,9 +537,9 @@
                 ]
               },
               {
-                "side": "long",
+                "side": "short",
                 "price": 0.04463,
-                "distPct": -0.52,
+                "distPct": 1.56,
                 "lev": "High",
                 "strength": 37,
                 "usd": 21423359.79,
@@ -430,23 +551,9 @@
                 ]
               },
               {
-                "side": "long",
-                "price": 0.0446,
-                "distPct": -0.58,
-                "lev": "High",
-                "strength": 32.7,
-                "usd": 18930268.800000004,
-                "venues": [
-                  "Binance",
-                  "OKX",
-                  "Bybit",
-                  "Bitget"
-                ]
-              },
-              {
-                "side": "long",
+                "side": "short",
                 "price": 0.04428,
-                "distPct": -1.3,
+                "distPct": 0.77,
                 "lev": "Mid",
                 "strength": 52,
                 "usd": 30090548.240000002,
@@ -458,9 +565,9 @@
                 ]
               },
               {
-                "side": "long",
+                "side": "short",
                 "price": 0.04417,
-                "distPct": -1.54,
+                "distPct": 0.52,
                 "lev": "Mid",
                 "strength": 90.8,
                 "usd": 52524004.09,
@@ -471,43 +578,115 @@
                   "Bitget"
                 ]
               }
+            ],
+            "below": [
+              {
+                "side": "long",
+                "price": 0.04377,
+                "distPct": -0.39,
+                "lev": "Low",
+                "strength": 8.6,
+                "usd": 4983390.929999999,
+                "venues": [
+                  "OKX",
+                  "Bybit",
+                  "Bitget"
+                ]
+              },
+              {
+                "side": "long",
+                "price": 0.04369,
+                "distPct": -0.57,
+                "lev": "High",
+                "strength": 10.1,
+                "usd": 5862666.7299999995,
+                "venues": [
+                  "Binance",
+                  "OKX",
+                  "Bybit",
+                  "Bitget",
+                  "Hyperliquid"
+                ]
+              },
+              {
+                "side": "long",
+                "price": 0.04355,
+                "distPct": -0.88,
+                "lev": "High",
+                "strength": 12.3,
+                "usd": 7115816.379999999,
+                "venues": [
+                  "Binance",
+                  "OKX",
+                  "Bybit",
+                  "Hyperliquid"
+                ]
+              },
+              {
+                "side": "long",
+                "price": 0.04296,
+                "distPct": -2.22,
+                "lev": "Mid",
+                "strength": 11.5,
+                "usd": 6671173.87,
+                "venues": [
+                  "Binance",
+                  "OKX",
+                  "Bybit",
+                  "Bitget"
+                ]
+              },
+              {
+                "side": "long",
+                "price": 0.04278,
+                "distPct": -2.65,
+                "lev": "High",
+                "strength": 9,
+                "usd": 5196943.080000001,
+                "venues": [
+                  "OKX",
+                  "Bybit",
+                  "Bitget",
+                  "Hyperliquid"
+                ]
+              }
             ]
           },
           "totals": {
-            "shorts": 890290750.6700002,
-            "longs": 567122459.8599999,
+            "shorts": 1211497255.7199998,
+            "longs": 245539054.11999997,
             "rows": 446
           },
           "bands": [
             {
               "a": 0,
               "b": 1,
-              "up": 118841411.64,
-              "down": 166384150.23999998
+              "up": 150322470.81000003,
+              "down": 45154716.089999996
             },
             {
               "a": 1,
               "b": 2,
-              "up": 93042561.82,
-              "down": 153356127.33000004
+              "up": 164262473.54,
+              "down": 31029269.44
             },
             {
               "a": 2,
               "b": 3,
-              "up": 95225282.64000002,
-              "down": 47513017.95
+              "up": 116279154.26,
+              "down": 32521986.520000003
             },
             {
               "a": 3,
               "b": 5,
-              "up": 198979724.59000003,
-              "down": 65034542.040000014
+              "up": 186193072.04999998,
+              "down": 26617959.979999997
             },
             {
               "a": 5,
               "b": 10,
-              "up": 284346443.07,
-              "down": 67049616.60999998
+              "up": 407832259.6299999,
+              "down": 45386264.16999999
             }
           ],
           "levTiers": {
@@ -541,73 +720,17 @@
           "Bitget",
           "Hyperliquid"
         ],
-        "livePrice": null
+        "livePrice": 0.04394
       },
       "7d": {
         "stats": {
-          "last": 0.04486,
+          "last": 0.04394,
           "keyLevels": {
             "above": [
               {
                 "side": "short",
-                "price": 0.04647,
-                "distPct": 3.6,
-                "lev": "High",
-                "strength": 32.6,
-                "usd": 18852856.639999993,
-                "venues": [
-                  "Binance",
-                  "OKX",
-                  "Bybit",
-                  "Bitget"
-                ]
-              },
-              {
-                "side": "short",
-                "price": 0.0461,
-                "distPct": 2.76,
-                "lev": "Mid",
-                "strength": 21.5,
-                "usd": 12421028.17,
-                "venues": [
-                  "Binance",
-                  "OKX",
-                  "Bybit",
-                  "Bitget"
-                ]
-              },
-              {
-                "side": "short",
-                "price": 0.04586,
-                "distPct": 2.22,
-                "lev": "High",
-                "strength": 19,
-                "usd": 11008585.610000003,
-                "venues": [
-                  "Binance",
-                  "OKX",
-                  "Bybit",
-                  "Bitget"
-                ]
-              },
-              {
-                "side": "short",
-                "price": 0.04572,
-                "distPct": 1.92,
-                "lev": "High",
-                "strength": 19.2,
-                "usd": 11106141.840000002,
-                "venues": [
-                  "Binance",
-                  "OKX",
-                  "Bybit",
-                  "Bitget"
-                ]
-              },
-              {
-                "side": "short",
                 "price": 0.04492,
-                "distPct": 0.13,
+                "distPct": 2.23,
                 "lev": "High",
                 "strength": 38.6,
                 "usd": 22359409.7,
@@ -616,13 +739,11 @@
                   "OKX",
                   "Bybit"
                 ]
-              }
-            ],
-            "below": [
+              },
               {
-                "side": "long",
+                "side": "short",
                 "price": 0.04481,
-                "distPct": -0.11,
+                "distPct": 1.99,
                 "lev": "High",
                 "strength": 100,
                 "usd": 57863110.4,
@@ -634,9 +755,9 @@
                 ]
               },
               {
-                "side": "long",
+                "side": "short",
                 "price": 0.04463,
-                "distPct": -0.52,
+                "distPct": 1.56,
                 "lev": "High",
                 "strength": 37,
                 "usd": 21423359.79,
@@ -648,23 +769,9 @@
                 ]
               },
               {
-                "side": "long",
-                "price": 0.0446,
-                "distPct": -0.58,
-                "lev": "High",
-                "strength": 32.7,
-                "usd": 18930268.800000004,
-                "venues": [
-                  "Binance",
-                  "OKX",
-                  "Bybit",
-                  "Bitget"
-                ]
-              },
-              {
-                "side": "long",
+                "side": "short",
                 "price": 0.04428,
-                "distPct": -1.3,
+                "distPct": 0.77,
                 "lev": "Mid",
                 "strength": 52,
                 "usd": 30090548.240000002,
@@ -676,9 +783,9 @@
                 ]
               },
               {
-                "side": "long",
+                "side": "short",
                 "price": 0.04417,
-                "distPct": -1.54,
+                "distPct": 0.52,
                 "lev": "Mid",
                 "strength": 90.8,
                 "usd": 52524004.09,
@@ -689,43 +796,115 @@
                   "Bitget"
                 ]
               }
+            ],
+            "below": [
+              {
+                "side": "long",
+                "price": 0.04377,
+                "distPct": -0.39,
+                "lev": "Low",
+                "strength": 8.6,
+                "usd": 4983390.929999999,
+                "venues": [
+                  "OKX",
+                  "Bybit",
+                  "Bitget"
+                ]
+              },
+              {
+                "side": "long",
+                "price": 0.04369,
+                "distPct": -0.57,
+                "lev": "High",
+                "strength": 10.1,
+                "usd": 5862666.7299999995,
+                "venues": [
+                  "Binance",
+                  "OKX",
+                  "Bybit",
+                  "Bitget",
+                  "Hyperliquid"
+                ]
+              },
+              {
+                "side": "long",
+                "price": 0.04355,
+                "distPct": -0.88,
+                "lev": "High",
+                "strength": 12.3,
+                "usd": 7115816.379999999,
+                "venues": [
+                  "Binance",
+                  "OKX",
+                  "Bybit",
+                  "Hyperliquid"
+                ]
+              },
+              {
+                "side": "long",
+                "price": 0.04296,
+                "distPct": -2.22,
+                "lev": "Mid",
+                "strength": 11.5,
+                "usd": 6671173.87,
+                "venues": [
+                  "Binance",
+                  "OKX",
+                  "Bybit",
+                  "Bitget"
+                ]
+              },
+              {
+                "side": "long",
+                "price": 0.04278,
+                "distPct": -2.65,
+                "lev": "High",
+                "strength": 9,
+                "usd": 5196943.080000001,
+                "venues": [
+                  "OKX",
+                  "Bybit",
+                  "Bitget",
+                  "Hyperliquid"
+                ]
+              }
             ]
           },
           "totals": {
-            "shorts": 890290750.6700002,
-            "longs": 567122459.8599999,
+            "shorts": 1211497255.7199998,
+            "longs": 245539054.11999997,
             "rows": 446
           },
           "bands": [
             {
               "a": 0,
               "b": 1,
-              "up": 118841411.64,
-              "down": 166384150.23999998
+              "up": 150322470.81000003,
+              "down": 45154716.089999996
             },
             {
               "a": 1,
               "b": 2,
-              "up": 93042561.82,
-              "down": 153356127.33000004
+              "up": 164262473.54,
+              "down": 31029269.44
             },
             {
               "a": 2,
               "b": 3,
-              "up": 95225282.64000002,
-              "down": 47513017.95
+              "up": 116279154.26,
+              "down": 32521986.520000003
             },
             {
               "a": 3,
               "b": 5,
-              "up": 198979724.59000003,
-              "down": 65034542.040000014
+              "up": 186193072.04999998,
+              "down": 26617959.979999997
             },
             {
               "a": 5,
               "b": 10,
-              "up": 284346443.07,
-              "down": 67049616.60999998
+              "up": 407832259.6299999,
+              "down": 45386264.16999999
             }
           ],
           "levTiers": {
@@ -759,73 +938,17 @@
           "Bitget",
           "Hyperliquid"
         ],
-        "livePrice": null
+        "livePrice": 0.04394
       },
       "30d": {
         "stats": {
-          "last": 0.04486,
+          "last": 0.04394,
           "keyLevels": {
             "above": [
               {
                 "side": "short",
-                "price": 0.04647,
-                "distPct": 3.6,
-                "lev": "High",
-                "strength": 32.6,
-                "usd": 18852856.639999993,
-                "venues": [
-                  "Binance",
-                  "OKX",
-                  "Bybit",
-                  "Bitget"
-                ]
-              },
-              {
-                "side": "short",
-                "price": 0.0461,
-                "distPct": 2.76,
-                "lev": "Mid",
-                "strength": 21.5,
-                "usd": 12421028.17,
-                "venues": [
-                  "Binance",
-                  "OKX",
-                  "Bybit",
-                  "Bitget"
-                ]
-              },
-              {
-                "side": "short",
-                "price": 0.04586,
-                "distPct": 2.22,
-                "lev": "High",
-                "strength": 19,
-                "usd": 11008585.610000003,
-                "venues": [
-                  "Binance",
-                  "OKX",
-                  "Bybit",
-                  "Bitget"
-                ]
-              },
-              {
-                "side": "short",
-                "price": 0.04572,
-                "distPct": 1.92,
-                "lev": "High",
-                "strength": 19.2,
-                "usd": 11106141.840000002,
-                "venues": [
-                  "Binance",
-                  "OKX",
-                  "Bybit",
-                  "Bitget"
-                ]
-              },
-              {
-                "side": "short",
                 "price": 0.04492,
-                "distPct": 0.13,
+                "distPct": 2.23,
                 "lev": "High",
                 "strength": 38.6,
                 "usd": 22359409.7,
@@ -834,13 +957,11 @@
                   "OKX",
                   "Bybit"
                 ]
-              }
-            ],
-            "below": [
+              },
               {
-                "side": "long",
+                "side": "short",
                 "price": 0.04481,
-                "distPct": -0.11,
+                "distPct": 1.99,
                 "lev": "High",
                 "strength": 100,
                 "usd": 57863110.4,
@@ -852,9 +973,9 @@
                 ]
               },
               {
-                "side": "long",
+                "side": "short",
                 "price": 0.04463,
-                "distPct": -0.52,
+                "distPct": 1.56,
                 "lev": "High",
                 "strength": 37,
                 "usd": 21423359.79,
@@ -866,23 +987,9 @@
                 ]
               },
               {
-                "side": "long",
-                "price": 0.0446,
-                "distPct": -0.58,
-                "lev": "High",
-                "strength": 32.7,
-                "usd": 18930268.800000004,
-                "venues": [
-                  "Binance",
-                  "OKX",
-                  "Bybit",
-                  "Bitget"
-                ]
-              },
-              {
-                "side": "long",
+                "side": "short",
                 "price": 0.04428,
-                "distPct": -1.3,
+                "distPct": 0.77,
                 "lev": "Mid",
                 "strength": 52,
                 "usd": 30090548.240000002,
@@ -894,9 +1001,9 @@
                 ]
               },
               {
-                "side": "long",
+                "side": "short",
                 "price": 0.04417,
-                "distPct": -1.54,
+                "distPct": 0.52,
                 "lev": "Mid",
                 "strength": 90.8,
                 "usd": 52524004.09,
@@ -907,43 +1014,115 @@
                   "Bitget"
                 ]
               }
+            ],
+            "below": [
+              {
+                "side": "long",
+                "price": 0.04377,
+                "distPct": -0.39,
+                "lev": "Low",
+                "strength": 8.6,
+                "usd": 4983390.929999999,
+                "venues": [
+                  "OKX",
+                  "Bybit",
+                  "Bitget"
+                ]
+              },
+              {
+                "side": "long",
+                "price": 0.04369,
+                "distPct": -0.57,
+                "lev": "High",
+                "strength": 10.1,
+                "usd": 5862666.7299999995,
+                "venues": [
+                  "Binance",
+                  "OKX",
+                  "Bybit",
+                  "Bitget",
+                  "Hyperliquid"
+                ]
+              },
+              {
+                "side": "long",
+                "price": 0.04355,
+                "distPct": -0.88,
+                "lev": "High",
+                "strength": 12.3,
+                "usd": 7115816.379999999,
+                "venues": [
+                  "Binance",
+                  "OKX",
+                  "Bybit",
+                  "Hyperliquid"
+                ]
+              },
+              {
+                "side": "long",
+                "price": 0.04296,
+                "distPct": -2.22,
+                "lev": "Mid",
+                "strength": 11.5,
+                "usd": 6671173.87,
+                "venues": [
+                  "Binance",
+                  "OKX",
+                  "Bybit",
+                  "Bitget"
+                ]
+              },
+              {
+                "side": "long",
+                "price": 0.04278,
+                "distPct": -2.65,
+                "lev": "High",
+                "strength": 9,
+                "usd": 5196943.080000001,
+                "venues": [
+                  "OKX",
+                  "Bybit",
+                  "Bitget",
+                  "Hyperliquid"
+                ]
+              }
             ]
           },
           "totals": {
-            "shorts": 890290750.6700002,
-            "longs": 567122459.8599999,
+            "shorts": 1211497255.7199998,
+            "longs": 245539054.11999997,
             "rows": 446
           },
           "bands": [
             {
               "a": 0,
               "b": 1,
-              "up": 118841411.64,
-              "down": 166384150.23999998
+              "up": 150322470.81000003,
+              "down": 45154716.089999996
             },
             {
               "a": 1,
               "b": 2,
-              "up": 93042561.82,
-              "down": 153356127.33000004
+              "up": 164262473.54,
+              "down": 31029269.44
             },
             {
               "a": 2,
               "b": 3,
-              "up": 95225282.64000002,
-              "down": 47513017.95
+              "up": 116279154.26,
+              "down": 32521986.520000003
             },
             {
               "a": 3,
               "b": 5,
-              "up": 198979724.59000003,
-              "down": 65034542.040000014
+              "up": 186193072.04999998,
+              "down": 26617959.979999997
             },
             {
               "a": 5,
               "b": 10,
-              "up": 284346443.07,
-              "down": 67049616.60999998
+              "up": 407832259.6299999,
+              "down": 45386264.16999999
             }
           ],
           "levTiers": {
@@ -977,7 +1156,7 @@
           "Bitget",
           "Hyperliquid"
         ],
-        "livePrice": null
+        "livePrice": 0.04394
       }
     },
     "stopmap": {
@@ -1063,61 +1242,71 @@
   "book_walls": {
     "futures": {
       "m15": {
-        "imbalance": 0.06574986937586343,
-        "imbalance5mAgo": -0.006220532658266646,
-        "bidDepth": 2411147.4314,
-        "askDepth": 2113643.0483999997,
+        "imbalance": 0.0035252020241424904,
+        "imbalance5mAgo": 0.03112560924171935,
+        "bidDepth": 2201501.0643,
+        "askDepth": 2186034.1164,
         "largestBid": null,
         "largestAsk": null,
         "walls": [
           {
             "side": "b",
             "price": 0.0438,
-            "usd": 398428.8053,
-            "qty": 9075827,
-            "distPct": -0.68,
+            "usd": 358035.23000000004,
+            "qty": 8155700,
+            "distPct": -0.23,
             "firstSeen": 1795563900000,
-            "ageMs": 5400000,
-            "touched": false
-          },
-          {
-            "side": "a",
-            "price": 0.0444,
-            "usd": 269997.74250000005,
-            "qty": 6067365,
-            "distPct": 0.68,
-            "firstSeen": 1795556700000,
-            "ageMs": 12600000,
-            "touched": false
-          },
-          {
-            "side": "a",
-            "price": 0.0446,
-            "usd": 385661.2296,
-            "qty": 8627768,
-            "distPct": 1.13,
-            "firstSeen": 1795567500000,
-            "ageMs": 1800000,
-            "touched": false
+            "ageMs": 6300000,
+            "touched": true
           },
           {
             "side": "b",
             "price": 0.0436,
-            "usd": 260426.87250000003,
-            "qty": 5959425,
-            "distPct": -1.13,
+            "usd": 346333.5124,
+            "qty": 7925252,
+            "distPct": -0.68,
             "firstSeen": 1795563900000,
-            "ageMs": 5400000,
+            "ageMs": 6300000,
             "touched": false
           },
           {
             "side": "b",
             "price": 0.0434,
-            "usd": 457661.32500000007,
-            "qty": 10520950,
-            "distPct": -1.59,
+            "usd": 443754.07050000003,
+            "qty": 10201243,
+            "distPct": -1.14,
             "firstSeen": 1795560300000,
-            "ageMs": 9000000,
+            "ageMs": 9900000,
+            "touched": false
+          },
+          {
+            "side": "a",
+            "price": 0.0444,
+            "usd": 336163.23500000004,
+            "qty": 7554230,
+            "distPct": 1.14,
+            "firstSeen": 1795556700000,
+            "ageMs": 13500000,
+            "touched": false
+          },
+          {
+            "side": "b",
+            "price": 0.0432,
+            "usd": 342557.86110000004,
+            "qty": 7911267,
+            "distPct": -1.59,
+            "firstSeen": 1795553100000,
+            "ageMs": 17100000,
+            "touched": false
+          },
+          {
+            "side": "a",
+            "price": 0.0446,
+            "usd": 323217.4305,
+            "qty": 7230815,
+            "distPct": 1.59,
+            "firstSeen": 1795567500000,
+            "ageMs": 2700000,
             "touched": false
           },
           {
@@ -1125,29 +1314,19 @@
             "price": 0.0448,
             "usd": 383981.1631,
             "qty": 8551919,
-            "distPct": 1.59,
+            "distPct": 2.05,
             "firstSeen": 1795563900000,
-            "ageMs": 5400000,
+            "ageMs": 6300000,
             "touched": false
           },
           {
             "side": "b",
-            "price": 0.0432,
-            "usd": 292245.9024,
-            "qty": 6749328,
-            "distPct": -2.04,
-            "firstSeen": 1795553100000,
-            "ageMs": 16200000,
-            "touched": false
-          },
-          {
-            "side": "a",
-            "price": 0.045000000000000005,
-            "usd": 279837.20160000003,
-            "qty": 6204816,
-            "distPct": 2.04,
-            "firstSeen": 1795533300000,
-            "ageMs": 36000000,
+            "price": 0.042800000000000005,
+            "usd": 344219.17530000006,
+            "qty": 8023757,
+            "distPct": -2.51,
+            "firstSeen": 1795564800000,
+            "ageMs": 5400000,
             "touched": false
           }
         ],
@@ -1157,8 +1336,8 @@
             "type": "add",
             "side": "a",
             "p": 0.0446,
-            "usd": 385661.2296,
-            "qty": 8627768
+            "usd": 383806.58190000005,
+            "qty": 8586277
           },
           {
             "t": 1795566600000,
@@ -1195,19 +1374,19 @@
         ]
       },
       "h1": {
-        "imbalance": 0.053743543346167655,
+        "imbalance": 0.0035252020241424904,
         "imbalance5mAgo": 0.03189303587729574,
-        "bidDepth": 2466077.1832000003,
-        "askDepth": 2214525.035,
+        "bidDepth": 2201501.0643,
+        "askDepth": 2186034.1164,
         "largestBid": null,
         "largestAsk": null,
         "walls": [
           {
             "side": "b",
             "price": 0.042800000000000005,
-            "usd": 374396.15070000006,
-            "qty": 8727183,
-            "distPct": -2.95,
+            "usd": 344219.17530000006,
+            "qty": 8023757,
+            "distPct": -2.51,
             "firstSeen": 1795564800000,
             "ageMs": 3600000,
             "touched": false
@@ -1219,8 +1398,8 @@
             "type": "add",
             "side": "b",
             "p": 0.042800000000000005,
-            "usd": 374396.15070000006,
-            "qty": 8727183
+            "usd": 344219.17530000006,
+            "qty": 8023757
           },
           {
             "t": 1795561200000,
@@ -1259,23 +1438,13 @@
     },
     "spot": {
       "m15": {
-        "imbalance": 0.12197396902276543,
-        "imbalance5mAgo": 0.33772801634186556,
-        "bidDepth": 295665.90987000003,
-        "askDepth": 231380.0253,
+        "imbalance": 0.11433052733190502,
+        "imbalance5mAgo": 0.11433052733190502,
+        "bidDepth": 295523.27657,
+        "askDepth": 234881.78605999998,
         "largestBid": null,
         "largestAsk": null,
         "walls": [
-          {
-            "side": "b",
-            "price": 0.044000000000000004,
-            "usd": 139146.33978,
-            "qty": 3155245.8,
-            "distPct": -0.23,
-            "firstSeen": 1795567500000,
-            "ageMs": 1800000,
-            "touched": true
-          },
           {
             "side": "a",
             "price": 0.0442,
@@ -1283,37 +1452,37 @@
             "qty": 1920450.3,
             "distPct": 0.23,
             "firstSeen": 1795554900000,
-            "ageMs": 14400000,
+            "ageMs": 15300000,
             "touched": true
           },
           {
             "side": "b",
             "price": 0.0438,
-            "usd": 193386.0411,
-            "qty": 4405149,
+            "usd": 192897.48678,
+            "qty": 4394020.2,
             "distPct": -0.68,
             "firstSeen": 1795563900000,
-            "ageMs": 5400000,
-            "touched": false
+            "ageMs": 6300000,
+            "touched": true
           },
           {
             "side": "b",
             "price": 0.0436,
-            "usd": 74569.71496000001,
-            "qty": 1706400.8,
+            "usd": 83530.46551000001,
+            "qty": 1911452.3,
             "distPct": -1.13,
             "firstSeen": 1795565700000,
-            "ageMs": 3600000,
+            "ageMs": 4500000,
             "touched": false
           },
           {
             "side": "a",
             "price": 0.0446,
-            "usd": 69099.72744,
-            "qty": 1545855.2,
+            "usd": 78088.70523,
+            "qty": 1746950.9,
             "distPct": 1.13,
             "firstSeen": 1795549500000,
-            "ageMs": 19800000,
+            "ageMs": 20700000,
             "touched": false
           },
           {
@@ -1323,8 +1492,8 @@
             "qty": 4396111.2,
             "distPct": -1.59,
             "firstSeen": 1795556700000,
-            "ageMs": 12600000,
-            "touched": false
+            "ageMs": 13500000,
+            "touched": true
           },
           {
             "side": "a",
@@ -1333,7 +1502,7 @@
             "qty": 1788089.2,
             "distPct": 1.59,
             "firstSeen": 1795542300000,
-            "ageMs": 27000000,
+            "ageMs": 27900000,
             "touched": false
           },
           {
@@ -1343,11 +1512,19 @@
             "qty": 1212330.5,
             "distPct": 2.49,
             "firstSeen": 1795515300000,
-            "ageMs": 54000000,
+            "ageMs": 54900000,
             "touched": false
           }
         ],
         "events": [
+          {
+            "t": 1795570200000,
+            "type": "fill",
+            "side": "b",
+            "p": 0.044000000000000004,
+            "usd": 142960.85748,
+            "qty": 3155245.8
+          },
           {
             "t": 1795567500000,
             "type": "add",
@@ -1379,41 +1556,33 @@
             "p": 0.0438,
             "usd": 125595.92889000001,
             "qty": 2860955.1
-          },
-          {
-            "t": 1795563000000,
-            "type": "fill",
-            "side": "b",
-            "p": 0.0436,
-            "usd": 192685.64088000002,
-            "qty": 2943412.2
           }
         ]
       },
       "h1": {
-        "imbalance": 0.12197396902276543,
+        "imbalance": -0.30304555754870477,
         "imbalance5mAgo": -0.040049302949089836,
-        "bidDepth": 295665.90987000003,
-        "askDepth": 231380.0253,
+        "bidDepth": 187035.32492,
+        "askDepth": 349686.48508,
         "largestBid": null,
         "largestAsk": null,
         "walls": [
           {
-            "side": "b",
+            "side": "a",
             "price": 0.0438,
-            "usd": 193386.0411,
-            "qty": 4405149,
-            "distPct": -0.68,
-            "firstSeen": 1795564800000,
-            "ageMs": 3600000,
-            "touched": false
+            "usd": 170379.25835000002,
+            "qty": 3881076.5,
+            "distPct": -0.23,
+            "firstSeen": 1795561200000,
+            "ageMs": 7200000,
+            "touched": true
           },
           {
             "side": "b",
             "price": 0.0436,
-            "usd": 74569.71496000001,
-            "qty": 1706400.8,
-            "distPct": -1.13,
+            "usd": 135085.41378,
+            "qty": 3091199.4,
+            "distPct": -0.68,
             "firstSeen": 1795557600000,
             "ageMs": 10800000,
             "touched": false
@@ -1423,17 +1592,17 @@
             "price": 0.0434,
             "usd": 57593.16915,
             "qty": 1323980.9,
-            "distPct": -1.59,
+            "distPct": -1.14,
             "firstSeen": 1795557600000,
             "ageMs": 10800000,
-            "touched": false
+            "touched": true
           },
           {
             "side": "a",
             "price": 0.045200000000000004,
             "usd": 54918.571650000005,
             "qty": 1212330.5,
-            "distPct": 2.49,
+            "distPct": 2.96,
             "firstSeen": 1795518000000,
             "ageMs": 50400000,
             "touched": false
@@ -1441,12 +1610,12 @@
         ],
         "events": [
           {
-            "t": 1795564800000,
+            "t": 1795561200000,
             "type": "add",
-            "side": "b",
+            "side": "a",
             "p": 0.0438,
-            "usd": 193386.0411,
-            "qty": 4405149
+            "usd": 170379.25835000002,
+            "qty": 3881076.5
           },
           {
             "t": 1795561200000,
@@ -1497,7 +1666,7 @@
           "spotSell": 0,
           "perpCvd": 0,
           "spotCvd": 0,
-          "buyRatio": 49.7,
+          "buyRatio": 49.5,
           "quadrant": "spot-bid",
           "latestDiv": {
             "type": "bull",
@@ -1517,9 +1686,9 @@
             "priceB": 0.05395,
             "priceC": 0.05297,
             "bars": [
-              11,
-              23,
-              28
+              9,
+              21,
+              26
             ],
             "ret12": -0.23,
             "hit": true
@@ -1531,9 +1700,9 @@
             "priceB": 0.05101,
             "priceC": 0.05116,
             "bars": [
-              33,
-              66,
-              71
+              31,
+              64,
+              69
             ],
             "ret12": 1.62,
             "hit": true
@@ -1545,9 +1714,9 @@
             "priceB": 0.05193,
             "priceC": 0.05288,
             "bars": [
-              148,
-              161,
-              166
+              146,
+              159,
+              164
             ],
             "ret12": -1.36,
             "hit": false
@@ -1559,9 +1728,9 @@
             "priceB": 0.05319,
             "priceC": 0.05278,
             "bars": [
-              170,
-              185,
-              190
+              168,
+              183,
+              188
             ],
             "ret12": 1.71,
             "hit": false
@@ -1573,9 +1742,9 @@
             "priceB": 0.05062,
             "priceC": 0.05105,
             "bars": [
-              253,
-              272,
-              277
+              251,
+              270,
+              275
             ],
             "ret12": -1.33,
             "hit": false
@@ -1587,9 +1756,9 @@
             "priceB": 0.0501,
             "priceC": 0.04894,
             "bars": [
-              306,
-              313,
-              318
+              304,
+              311,
+              316
             ],
             "ret12": 1.35,
             "hit": false
@@ -1601,9 +1770,9 @@
             "priceB": 0.05126,
             "priceC": 0.05038,
             "bars": [
-              373,
-              398,
-              403
+              371,
+              396,
+              401
             ],
             "ret12": -1.55,
             "hit": true
@@ -1615,9 +1784,9 @@
             "priceB": 0.04761,
             "priceC": 0.04782,
             "bars": [
-              449,
-              469,
-              474
+              447,
+              467,
+              472
             ],
             "ret12": 0.71,
             "hit": true
@@ -1629,9 +1798,9 @@
             "priceB": 0.04423,
             "priceC": 0.04392,
             "bars": [
-              536,
-              552,
-              557
+              534,
+              550,
+              555
             ],
             "ret12": -1.39,
             "hit": true
@@ -1643,9 +1812,9 @@
             "priceB": 0.04235,
             "priceC": 0.04386,
             "bars": [
-              595,
-              609,
-              614
+              593,
+              607,
+              612
             ],
             "ret12": 2.49,
             "hit": true
@@ -1657,9 +1826,9 @@
             "priceB": 0.04487,
             "priceC": 0.04493,
             "bars": [
-              726,
-              732,
-              737
+              724,
+              730,
+              735
             ],
             "ret12": 0.87,
             "hit": true
@@ -1671,9 +1840,9 @@
             "priceB": 0.04452,
             "priceC": 0.04484,
             "bars": [
-              748,
-              765,
-              770
+              746,
+              763,
+              768
             ],
             "ret12": -0.45,
             "hit": false
@@ -1685,9 +1854,9 @@
             "priceB": 0.04408,
             "priceC": 0.04461,
             "bars": [
-              771,
-              791,
-              796
+              769,
+              789,
+              794
             ],
             "ret12": 1.3,
             "hit": true
@@ -1699,9 +1868,9 @@
             "priceB": 0.04655,
             "priceC": 0.04633,
             "bars": [
-              799,
-              820,
-              825
+              797,
+              818,
+              823
             ],
             "ret12": -0.82,
             "hit": true
@@ -1713,9 +1882,9 @@
             "priceB": 0.04557,
             "priceC": 0.04594,
             "bars": [
-              835,
-              844,
-              849
+              833,
+              842,
+              847
             ],
             "ret12": 1.13,
             "hit": true
@@ -1727,9 +1896,9 @@
             "priceB": 0.04551,
             "priceC": 0.04652,
             "bars": [
-              866,
-              889,
-              894
+              864,
+              887,
+              892
             ],
             "ret12": -0.58,
             "hit": false
@@ -1741,9 +1910,9 @@
             "priceB": 0.04574,
             "priceC": 0.04681,
             "bars": [
-              926,
-              932,
-              937
+              924,
+              930,
+              935
             ],
             "ret12": 1.11,
             "hit": true
@@ -1755,9 +1924,9 @@
             "priceB": 0.04386,
             "priceC": 0.04422,
             "bars": [
-              1064,
-              1077,
-              1082
+              1062,
+              1075,
+              1080
             ],
             "ret12": 0.09,
             "hit": true
@@ -1769,9 +1938,9 @@
             "priceB": 0.04377,
             "priceC": 0.04396,
             "bars": [
-              1077,
-              1093,
-              1098
+              1075,
+              1091,
+              1096
             ],
             "ret12": 4.5,
             "hit": true
@@ -1783,9 +1952,9 @@
             "priceB": 0.04635,
             "priceC": 0.04548,
             "bars": [
-              1089,
-              1108,
-              1113
+              1087,
+              1106,
+              1111
             ],
             "ret12": -2.92,
             "hit": true
@@ -1797,9 +1966,9 @@
             "priceB": 0.04335,
             "priceC": 0.04443,
             "bars": [
-              1116,
-              1126,
-              1131
+              1114,
+              1124,
+              1129
             ],
             "ret12": 1.58,
             "hit": true
@@ -1811,9 +1980,9 @@
             "priceB": 0.04644,
             "priceC": 0.04614,
             "bars": [
-              1158,
-              1167,
-              1172
+              1156,
+              1165,
+              1170
             ],
             "ret12": -1.17,
             "hit": true
@@ -1825,9 +1994,9 @@
             "priceB": 0.04395,
             "priceC": 0.04464,
             "bars": [
-              1200,
-              1219,
-              1224
+              1198,
+              1217,
+              1222
             ],
             "ret12": -0.45,
             "hit": false
@@ -1839,9 +2008,9 @@
             "priceB": 0.04428,
             "priceC": 0.04518,
             "bars": [
-              1230,
-              1236,
-              1241
+              1228,
+              1234,
+              1239
             ],
             "ret12": 0.04,
             "hit": true
@@ -1853,9 +2022,9 @@
             "priceB": 0.04596,
             "priceC": 0.0452,
             "bars": [
-              1231,
-              1248,
-              1253
+              1229,
+              1246,
+              1251
             ],
             "ret12": -0.09,
             "hit": true
@@ -1867,9 +2036,9 @@
             "priceB": 0.04414,
             "priceC": 0.04479,
             "bars": [
-              1281,
-              1298,
-              1303
+              1279,
+              1296,
+              1301
             ],
             "ret12": -0.76,
             "hit": false
@@ -1881,9 +2050,9 @@
             "priceB": 0.04687,
             "priceC": 0.04654,
             "bars": [
-              1325,
-              1347,
-              1352
+              1323,
+              1345,
+              1350
             ],
             "ret12": 2.21,
             "hit": false
@@ -1895,9 +2064,9 @@
             "priceB": 0.04903,
             "priceC": 0.04733,
             "bars": [
-              1353,
-              1361,
-              1366
+              1351,
+              1359,
+              1364
             ],
             "ret12": -1.5,
             "hit": true
@@ -1909,9 +2078,9 @@
             "priceB": 0.04502,
             "priceC": 0.04593,
             "bars": [
-              1374,
-              1395,
-              1400
+              1372,
+              1393,
+              1398
             ],
             "ret12": -2.13,
             "hit": false
@@ -1923,9 +2092,9 @@
             "priceB": 0.04666,
             "priceC": 0.04608,
             "bars": [
-              1405,
-              1426,
-              1431
+              1403,
+              1424,
+              1429
             ],
             "ret12": -1.61,
             "hit": true
@@ -1937,9 +2106,9 @@
             "priceB": 0.04441,
             "priceC": 0.04531,
             "bars": [
-              1445,
-              1452,
-              1457
+              1443,
+              1450,
+              1455
             ],
             "ret12": -0.97,
             "hit": false
@@ -2446,26 +2615,6 @@
       "summary_file": "data/telemetry/footprint/XPL/summary_7d.json",
       "recent_bars_tail": [
         {
-          "ts": 1795563000000,
-          "o": 0.04357,
-          "h": 0.04457,
-          "l": 0.0434,
-          "c": 0.04419,
-          "buy_vol": 0.0,
-          "sell_vol": 0.0,
-          "delta": 0.0,
-          "delta_pct": 0.0,
-          "cum_delta": 0.0,
-          "poc_price": null,
-          "poc_vol": 0.0,
-          "top_bid": null,
-          "top_ask": null,
-          "bot_bid": null,
-          "bot_ask": null,
-          "finished_high": false,
-          "finished_low": false
-        },
-        {
           "ts": 1795563900000,
           "o": 0.0442,
           "h": 0.04424,
@@ -2588,9 +2737,29 @@
         {
           "ts": 1795569300000,
           "o": 0.04409,
-          "h": 0.0441,
-          "l": 0.04401,
-          "c": 0.04405,
+          "h": 0.04414,
+          "l": 0.04395,
+          "c": 0.04401,
+          "buy_vol": 0.0,
+          "sell_vol": 0.0,
+          "delta": 0.0,
+          "delta_pct": 0.0,
+          "cum_delta": 0.0,
+          "poc_price": null,
+          "poc_vol": 0.0,
+          "top_bid": null,
+          "top_ask": null,
+          "bot_bid": null,
+          "bot_ask": null,
+          "finished_high": false,
+          "finished_low": false
+        },
+        {
+          "ts": 1795570200000,
+          "o": 0.04402,
+          "h": 0.04402,
+          "l": 0.04382,
+          "c": 0.04395,
           "buy_vol": 0.0,
           "sell_vol": 0.0,
           "delta": 0.0,
@@ -2756,8 +2925,8 @@
           "ts": 1795568400000,
           "o": 0.04416,
           "h": 0.04416,
-          "l": 0.04388,
-          "c": 0.04405,
+          "l": 0.04382,
+          "c": 0.04395,
           "buy_vol": 0.0,
           "sell_vol": 0.0,
           "delta": 0.0,
@@ -2973,24 +3142,24 @@
     "funding": [
       {
         "name": "Binance",
-        "rate": 0.0031,
-        "rate8h": 0.0062,
+        "rate": 0.002883,
+        "rate8h": 0.005766,
         "fundingIntervalHours": 4,
         "nextFundingTime": 1795579200000,
         "status": 1
       },
       {
         "name": "OKX",
-        "rate": -4.8e-05,
-        "rate8h": -9.6e-05,
+        "rate": -0.000529,
+        "rate8h": -0.001058,
         "fundingIntervalHours": 4,
         "nextFundingTime": 1795579200000,
         "status": 1
       },
       {
         "name": "Bybit",
-        "rate": 0.004941,
-        "rate8h": 0.009882,
+        "rate": 0.005,
+        "rate8h": 0.01,
         "fundingIntervalHours": 4,
         "nextFundingTime": 1795579200000,
         "status": 1
@@ -3000,13 +3169,13 @@
         "rate": 0.005,
         "rate8h": 0.01,
         "fundingIntervalHours": 4,
-        "nextFundingTime": 1795579185576,
+        "nextFundingTime": 1795579155640,
         "status": 1
       },
       {
         "name": "MEXC",
-        "rate": 0.0028,
-        "rate8h": 0.0056,
+        "rate": 0.0029,
+        "rate8h": 0.0058,
         "fundingIntervalHours": 4,
         "nextFundingTime": 1795579200000,
         "status": 1
@@ -3023,7 +3192,7 @@
         "rate": -0.00287,
         "rate8h": -0.02296,
         "fundingIntervalHours": 1,
-        "predictedRate": 0.001135,
+        "predictedRate": -0.007588,
         "nextFundingTime": 1795572000000,
         "status": 2
       },
@@ -3045,10 +3214,10 @@
       },
       {
         "name": "Gate",
-        "rate": -0.00051,
-        "rate8h": -0.00102,
+        "rate": -0.0023,
+        "rate8h": -0.0046,
         "fundingIntervalHours": 4,
-        "predictedRate": -0.00051,
+        "predictedRate": -0.0023,
         "nextFundingTime": 1795579200000,
         "status": 2
       },
@@ -3057,7 +3226,7 @@
         "rate": 0.00436,
         "rate8h": 0.034877,
         "fundingIntervalHours": 1,
-        "predictedRate": 0.00345,
+        "predictedRate": 0.003346,
         "nextFundingTime": 1795572000000,
         "status": 2
       },
@@ -3071,8 +3240,8 @@
       },
       {
         "name": "Bitunix",
-        "rate": 0.001004,
-        "rate8h": 0.001004,
+        "rate": 0.001728,
+        "rate8h": 0.001728,
         "fundingIntervalHours": 8,
         "status": 1
       },
@@ -3094,8 +3263,8 @@
       },
       {
         "name": "LBank",
-        "rate": 0.0027,
-        "rate8h": 0.0054,
+        "rate": 0.0031,
+        "rate8h": 0.0062,
         "fundingIntervalHours": 4,
         "nextFundingTime": 1795579200000,
         "status": 1
@@ -3141,7 +3310,7 @@
     "open_interest": [
       {
         "name": "Binance",
-        "oiUsd": 30384156,
+        "oiUsd": 30317738,
         "sharePct": 100
       }
     ]
