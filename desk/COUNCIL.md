@@ -3727,3 +3727,18 @@ Empirical audit of today's MT5 deal history reveals the exact root causes of sto
 - **CG Order-Flow Live SL/TP Optimizer:** [`engine/cg_sl_tp.py`](file:///c:/Users/SIGMA/Documents/Trading-Strategies/engine/cg_sl_tp.py) refines live MT5 SLs past nearby `3d/7d/30d` liquidation sweep zones (strictly bounded by `$6.00` cap & `2.0R` floor) and snaps TPs inside opposing Binance/CG book walls & auction levels, with `0.85..1.15` unit scale guard (`ETHUSD`: `17` ask walls + `30` liq levels + `9` auction nodes live).
 
 **Confidence:** VERIFIED (`5/5 pytest`, `SELFTEST: PASS`, live CG endpoints verified, research reproducible via `research/ig_strategies/round2b_exact_sleeves.json` & `final_ensemble_comparison.json`).
+
+
+
+### [2026-11-25T17:26:00Z] · Antigravity · R35 INSTITUTIONAL 252-ASSET AUDIT, MT5 1% CAP RESTORATION ($74.66 -> $22.94) & ETH PIT-21 FIX (22:56 IST)
+**Verdict:** Executed full pre-flight `agent_memory` hydration, cache purge (`12 __pycache__` dirs, `0.47 MB`), `252`-asset telemetry inventory (`161 coinglass_perp`, `91 mt5_ohlcv`, `0 malformed`, `246/252` VWAP Z-scores + `150` `Hurst/VR/ATR%/Skew/Kurt/BTC_Corr_Z` metrics), and live `:3000` / MT5 / Delta reconciliation. Flagged stale disk cache (`2,820s..12,886s`, `telemetry_daemon.py` inactive) and verified all live brackets directly against `:3000` HTTP & `MT5LIVE`.
+- **Pre-Flight Realized Outcomes:** MT5 `#20432336 BNBUSD.p` (`42001`) hit BE-trailed SL `548.50` @ `549.1` locking **`+$2.18` net**, while legacy pre-upgrade `#20518562 BNBUSD.p` (`42007` chased @ `527.9`) hit full SL @ `549.1` losing **`-$4.88`**. Delta `FILUSD -1 @ 0.5144` closed @ `0.5200` (`-$0.0062` net).
+- **MT5 `#5126976` Risk-Cap Cleanup & `PIT-21` Bracket Fix (`ILK-01 connected=True, trade_allowed=True`, all `retcode=10009`):**
+  1. Closed `9` invalid legacy pre-upgrade `magic=42007` (`ig_s5_zs`) shorts (`#20518555 AVX -3.21`, `#20518556 BAR -3.33`, `#20518564 DSH -3.14`, `#20518565 ETH -2.71`, `#20518567 GAUCNH -1.18`, `#20518571 GAUUSD -1.22`, `#20518573 SOL -2.60`, `#20518574 UNI -2.16`, `#20518575 YFI -0.73`), eliminating `$35.63` SL risk from buggy/non-basket trades.
+  2. Closed `2` duplicate `42010` gold-gram shorts (`#20525213 GAUUSD -2.63`, `#20525214 GAUCNH -2.66`) whose tight stops (`113.22` / `754.98`) sat inside `XAU 30d` `3,550.97` (`~114.21`) liquidation shelves + closed redundant CNH cross `#20515768 GAUCNH.pi` (`-0.56`), retaining wider `42003` `#20515764 GAUUSD.pi` (`SL 115.2126`, clears `7d/30d`).
+  3. Resized `#20516480 ETHUSD.pi` (`0.09 -> 0.08`, partial `+$0.03`) and widened bracket `SL 1715.0 -> 1728.50` / `TP 1550.0 -> 1523.00` (`$5.48` risk, `2.00R`) to clear live `:3000` `ETH 30d/7d` short-liq shelves (`1,714.93–1,725.65`, `str=85.2–100.0`).
+- **Post-Exec MT5 `#5126976`:** `Bal=$2,551.82 | Eq=$2,547.86 | Free=$2,330.71 | Float=-$3.96 | 5 Open | 0 Pending | Total SL Risk=$22.94 USD (0.900% <= 1.00% Cap $25.48)` across 5 uncorrelated positions (`EURUSD.pi`, `GBPNZD.pi`, `JP225.p`, `GAUUSD.pi`, `ETHUSD.pi`). New MT5 entries: `NO TRADE` (`$2.54` remaining headroom `< $5.00` min trade unit).
+- **Delta `#26902927` (`Bal=$3.3032, Avail=$3.1902, NetEq=$3.4051`):** `KEEP UNCHANGED` `XRPUSD -1 @ 0.9031` (`SL 0.9327` `$0.0296=0.87%`, `TP 0.8109`) & `#1714234905 ADAUSD SELL_LIMIT 3 @ 0.14400` (`SL 0.1476` clears `0.1474` `30d`, `TP 0.1368`, `$0.0108=0.32%`).
+- **Memory & Selfcheck Committed:** Updated `data/agent_memory/{trade_postmortems.jsonl, prediction_calibration_log.jsonl, regime_signal_weights.json, adaptive_playbook.md}`.
+
+**Confidence:** VERIFIED (live MT5 `retcode=10009` + post-exec readback + closed `history_deals_get` + Delta live API + `252/252` JSON parse + `:3000` `7d/30d` live liq/CVD).
