@@ -698,16 +698,17 @@ def _summarize_fp_bars_with_diag(
 
 
 class AsyncTelemetryHarvester:
-    """Pooled aiohttp client with Coinglass semaphore & bounded LRU caching."""
+    """Pooled aiohttp client with separate fast vs Coinglass-heavy semaphores & zero 429 overload."""
 
-    def __init__(self, concurrency: int = 4, force_full_fp: bool = False):
-        self.sem = asyncio.Semaphore(max(1, min(concurrency, 5)))
+    def __init__(self, concurrency: int = 6, cg_heavy_concurrency: int = 3, force_full_fp: bool = False):
+        self.fast_sem = asyncio.Semaphore(max(2, min(concurrency, 8)))
+        self.cg_heavy_sem = asyncio.Semaphore(max(1, min(cg_heavy_concurrency, 4)))
         self.force_full_fp = force_full_fp
         self.session: Optional[aiohttp.ClientSession] = None
 
     async def __aenter__(self) -> "AsyncTelemetryHarvester":
         timeout = aiohttp.ClientTimeout(total=25, connect=5)
-        connector = aiohttp.TCPConnector(limit=12, limit_per_host=10, ttl_dns_cache=300, enable_cleanup_closed=True)
+        connector = aiohttp.TCPConnector(limit=16, limit_per_host=12, ttl_dns_cache=300, enable_cleanup_closed=True)
         self.session = aiohttp.ClientSession(
             base_url=BASE_URL,
             connector=connector,
@@ -721,18 +722,19 @@ class AsyncTelemetryHarvester:
             await self.session.close()
             self.session = None
 
-    async def fetch_json(self, path: str, timeout: float = 12.0, retries: int = 1) -> Optional[Dict[str, Any]]:
+    async def fetch_json(self, path: str, timeout: float = 12.0, retries: int = 1, heavy: bool = False) -> Optional[Dict[str, Any]]:
         assert self.session is not None
         attempts = max(1, retries + 1)
+        gate = self.cg_heavy_sem if heavy else self.fast_sem
         for attempt in range(attempts):
             try:
-                async with self.sem:
+                async with gate:
                     async with self.session.get(path, timeout=aiohttp.ClientTimeout(total=timeout)) as resp:
                         raw = await resp.read()
                         if resp.status == 200:
                             return loads_bytes(raw)
                         if resp.status in (429, 502, 503, 504) and attempt + 1 < attempts:
-                            await asyncio.sleep(0.45 * (attempt + 1))
+                            await asyncio.sleep(0.5 * (attempt + 1))
                             continue
                         return {"_err": f"HTTP {resp.status}"}
             except Exception as e:
@@ -750,6 +752,8 @@ class AsyncTelemetryHarvester:
         endpoint: str,
         timeout: float = 12.0,
         transform: Optional[Any] = None,
+        heavy: bool = False,
+        unsupported_ttl_secs: float = 3600.0,
     ) -> Optional[Any]:
         cache = CACHES[cache_name]
         if ttl_secs > 0:
@@ -757,10 +761,12 @@ class AsyncTelemetryHarvester:
             if hit is not None:
                 return None if (isinstance(hit, dict) and hit.get("_err")) else hit
 
-        res = await self.fetch_json(endpoint, timeout=timeout)
+        res = await self.fetch_json(endpoint, timeout=timeout, heavy=heavy)
         if res and not res.get("_err"):
             val = transform(res) if transform else res
-            if ttl_secs > 0 and val is not None:
+            # Cache structurally unsupported assets (e.g. TradFi spot bookwalls) longer so we don't re-probe needlessly
+            effective_ttl = unsupported_ttl_secs if (isinstance(val, dict) and val.get("supported") is False) else ttl_secs
+            if effective_ttl > 0 and val is not None:
                 cache.set(key, val)
             return val
         if ttl_secs > 0 and res and res.get("_err") in ("HTTP 400", "HTTP 503"):
@@ -862,11 +868,36 @@ class AsyncTelemetryHarvester:
             elif isinstance(existing_obj, list):
                 existing_bars = existing_obj
 
-        need_full = self.force_full_fp or (not raw_path) or (len(existing_bars) < max(60, target_bars // 2)) or (raw_age > 3600)
-        fetch_lim = target_bars if need_full else delta_limit
-        fp_res = await self.fetch_json(f"/api/cg/fp?sym={sym}&itv={itv}&limit={fetch_lim}", timeout=18 if fetch_lim > 300 else 12)
+        need_full = self.force_full_fp or (not raw_path) or (len(existing_bars) < min(120, target_bars // 2)) or (raw_age > 3600)
+        init_lim = target_bars if (self.force_full_fp or itv != "m15") else min(target_bars, 300)
+        fetch_lim = init_lim if need_full else delta_limit
+        fp_res = await self.fetch_json(
+            f"/api/cg/fp?sym={sym}&itv={itv}&limit={fetch_lim}",
+            timeout=16 if fetch_lim > 200 else 10,
+            heavy=True,
+        )
+        if (not fp_res or fp_res.get("_err") or not fp_res.get("bars")) and fetch_lim > 150:
+            fp_res = await self.fetch_json(f"/api/cg/fp?sym={sym}&itv={itv}&limit=150", timeout=12, heavy=True)
         if not (fp_res and fp_res.get("ok") and fp_res.get("bars")):
-            return CACHES["fp_meta"].get(cache_key, ttl_secs=ttl_secs, allow_stale=True)
+            stale_meta = CACHES["fp_meta"].get(cache_key, ttl_secs=ttl_secs, allow_stale=True)
+            if stale_meta is not None:
+                return stale_meta
+            if existing_bars:
+                rows, c_delta, with_fp_cnt = _summarize_fp_bars_with_diag(
+                    sym, existing_bars, tf_label, summary_filename, delta_key, include_diag_levels=True
+                )
+                return {
+                    "bars_count": len(rows),
+                    "with_fp_bars": with_fp_cnt,
+                    "buckets_available": with_fp_cnt > 0,
+                    "source": "disk_cache_stale_preserved",
+                    delta_key: round(c_delta, 2),
+                    "cum_delta": round(c_delta, 2),
+                    "summary_file": f"data/telemetry/footprint/{sym}/{summary_filename}",
+                    "bars_file": f"data/telemetry/footprint/{sym}/{raw_filename}" if raw_filename else None,
+                    "recent_bars_tail": rows[-(8 if itv == "m15" else 6):] if rows else [],
+                }
+            return None
 
         merged_bars = _merge_fp_bars(existing_bars, fp_res.get("bars") or [], max_keep=target_bars)
         rows, c_delta, with_fp_cnt = _summarize_fp_bars_with_diag(
@@ -1047,8 +1078,9 @@ class AsyncTelemetryHarvester:
                 "source": ll.get("source"),
             }
 
-        # Group 2: Options (BTC/ETH), Clusters, Stopmaps (Model 1 24h/3d/7d + Model 2/3), Book Walls, CVD, LTO, Backtest, COT
+        # Group 2: Options (BTC/ETH), Clusters, Stopmaps, Book Walls, CVD, LTO, Backtest, COT, Signals
         ext_ttl = 0.0 if is_prime else 900.0
+        is_deep_core = sym in DEEP_MATRIX_SYMBOLS
         tasks: Dict[str, Any] = {}
 
         if sym in ("BTC", "ETH"):
@@ -1057,20 +1089,37 @@ class AsyncTelemetryHarvester:
         # Liquidation Clusters 3d / 7d / 30d
         for rng in ("3d", "7d", "30d"):
             tasks[f"liq_{rng}"] = self.cached_get(
-                "liq", (sym, rng), 60.0 if is_prime else 900.0, f"/api/cg/liqlevels?sym={sym}&range={rng}", timeout=8
+                "liq", (sym, rng), 90.0 if is_prime else 900.0,
+                f"/api/cg/liqlevels?sym={sym}&range={rng}", timeout=10, heavy=True
             )
 
-        # Stopmap Model 1 (24h, 3d, 7d) + Model 2 & Model 3 (Prime) with vectorized buildWalls extraction cached compactly!
-        sm_specs = [
-            ("m1_coin_24h", "1", "coin", "24h", 60.0 if is_prime else 900.0),
-            ("m1_coin_3d", "1", "coin", "3d", 120.0 if is_prime else 900.0),
-            ("m1_coin_7d", "1", "coin", "7d", 300.0 if is_prime else 1800.0),
-        ]
+        # Fetch Model 1 24h first so if asset uses rolling snapshot fallback we avoid 4 duplicate upstream calls
+        sm_m1_24h = await self.cached_get(
+            "stopmap",
+            (sym, "1", "coin", "24h"),
+            120.0 if is_prime else 900.0,
+            f"/api/cg/stopmap?sym={sym}&model=1&mode=coin&range=24h",
+            timeout=14,
+            transform=summarize_stopmap_payload,
+            heavy=True,
+        )
+        if sm_m1_24h:
+            profile["liquidations"]["stopmap"]["m1_coin_24h"] = sm_m1_24h
+
+        is_native_sm = bool(sm_m1_24h and sm_m1_24h.get("kind") == "native_heatmap_grid")
+        sm_specs: List[Tuple[str, str, str, str, float]] = []
+        if is_native_sm or is_deep_core:
+            sm_specs.extend([
+                ("m1_coin_3d", "1", "coin", "3d", 240.0 if is_prime else 900.0),
+                ("m1_coin_7d", "1", "coin", "7d", 600.0 if is_prime else 1800.0),
+            ])
+            if is_deep_core:
+                sm_specs.extend([
+                    ("m2_coin_3d", "2", "coin", "3d", 600.0),
+                    ("m3_coin_3d", "3", "coin", "3d", 600.0),
+                ])
         if sym == "BTC":
-            sm_specs.append(("m1_pair_24h", "1", "pair", "24h", 60.0))
-        if is_prime:
-            sm_specs.append(("m2_coin_3d", "2", "coin", "3d", 300.0))
-            sm_specs.append(("m3_coin_3d", "3", "coin", "3d", 300.0))
+            sm_specs.append(("m1_pair_24h", "1", "pair", "24h", 120.0))
 
         for slot, mdl, mode, rng, ttl_s in sm_specs:
             tasks[f"sm_{slot}"] = self.cached_get(
@@ -1080,18 +1129,22 @@ class AsyncTelemetryHarvester:
                 f"/api/cg/stopmap?sym={sym}&model={mdl}&mode={mode}&range={rng}",
                 timeout=14,
                 transform=summarize_stopmap_payload,
+                heavy=True,
             )
 
-        # Book Walls across timeframes (futures: 1m, 5m, m15, 1h, 4h[limit=60,ttl=1800s]; spot: m15, 1h)
+        # Book Walls across timeframes (smart caching & 4h on deep core so Coinglass never 429s)
         bw_specs = [
-            ("futures", "1m", 60.0 if is_prime else 900.0, 150),
-            ("futures", "5m", 120.0 if is_prime else 900.0, 150),
-            ("futures", "m15", ext_ttl if not is_prime else 45.0, 150),
-            ("futures", "1h", 180.0 if is_prime else 900.0, 150),
-            ("spot", "m15", 60.0 if is_prime else 900.0, 150),
-            ("spot", "1h", 300.0 if is_prime else 1800.0, 150),
+            ("futures", "m15", 90.0 if is_prime else 900.0, 150),
+            ("futures", "1h", 240.0 if is_prime else 900.0, 150),
+            ("spot", "m15", 180.0 if is_prime else 900.0, 150),
         ]
         if is_prime:
+            bw_specs.extend([
+                ("futures", "1m", 180.0, 150),
+                ("futures", "5m", 300.0, 150),
+                ("spot", "1h", 360.0, 150),
+            ])
+        if is_deep_core:
             bw_specs.append(("futures", "4h", 1800.0, 60))
 
         for mkt_type, itv, ttl_s, lim in bw_specs:
@@ -1102,6 +1155,7 @@ class AsyncTelemetryHarvester:
                 f"/api/cg/bookwalls?sym={sym}&market={mkt_type}&interval={itv}&limit={lim}&band=5",
                 timeout=14,
                 transform=build_compact_bookwalls,
+                heavy=True,
             )
 
         # CVD (perp/spot/split on m15/h1)
@@ -1109,13 +1163,13 @@ class AsyncTelemetryHarvester:
         for c_mode in cvd_modes:
             for c_itv in ("m15", "h1"):
                 tasks[f"cvd_{c_mode}_{c_itv}"] = self.cached_get(
-                    "cvd", (sym, c_mode, c_itv), 45.0 if is_prime else 900.0,
-                    f"/api/cg/cvd?sym={sym}&mode={c_mode}&itv={c_itv}&anchor=day", timeout=12
+                    "cvd", (sym, c_mode, c_itv), 90.0 if is_prime else 900.0,
+                    f"/api/cg/cvd?sym={sym}&mode={c_mode}&itv={c_itv}&anchor=day", timeout=12, heavy=True
                 )
 
         # Large orders, LTO, Playbook cards, Backtest, COT, Signals
-        tasks["lo"] = self.cached_get("lo", sym, 300.0 if is_prime else 900.0, f"/api/cg/largeorder?symbol=Binance_{sym}USDT&interval=m15&hours=24", timeout=8)
-        tasks["lto"] = self.cached_get("lto", sym, 180.0 if is_prime else 900.0, f"/api/cg/lto?symbol={sym}", timeout=10)
+        tasks["lo"] = self.cached_get("lo", sym, 300.0 if is_prime else 900.0, f"/api/cg/largeorder?symbol=Binance_{sym}USDT&interval=m15&hours=24", timeout=8, heavy=True)
+        tasks["lto"] = self.cached_get("lto", sym, 180.0 if is_prime else 900.0, f"/api/cg/lto?symbol={sym}", timeout=10, heavy=True)
         if is_prime:
             tasks["cards"] = self.fetch_json(f"/api/strategy/cards?sym={sym}", timeout=8)
         tasks["bt"] = self.cached_get(
@@ -1132,7 +1186,7 @@ class AsyncTelemetryHarvester:
             },
         )
         tasks["cot"] = self.cached_get("cot", sym, 3600.0, f"/api/cg/cot?sym={sym}&quiet=1", timeout=6)
-        tasks["sg"] = self.cached_get("fp_sig", sym, 45.0 if is_prime else 900.0, f"/api/cg/signals?sym={sym}&bt=all", timeout=10)
+        tasks["sg"] = self.cached_get("fp_sig", sym, 90.0 if is_prime else 900.0, f"/api/cg/signals?sym={sym}&bt=all", timeout=12, heavy=True)
 
         results_list = await asyncio.gather(*tasks.values(), return_exceptions=True)
         res_map = {k: (v if not isinstance(v, Exception) else None) for k, v in zip(tasks.keys(), results_list)}
@@ -1169,6 +1223,9 @@ class AsyncTelemetryHarvester:
             sm_val = res_map.get(f"sm_{slot}")
             if sm_val:
                 profile["liquidations"]["stopmap"][slot] = sm_val
+        if sm_m1_24h and not is_native_sm and "m1_coin_3d" not in profile["liquidations"]["stopmap"]:
+            # Honest annotation when symbol relies on local rolling snapshot archive (range/model-invariant)
+            profile["liquidations"]["stopmap"]["rolling_archive_shared_across"] = ["m1_coin_24h", "m1_coin_3d", "m1_coin_7d"]
 
         # Populate Book Walls & grid-aligned live_binance
         m15_grid = None
@@ -1183,7 +1240,7 @@ class AsyncTelemetryHarvester:
             lb_ep = f"/api/cg/livebook?sym={sym}&band=5" + (f"&grid={m15_grid}" if m15_grid else "")
             lb = await self.fetch_json(lb_ep, timeout=7, retries=1)
             if lb and lb.get("ok"):
-                lb_compact = build_compact_bookwalls(lb, strip_tail=12)
+                lb_compact = build_compact_bookwalls(lb, strip_tail=2, max_ladder=120)
                 lb_compact["covered"] = lb.get("covered")
                 lb_compact["fapiBanned"] = lb.get("fapiBanned")
                 profile["book_walls"]["live_binance"] = lb_compact
@@ -1346,7 +1403,7 @@ class AsyncTelemetryHarvester:
         hit = CACHES["fp_meta"].get(key, ttl_secs=ttl_secs)
         if hit is not None:
             return hit
-        res = await self.fetch_json(f"/api/cg/fp?sym={sym}&itv={itv}&limit=48", timeout=10)
+        res = await self.fetch_json(f"/api/cg/fp?sym={sym}&itv={itv}&limit=48", timeout=10, heavy=True)
         if not (res and res.get("ok") and res.get("bars")):
             return CACHES["fp_meta"].get(key, ttl_secs=ttl_secs, allow_stale=True)
         bars = res.get("bars") or []
@@ -1608,7 +1665,8 @@ async def async_main() -> None:
         if idx + 1 < len(sys.argv):
             bench_cycles = max(1, int(sys.argv[idx + 1]))
 
-    concurrency = int(os.environ.get("TELEMETRY_CONCURRENCY", os.environ.get("TELEMETRY_WORKERS", "4")))
+    concurrency = int(os.environ.get("TELEMETRY_CONCURRENCY", os.environ.get("TELEMETRY_WORKERS", "6")))
+    cg_heavy_concurrency = int(os.environ.get("TELEMETRY_CG_CONCURRENCY", "3"))
     interval = int(os.environ.get("TELEMETRY_INTERVAL_SECS", "10"))
     tail_batch = int(os.environ.get("TELEMETRY_TAIL_BATCH", "20"))
     git_sync_secs = 0 if no_git else int(os.environ.get("TELEMETRY_GIT_SYNC_SECS", "600"))
@@ -1618,11 +1676,11 @@ async def async_main() -> None:
 
     print("==================================================================", flush=True)
     print(f"Starting Async Zero-Leak Order-Flow + MT5 Telemetry Engine v5.0 ({loop_name})", flush=True)
-    print(f"Concurrency(sem): {concurrency} | Pause: {interval}s | Tail Batch: {tail_batch} | Git Sync: {git_sync_secs}s | Start RSS: {baseline_rss:.1f}MB", flush=True)
+    print(f"Concurrency(fast/cg): {concurrency}/{cg_heavy_concurrency} | Pause: {interval}s | Tail Batch: {tail_batch} | Git Sync: {git_sync_secs}s | Start RSS: {baseline_rss:.1f}MB", flush=True)
     print("==================================================================", flush=True)
 
     cycle_num = 0
-    async with AsyncTelemetryHarvester(concurrency=concurrency, force_full_fp=full_fp) as harvester:
+    async with AsyncTelemetryHarvester(concurrency=concurrency, cg_heavy_concurrency=cg_heavy_concurrency, force_full_fp=full_fp) as harvester:
         while True:
             cycle_num += 1
             cycle_start = time.time()
