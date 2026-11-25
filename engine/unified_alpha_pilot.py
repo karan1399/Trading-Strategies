@@ -51,7 +51,16 @@ from delta_exec import DeltaLive  # noqa: E402
 from engine.cg_sl_tp import optimize_bracket_with_cg  # noqa: E402
 from strategies._indicators import adx_arr  # noqa: E402
 from strategies.registry import load_signal_fn  # noqa: E402
-from strategies.ig_s8_vol_target import vol_target_risk_usd  # noqa: E402
+from strategies.s03_htf_ema_rejection.strategy import signal_at as _s03_signal_at  # noqa: E402
+from strategies.s04_vc_squeeze_breakout.strategy import signal_at as _s04_signal_at  # noqa: E402
+from strategies.s06_iv_wall_fade.strategy import (  # noqa: E402
+    _broker_day,
+    ewma_sigma,
+    session_spans_from,
+    signal_at as _s06_signal_at,
+)
+from strategies.s08_vol_target_overlay import vol_target_risk_usd  # noqa: E402
+from strategies.s11_or30_london_breakout.strategy import signal_at as _s11_signal_at  # noqa: E402
 
 
 def load_resolved_config(path: str = CONFIG_PATH) -> dict:
@@ -125,22 +134,6 @@ def wilder_atr(h: np.ndarray, l: np.ndarray, c: np.ndarray, period: int = 14) ->
     for i in range(period, n):
         atr[i] = (atr[i - 1] * (period - 1) + tr[i]) / period
     return atr
-
-
-def ewma_sigma(c: np.ndarray, lam: float = 0.94) -> np.ndarray:
-    """RiskMetrics per-bar sigma of log returns (causal)."""
-    with np.errstate(divide="ignore", invalid="ignore"):
-        lr = np.diff(np.log(np.maximum(c, 1e-12)), prepend=np.log(c[0]))
-    lr[0] = 0.0
-    lr = np.nan_to_num(lr, nan=0.0, posinf=0.0, neginf=0.0)
-    var = np.zeros(len(c))
-    alpha = 1 - lam
-    k = max(1, len(c) // 20)
-    v = float((lr[:k] ** 2).mean()) if len(c) > 20 else float(lr[0] ** 2)
-    for i in range(len(c)):
-        v = alpha * lr[i] ** 2 + (1 - alpha) * v
-        var[i] = v
-    return np.sqrt(np.maximum(var, 0.0))
 
 
 # ============================================================ state/store ===
@@ -269,222 +262,24 @@ def lots_for_risk(spec: SymbolSpec, sl_distance: float, risk_usd: float,
 # Return dict: side(+1/-1), rd (stop distance), sl_abs, tp_abs (either may be None
 # => caller derives from entry +/- rd * exit_r), note.
 
-def _cluster_break_at(o, h, l, c, atr, i, level, side_bias):
-    if i < 3:
-        return 0.0, 0.0
-    tol = max(1e-5, 0.20 * atr[i])
-    ch, cl, cc = h[i - 3:i], l[i - 3:i], c[i - 3:i]
-    if side_bias == 1:
-        touches = int((cl >= level - tol).sum())
-        if touches >= 2 and np.min(cc) >= level - 0.15 * atr[i] and c[i] > np.max(ch):
-            struct = np.min(cl) - 0.20 * atr[i]
-            return struct, max(c[i] - struct, 1.2 * atr[i])
-    else:
-        touches = int((ch <= level + tol).sum())
-        if touches >= 2 and np.max(cc) <= level + 0.15 * atr[i] and c[i] < np.min(cl):
-            struct = np.max(ch) + 0.20 * atr[i]
-            return struct, max(struct - c[i], 1.2 * atr[i])
-    return 0.0, 0.0
-
-
 def sig_htf_gold_at(o, h, l, c, atr, i, params) -> dict | None:
-    """P4 cluster-stall at EMA{period} (port of the audited HTF pattern engine)."""
-    period = int(params.get("ema_period", 233))
-    if i < period + 10 or i < 5:
-        return None
-    if h[i] <= l[i]:
-        return None
-    ef = ema_arr(c[: i + 1], period)
-    e = ef[i]
-    if e <= 0:
-        return None
-    rising = e > ef[i - 5]
-    falling = e < ef[i - 5]
-    if params.get("slope_gate", False) and not (rising or falling):
-        return None
-    sb = 1 if rising else (-1 if falling else 0)
-    if sb == 0:
-        return None
-    struct, rd = _cluster_break_at(o, h, l, c, atr, i, e, sb)
-    if rd <= 0:
-        return None
-    if params.get("regime_gate", False):
-        es = ema_arr(c[: i + 1], 233)
-        if sb == 1 and not c[i] > es[i]:
-            return None
-        if sb == -1 and not c[i] < es[i]:
-            return None
-    return {"side": sb, "rd": float(rd), "sl_abs": None, "tp_abs": None,
-            "exit_r": float(params.get("exit_r", 2.0)),
-            "note": f"P4_cluster/EMA{period}"}
+    """Thin compatibility delegate to modular strategies.s03_htf_ema_rejection."""
+    return _s03_signal_at(o, h, l, c, None, atr, i, params)
 
 
 def sig_vc_at(o, h, l, c, atr, i, params) -> dict | None:
-    """VC blueprint: BB inside KC >= min_squeeze_bars, close breaks band, EMA200 + optional ADX gate."""
-    if i < max(params.get("trend_ema", 200), 60) + 10:
-        return None
-    adx_min = float(params.get("adx_min", 0.0) or 0.0)
-    if adx_min > 0.0:
-        if float(adx_arr(h[: i + 1], l[: i + 1], c[: i + 1], 14)[i]) < adx_min:
-            return None
-    bb_len, dev = int(params.get("bb_len", 20)), float(params.get("bb_dev", 2.0))
-    kc_len, mult = int(params.get("kc_len", 20)), float(params.get("kc_mult", 1.5))
-    seg_c = c[: i + 1]
-    sma = sma_arr(seg_c, bb_len)
-    need = int(params.get("min_squeeze_bars", 3))
-    j0 = i - need
-    if j0 < bb_len:
-        return None
-    sd = np.zeros(i + 1)
-    for k in range(max(bb_len - 1, j0), i + 1):
-        sd[k] = seg_c[k - bb_len + 1: k + 1].std(ddof=0)
-    bb_up, bb_dn = sma + dev * sd, sma - dev * sd
-    atr_kc = wilder_atr(h[: i + 1], l[: i + 1], c[: i + 1], 14)
-    kc_up, kc_dn = sma + mult * atr_kc, sma - mult * atr_kc
-    squeeze = all(bb_up[k] < kc_up[k] and bb_dn[k] > kc_dn[k] for k in range(j0, i))
-    if not squeeze:
-        return None
-    ema200 = ema_arr(seg_c, int(params.get("trend_ema", 200)))
-    ema50 = ema_arr(seg_c, 50)
-    atr14 = atr[i]
-    bullish, bearish = c[i] >= o[i], c[i] <= o[i]
-    side = 0
-    if c[i] > bb_up[i] and bullish and c[i] > ema200[i] and ema50[i] >= ema200[i]:
-        side = 1
-    elif c[i] < bb_dn[i] and bearish and c[i] < ema200[i] and ema50[i] <= ema200[i]:
-        side = -1
-    if side == 0:
-        return None
-    basis = sma[i]
-    if params.get("sl_basis", True) and basis > 0:
-        rd = abs(c[i] - basis)
-    else:
-        rd = 0.0
-    rd = max(rd, float(params.get("sl_atr_floor", 1.2)) * atr14, 1e-9)
-    return {"side": side, "rd": float(rd), "sl_abs": None, "tp_abs": None,
-            "exit_r": float(params.get("exit_r", 4.0)), "note": f"squeeze{need}bb"}
+    """Thin compatibility delegate to modular strategies.s04_vc_squeeze_breakout."""
+    return _s04_signal_at(o, h, l, c, None, atr, i, params)
 
 
-def _broker_day(ts_utc_min: float, offset_h: int) -> str:
-    return time.strftime("%Y-%m-%d", time.gmtime((ts_utc_min + offset_h * 60) * 60))
-
-
-def sig_ivwall_at(o, h, l, c, times_min, atr, sig_series, i, params,
-                  session_spans: list[float]) -> dict | None:
-    """Session-anchored 2-SD wall fade (port of the audited IV-wall rules).
-
-    sig_series: pre-computed EWMA sigma per bar (causal). Session = broker day.
-    Walls fixed for the whole session from the sigma of the bar BEFORE the session's
-    first bar; never repainted. Entry: touch + close back inside.
-    """
-    offset = int(params.get("broker_utc_offset", 2))
-    bph = 4.0  # 15M bars per hour
-    sid = _broker_day(times_min[i], offset)
-    # session start = first bar index with this broker day
-    start = i
-    while start > 0 and _broker_day(times_min[start - 1], offset) == sid:
-        start -= 1
-    if i - start < int(params.get("skip_first_bars", 1)):
-        return None
-    if i == start:  # session's first bar: no sigma yet for this session's anchor rule
-        return None
-    sig_bar = sig_series[start - 1] if start - 1 >= 0 else 0.0
-    if not np.isfinite(sig_bar) or sig_bar <= 0:
-        return None
-    sess_open = o[start]
-    exp_h = float(np.median(session_spans)) if len(session_spans) >= 3 else 24.0
-    em = sess_open * sig_bar * math.sqrt(max(exp_h, 0.25) * bph)
-    if not np.isfinite(em) or em <= 0:
-        return None
-    up = sess_open + float(params.get("sd_wall", 2.0)) * em
-    dn = sess_open - float(params.get("sd_wall", 2.0)) * em
-    atr14 = atr[i]
-    if atr14 <= 0:
-        return None
-    touched_up, beyond_up = h[i] >= up, c[i] > up
-    touched_dn, beyond_dn = l[i] <= dn, c[i] < dn
-    side, wall = 0, 0.0
-    if touched_up and not beyond_up:
-        side, wall = -1, up
-    elif touched_dn and not beyond_dn:
-        side, wall = 1, dn
-    if side == 0:
-        return None
-    buf = float(params.get("buffer_atr", 1.0)) * atr14
-    sl_abs = wall + buf if side == -1 else wall - buf
-    tp_abs = sess_open - float(params.get("target_m", 0.5)) * em if side == -1 \
-        else sess_open + float(params.get("target_m", 0.5)) * em
-    # entry-dependent checks (stop_cap_em, min_rr, stop side) are applied by the
-    # CALLER once the actual entry price is known — never inside the signal.
-    return {"side": side, "rd": None, "sl_abs": float(sl_abs), "tp_abs": float(tp_abs),
-            "exit_r": None, "note": f"wall{sid}", "em": float(em)}
+def sig_ivwall_at(o, h, l, c, times_min, atr, sig_series, i, params, session_spans: list[float]) -> dict | None:
+    """Thin compatibility delegate to modular strategies.s06_iv_wall_fade."""
+    return _s06_signal_at(o, h, l, c, times_min, atr, i, params, {"sig_series": sig_series, "session_spans": session_spans})
 
 
 def sig_orb_at(o, h, l, c, times_min, atr, htf_c_4h, i, params) -> dict | None:
-    """NAS100 OR30 breakout @ anchor UTC (frozen ORB cell): midpoint SL, fixed R TP.
-
-    One trade per UTC day, signal window = anchor + signal_window_hours, EOD flat
-    handled by the engine loop.
-    """
-    ah, am = params.get("anchor_utc", "14:30").split(":")
-    anchor = int(ah) * 60 + int(am)
-    or_min = int(params.get("or_minutes", 30))
-    bar_min = 15
-    nbars = or_min // bar_min
-    day_start = None
-    # locate today's anchor bar (UTC day of bar i)
-    day = time.strftime("%Y-%m-%d", time.gmtime(times_min[i] * 60))
-    j = i
-    while j >= 0 and time.strftime("%Y-%m-%d", time.gmtime(times_min[j] * 60)) == day:
-        day_start = j
-        j -= 1
-    if day_start is None:
-        return None
-    day_ts = [times_min[k] for k in range(day_start, i + 1)]
-    anchor_idx = [k for k, t in enumerate(day_ts) if (t % 1440) >= anchor and (t % 1440) < anchor + or_min]
-    # times are UTC epoch minutes of bar OPEN; OR window = bars with open-time in [anchor, anchor+or_min)
-    if len(anchor_idx) < nbars:
-        return None
-    bars_in_day = list(range(day_start, i + 1))
-    or_bars = [bars_in_day[k] for k in anchor_idx]
-    if i < or_bars[-1]:
-        return None
-    or_high = max(h[k] for k in or_bars)
-    or_low = min(l[k] for k in or_bars)
-    sig_end = anchor + int(float(params.get("signal_window_hours", 6.0)) * 60)
-    t_i = times_min[i] % 1440
-    if t_i > sig_end:
-        return None
-    a_i = float(atr[i]) if i < len(atr) else 0.0
-    if not np.isfinite(a_i) or a_i <= 0.0:
-        return None
-    max_oa = float(params.get("max_or_atr", 99.0) or 99.0)
-    if max_oa < 90.0 and ((or_high - or_low) / a_i) > max_oa:
-        return None
-    adx_min = float(params.get("adx_min", 0.0) or 0.0)
-    if adx_min > 0.0 and float(adx_arr(h[: i + 1], l[: i + 1], c[: i + 1], 14)[i]) < adx_min:
-        return None
-    mid = (or_high + or_low) / 2.0
-    side = 0
-    if c[i] > or_high and c[i] >= o[i]:
-        side = 1
-    elif c[i] < or_low and c[i] <= o[i]:
-        side = -1
-    if side == 0:
-        return None
-    if params.get("htf_trend", False) and htf_c_4h is not None and len(htf_c_4h) > int(params.get("htf_ema", 200)):
-        e4 = ema_arr(htf_c_4h, int(params.get("htf_ema", 200)))
-        if side == 1 and not c[i] > e4[-1]:
-            return None
-        if side == -1 and not c[i] < e4[-1]:
-            return None
-    sl_mode = str(params.get("sl_mode", "midpoint")).lower()
-    if sl_mode == "opposite":
-        sl_val = float(or_low if side == 1 else or_high)
-    else:
-        sl_val = float(mid)
-    return {"side": side, "rd": None, "sl_abs": sl_val, "tp_abs": None,
-            "exit_r": float(params.get("exit_r", 2.0)), "note": f"OR{or_min}_{day}"}
+    """Thin compatibility delegate to modular strategies.s11_or30_london_breakout."""
+    return _s11_signal_at(o, h, l, c, times_min, atr, i, params, {"htf_c4": htf_c_4h})
 
 # ============================================================ MT5 bridge ====
 class MT5Bridge:
@@ -659,23 +454,6 @@ class Governor:
 
 
 # ======================================================== session helpers ===
-def session_spans_from(times_min: np.ndarray, offset_h: int) -> list[float]:
-    """Completed-session span list (hours) — causal, excludes the running session."""
-    if len(times_min) < 10:
-        return []
-    days = np.array([_broker_day(t, offset_h) for t in times_min])
-    spans, i = [], 0
-    n = len(days)
-    while i < n:
-        j = i
-        while j + 1 < n and days[j + 1] == days[i]:
-            j += 1
-        if j + 1 < n:  # session completed
-            spans.append((times_min[j] - times_min[i]) / 60.0 + 0.25)
-        i = j + 1
-    return spans[-10:]
-
-
 def spread_guard(symbol: str, spread_price: float, atr14: float, sleeve_cfg: dict) -> tuple[bool, str]:
     if spread_price <= 0:
         return False, "no live spread"
