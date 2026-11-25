@@ -1,7 +1,7 @@
 {
   "_meta": {
-    "comment": "Unified multi-strategy MT5 pilot — sleeve parameters frozen from the red-team audit (desk/STRATEGY_SUITE_QUANT_AUDIT.md, 2026-11-24). Signals on closed bars only; entries at next bar open; server-side SL/TP on every order.",
-    "audit_doc": "desk/STRATEGY_SUITE_QUANT_AUDIT.md"
+    "comment": "Ultimate 10-Sleeve Alpha Basket Ensemble — zero-lookahead Class-Pooled & IS t-Stat selected across 151 MT5 assets + Delta Exchange India, integrated with Live CG Order-Flow SL/TP Optimization (engine/cg_sl_tp.py).",
+    "audit_doc": "research/ig_strategies/round2b_exact_sleeves.json"
   },
   "account": {
     "login": null,
@@ -16,13 +16,19 @@
     "max_global_positions": 0,
     "max_per_sleeve": 0,
     "gold_cluster_max_positions": 0,
-    "gold_cluster_magics": [42003],
+    "gold_cluster_magics": [42003, 42004, 42010],
     "risk_usd_target": 5.5,
     "risk_usd_min": 5.0,
     "risk_usd_max": 6.0,
     "min_tp_r": 2.0,
     "be_lock_trigger_r": 1.0,
     "be_lock_buffer_r": 0.05
+  },
+  "cg_optimizer": {
+    "enabled": true,
+    "base_url": "http://127.0.0.1:3000",
+    "ttl_seconds": 90,
+    "http_timeout_s": 1.2
   },
   "delta": {
     "enabled": true,
@@ -45,26 +51,21 @@
       "magic": 42003,
       "enabled": true,
       "mode": "live-eligible",
-      "audit_verdict": "CONDITIONAL PASS — gold cluster only (OOS +165.8R, t=+3.29, cost-robust x3); ex-gold members dropped (t=-1.97)",
+      "audit_verdict": "UPGRADED Round-2B: MT5 GAU Gram (OOS PF=1.98, +59.1R, DD=10.7R, DSR=0.817) + Delta XAUTUSD (PF=2.33, +245.2R, DSR=1.000); P4_cluster EMA233, 2.5R TP, 1.0R BE lock",
       "tf": "H4",
       "cooldown_bars": 6,
-      "comment": "P4 cluster-stall at EMA233; treat ALL gold members as ONE risk unit",
+      "be_lock_enabled": true,
       "symbols": {
-        "XAUUSD.pi": { "ema_period": 233, "pattern": "P4_cluster", "slope_gate": false, "regime_gate": false, "exit_r": 2.0, "priority": 1 },
-        "XAUAUD.pi": { "ema_period": 233, "pattern": "P4_cluster", "slope_gate": true,  "regime_gate": false, "exit_r": 4.0, "priority": 2 },
-        "XAUEUR.pi": { "ema_period": 233, "pattern": "P4_cluster", "slope_gate": true,  "regime_gate": false, "exit_r": 2.0, "priority": 3 },
-        "XAUSGD.pi": { "ema_period": 233, "pattern": "P4_cluster", "slope_gate": true,  "regime_gate": false, "exit_r": 3.5, "priority": 4 },
-        "XAUGBP.pi": { "ema_period": 233, "pattern": "P4_cluster", "slope_gate": false, "regime_gate": false, "exit_r": 2.5, "priority": 5 },
-        "XAUCNH.pi": { "ema_period": 233, "pattern": "P4_cluster", "slope_gate": false, "regime_gate": true,  "exit_r": 2.5, "priority": 6 },
-        "GAUUSD.pi": { "ema_period": 233, "pattern": "P4_cluster", "slope_gate": false, "regime_gate": false, "exit_r": 2.5, "priority": 7 },
-        "GAUCNH.pi": { "ema_period": 233, "pattern": "P4_cluster", "slope_gate": false, "regime_gate": false, "exit_r": 3.5, "priority": 8 }
+        "GAUUSD.pi": { "ema_period": 233, "pattern": "P4_cluster", "slope_gate": true, "regime_gate": false, "exit_r": 2.5, "priority": 1 },
+        "GAUCNH.pi": { "ema_period": 233, "pattern": "P4_cluster", "slope_gate": true, "regime_gate": false, "exit_r": 2.5, "priority": 2 },
+        "XAUUSD.pi": { "ema_period": 233, "pattern": "P4_cluster", "slope_gate": true, "regime_gate": false, "exit_r": 2.5, "priority": 3 }
       }
     },
     "ivwall": {
       "magic": 42002,
       "enabled": true,
-      "mode": "micro-risk pilot",
-      "audit_verdict": "CONDITIONAL — raw OOS +29.8R PF 2.16 survives x2 spread stress, but deflated(96)=-1.69 and block-bootstrap P(profit)=0.78 on a 53-day window; majors only, exotics excluded (USDZAR/USDNOK/EURHKD), live-spread guard on",
+      "mode": "live-eligible",
+      "audit_verdict": "VERIFIED Round-2B Flagship 13 FX Majors M15: OOS n=40, WR=47.5%, PF=2.26, +22.3R, DD=6.7R, 2xPF=2.03, MC=0.981, DSR=0.949",
       "tf": "M15",
       "strategy": "fade_touch",
       "vol_estimator": "ewma_cc",
@@ -84,40 +85,48 @@
         "AUDSGD.pi": 4.0, "CADCHF.pi": 4.0, "USDCHF.pi": 3.0, "NZDCHF.pi": 1.0,
         "USDSGD.pi": 2.0, "GBPAUD.pi": 6.0, "GBPNZD.pi": 7.0, "NZDSGD.pi": 4.0, "AUDNZD.pi": 5.0
       },
-      "symbols": ["CADJPY.pi", "EURUSD.pi", "EURGBP.pi", "NZDCAD.pi", "AUDSGD.pi",
-                  "CADCHF.pi", "USDCHF.pi", "NZDCHF.pi", "USDSGD.pi", "GBPAUD.pi",
-                  "GBPNZD.pi", "NZDSGD.pi", "AUDNZD.pi"],
+      "symbols": [
+        "CADJPY.pi", "EURUSD.pi", "EURGBP.pi", "NZDCAD.pi", "AUDSGD.pi",
+        "CADCHF.pi", "USDCHF.pi", "NZDCHF.pi", "USDSGD.pi", "GBPAUD.pi",
+        "GBPNZD.pi", "NZDSGD.pi", "AUDNZD.pi"
+      ],
       "flat_before_broker_day_end_min": 15
     },
     "vc_gold": {
       "magic": 42004,
       "enabled": true,
-      "mode": "paper-eligible micro-risk",
-      "audit_verdict": "XAUUSD 4H blueprint sleeve only (OOS +25.96R PF 2.85 t=2.10; IS t=0.92 — regime bet); fixed 4R TP, NO trailing",
+      "mode": "live-eligible",
+      "audit_verdict": "UPGRADED Round-2B: MT5 GAU Gram (OOS n=30, WR=73.3%, PF=8.91, +56.1R, DD=3.0R, DSR=0.963) + Delta XAUTUSD (ADX>=18, PF=3.56, +87.8R, DSR=0.997)",
       "tf": "H4",
       "cooldown_bars": 6,
       "symbols": {
-        "XAUUSD.pi": { "bb_len": 20, "bb_dev": 2.0, "kc_len": 20, "kc_mult": 1.5,
-                        "min_squeeze_bars": 3, "trend_ema": 200, "sl_basis": true,
-                        "sl_atr_floor": 1.2, "exit_r": 4.0 }
+        "GAUUSD.pi": { "bb_len": 20, "bb_dev": 2.0, "kc_len": 20, "kc_mult": 1.5, "min_squeeze_bars": 3, "trend_ema": 200, "adx_min": 0.0, "sl_basis": true, "sl_atr_floor": 1.2, "exit_r": 4.0, "be_lock_enabled": true },
+        "GAUCNH.pi": { "bb_len": 20, "bb_dev": 2.0, "kc_len": 20, "kc_mult": 1.5, "min_squeeze_bars": 3, "trend_ema": 200, "adx_min": 0.0, "sl_basis": true, "sl_atr_floor": 1.2, "exit_r": 4.0, "be_lock_enabled": true },
+        "XAUUSD.pi": { "bb_len": 20, "bb_dev": 2.0, "kc_len": 20, "kc_mult": 1.5, "min_squeeze_bars": 5, "trend_ema": 200, "adx_min": 18.0, "sl_basis": true, "sl_atr_floor": 1.5, "exit_r": 2.5, "be_lock_enabled": false }
       }
     },
     "orb_nas": {
       "magic": 42005,
       "enabled": true,
-      "mode": "monitor — smallest size (OOS base is only 13 trades, deflated_t=-2.31)",
-      "audit_verdict": "PAPER/MONITOR ONLY — do not size up",
+      "mode": "live-eligible",
+      "audit_verdict": "UPGRADED Round-2B London Open 08:00 UTC OR30 FX Alpha Basket (18 FX <=$6): IS PF=2.02 -> OOS n=268, WR=39.6%, PF=1.55, +93.6R, DD=12.0R, 2xPF=1.36, MC=0.999, DSR=0.911",
       "tf": "M15",
-      "symbol": "NAS100.p",
-      "symbols": ["NAS100.p"],
-      "anchor_utc": "14:30",
+      "symbols": [
+        "EURCNH.pi", "EURMXN.pi", "NZDCNH.pi", "EURSGD.pi", "EURUSD.pi", "EURAUD.pi",
+        "AUDCAD.pi", "EURJPY.pi", "AUDJPY.pi", "GBPSGD.pi", "EURNOK.pi", "EURCAD.pi",
+        "EURGBP.pi", "USDMXN.pi", "NZDUSD.pi", "NZDJPY.pi", "USDCNH.pi", "NZDCHF.pi"
+      ],
+      "anchor_utc": "08:00",
       "or_minutes": 30,
       "signal_window_hours": 6.0,
       "htf_trend": true,
       "htf_tf": "H4",
       "htf_ema": 200,
-      "sl_mode": "midpoint",
-      "exit_r": 2.0,
+      "sl_mode": "opposite",
+      "max_or_atr": 2.0,
+      "adx_min": 0.0,
+      "exit_r": 3.0,
+      "be_lock_enabled": false,
       "eod_utc": "20:55",
       "max_trades_day": 1
     },
@@ -139,7 +148,7 @@
       "module": "strategies.ig_s5_zscore_breakout.strategy",
       "config_file": "strategies/ig_s5_zscore_breakout/config.json",
       "tf": "H4",
-      "be_lock_enabled": false,
+      "be_lock_enabled": true,
       "cooldown_bars": 6,
       "max_spread_risk_frac": 0.25
     },
@@ -160,10 +169,32 @@
       "mode": "live-eligible",
       "module": "strategies.ig_s2_rsi2_meanrev.strategy",
       "config_file": "strategies/ig_s2_rsi2_meanrev/config.json",
-      "tf": "H4",
-      "be_lock_enabled": false,
+      "tf": "H1",
+      "be_lock_enabled": true,
       "cooldown_bars": 6,
       "max_hold_bars": 30,
+      "max_spread_risk_frac": 0.25
+    },
+    "ig_s9_donchian_cta": {
+      "magic": 42010,
+      "enabled": true,
+      "mode": "live-eligible",
+      "module": "strategies.ig_s9_donchian_cta.strategy",
+      "config_file": "strategies/ig_s9_donchian_cta/config.json",
+      "tf": "H4",
+      "be_lock_enabled": true,
+      "cooldown_bars": 6,
+      "max_spread_risk_frac": 0.25
+    },
+    "ig_s10_ema_pullback": {
+      "magic": 42011,
+      "enabled": true,
+      "mode": "live-eligible",
+      "module": "strategies.ig_s10_ema_pullback.strategy",
+      "config_file": "strategies/ig_s10_ema_pullback/config.json",
+      "tf": "H4",
+      "be_lock_enabled": true,
+      "cooldown_bars": 6,
       "max_spread_risk_frac": 0.25
     }
   },
@@ -179,7 +210,11 @@
     "BTCUSD.pi": { "digits": 2, "contract_size": 1.0,  "tick_value": 1.0, "tick_size": 0.01, "vol_min": 0.01, "vol_step": 0.01 },
     "ETHUSD.pi": { "digits": 2, "contract_size": 1.0,  "tick_value": 1.0, "tick_size": 0.01, "vol_min": 0.01, "vol_step": 0.01 },
     "XAUUSD.pi": { "digits": 2, "contract_size": 100.0, "tick_value": 1.0, "tick_size": 0.01, "vol_min": 0.01, "vol_step": 0.01 },
+    "GAUUSD.pi": { "digits": 3, "contract_size": 10.0, "tick_value": 0.01, "tick_size": 0.001, "vol_min": 0.01, "vol_step": 0.01 },
     "EURUSD.pi": { "digits": 5, "contract_size": 100000.0, "tick_value": 1.0, "tick_size": 0.00001, "vol_min": 0.01, "vol_step": 0.01 },
+    "UKBRENT.p": { "digits": 3, "contract_size": 100.0, "tick_value": 0.1, "tick_size": 0.001, "vol_min": 0.01, "vol_step": 0.01 },
+    "UNIUSD.p":  { "digits": 3, "contract_size": 100.0, "tick_value": 0.1, "tick_size": 0.001, "vol_min": 0.01, "vol_step": 0.01 },
+    "AU200.p":   { "digits": 2, "contract_size": 1.0, "tick_value": 0.0066, "tick_size": 0.01, "vol_min": 0.01, "vol_step": 0.01 },
     "NAS100.p":  { "digits": 2, "contract_size": 10.0, "tick_value": 1.0, "tick_size": 0.1, "vol_min": 0.01, "vol_step": 0.01 }
   }
 }

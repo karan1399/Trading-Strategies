@@ -614,11 +614,12 @@ class Governor:
         return out
 
     @staticmethod
-    def register(state: StateStore, ticket: int, sleeve: str, entry: float, sl: float, be_enabled: bool = True):
+    def register(state: StateStore, ticket: int, sleeve: str, entry: float, sl: float,
+                 be_enabled: bool = True, tf: str = "H4"):
         rd = abs(entry - sl)
         state.state["positions"][str(ticket)] = {
             "sleeve": sleeve, "entry": float(entry), "r0": float(rd),
-            "be_done": False, "be_enabled": bool(be_enabled), "open_ts": int(time.time()),
+            "be_done": False, "be_enabled": bool(be_enabled), "tf": tf, "open_ts": int(time.time()),
         }
 
     def be_lock(self, positions: list, tick_fn) -> int:
@@ -695,7 +696,7 @@ def bump_today(state: StateStore, key: str, today: str):
 
 
 # ================================================================= loop =====
-def build_signal(sleeve: str, closed, sleeve_cfg: dict, params: dict, htf_c4: np.ndarray | None):
+def build_signal(sleeve: str, closed, sleeve_cfg: dict, params: dict, htf_c4: np.ndarray | None, sym: str = ""):
     """Evaluate the last closed bar (index -1 of the closed arrays)."""
     o = closed["open"].astype(float); h = closed["high"].astype(float)
     l = closed["low"].astype(float); c = closed["close"].astype(float)
@@ -717,7 +718,8 @@ def build_signal(sleeve: str, closed, sleeve_cfg: dict, params: dict, htf_c4: np
     mod_path = sleeve_cfg.get("module")
     if mod_path:
         fn = load_signal_fn(mod_path)
-        eff_params = {**(sleeve_cfg.get("params") or {}), **(params if params is not sleeve_cfg else {})}
+        sym_ovr = (sleeve_cfg.get("symbol_params") or {}).get(sym) or {}
+        eff_params = {**(sleeve_cfg.get("params") or {}), **(params if params is not sleeve_cfg else {}), **sym_ovr}
         return fn(o, h, l, c, times_min, atr, i, eff_params, {"htf_c4": htf_c4})
     return None
 
@@ -754,9 +756,12 @@ def run_loop(cfg: dict, mode: str, loop_seconds: int | None = None):
                 magic = int(s["magic"])
                 for sym in (list(s.get("symbols", {}).keys()) if isinstance(s.get("symbols"), dict)
                             else (s.get("symbols") or ([s["symbol"]] if "symbol" in s else []))):
-                    params = s["symbols"][sym] if isinstance(s.get("symbols"), dict) else s
+                    base_params = s["symbols"][sym] if isinstance(s.get("symbols"), dict) else s
+                    sym_ovr = (s.get("symbol_params") or {}).get(sym) or {}
+                    sym_tf = str(sym_ovr.get("tf") or (base_params.get("tf") if isinstance(base_params, dict) else None) or s["tf"])
+                    eff_be_enabled = bool(sym_ovr.get("be_lock_enabled", (base_params.get("be_lock_enabled") if isinstance(base_params, dict) else None) if (isinstance(base_params, dict) and "be_lock_enabled" in base_params) else s.get("be_lock_enabled", True)))
                     key = f"{sname}:{sym}"
-                    raw = bridge.rates(sym, s["tf"], bars_back)
+                    raw = bridge.rates(sym, sym_tf, bars_back)
                     if raw is None or len(raw) < 60:
                         continue
                     bridge.ensure_visible(sym)
@@ -774,7 +779,7 @@ def run_loop(cfg: dict, mode: str, loop_seconds: int | None = None):
                         r4 = bridge.rates(sym, s.get("htf_tf", "H4"), 400)
                         if r4 is not None:
                             htf_c4 = r4["close"].astype(float)[:-1]
-                    sig = build_signal(sname, closed, s, params, htf_c4)
+                    sig = build_signal(sname, closed, s, base_params, htf_c4, sym=sym)
                     if sig is None:
                         continue
                     # ---- rate limiting
@@ -786,7 +791,7 @@ def run_loop(cfg: dict, mode: str, loop_seconds: int | None = None):
                         continue
                     cd_key = f"cooldown|{key}"
                     until = float(state.get("cooldown", {}).get(cd_key, 0))
-                    tf_min = TF_MAP[s["tf"]]
+                    tf_min = TF_MAP[sym_tf]
                     if t0 / 60 + tf_min < until:
                         continue
                     # ---- spread guard (live spread)
@@ -838,6 +843,28 @@ def run_loop(cfg: dict, mode: str, loop_seconds: int | None = None):
                     if (side == 1 and not (sl < entry < tp)) or (side == -1 and not (tp < entry < sl)):
                         journal.log("REJECT", sleeve=sname, magic=magic, symbol=sym, note="bracket sides invalid")
                         continue
+                    # ---- Live CG Order-Flow SL/TP Optimization (cold-zone SL + wall/magnet TP)
+                    cg_opt_cfg = cfg.get("cg_optimizer") or {"enabled": True}
+                    if cg_opt_cfg.get("enabled", True):
+                        closed_atr = float(wilder_atr(
+                            closed["high"].astype(float),
+                            closed["low"].astype(float),
+                            closed["close"].astype(float), 14)[-1])
+                        cg_res = optimize_bracket_with_cg(
+                            symbol=sym, side=side, entry=entry, sl=sl, tp=tp, atr=closed_atr,
+                            live_spread=live_spread, min_tp_r=min_r,
+                            exempt_min_r=(sname == "ivwall"),
+                            max_spread_risk_frac=max_sf, spec=spec,
+                            risk_usd_max=float(cfg["governor"]["risk_usd_max"]),
+                            digits=spec.digits,
+                            cg_cfg={**cg_opt_cfg, "use_http": (mode == "live")},
+                        )
+                        if cg_res.sl_adjusted or cg_res.tp_adjusted:
+                            sl, tp, rd, tp_r = cg_res.sl, cg_res.tp, cg_res.rd, cg_res.tp_r
+                            journal.log("CG_SLTP_OPT", sleeve=sname, magic=magic, symbol=sym,
+                                        price=entry, sl=sl, tp=tp, r_multiple=round(tp_r, 2),
+                                        note=f"{cg_res.source}: {cg_res.note}")
+                            print(f"[cg-opt] {sname} {sym} {cg_res.note} ({cg_res.source})")
                     # ---- Parallel Delta Exchange India routing (mapped symbols) ----
                     if delta_bridge is not None and delta_bridge.map_symbol(sym):
                         d_bars = state.get("delta_bars", {})
@@ -866,7 +893,7 @@ def run_loop(cfg: dict, mode: str, loop_seconds: int | None = None):
                     s8 = cfg.get("s8_vol_target") or {}
                     if s8.get("enabled"):
                         risk_usd = vol_target_risk_usd(
-                            closed["close"].astype(float), s["tf"], risk_usd,
+                            closed["close"].astype(float), sym_tf, risk_usd,
                             float(cfg["governor"].get("risk_usd_min", 5.0)),
                             float(cfg["governor"].get("risk_usd_max", 6.0)),
                             target_ann_vol=float(s8.get("target_ann_vol", 0.22)),
@@ -888,7 +915,7 @@ def run_loop(cfg: dict, mode: str, loop_seconds: int | None = None):
                                         note=str(getattr(res, "comment", "")))
                             continue
                         ticket = getattr(res, "order", 0)
-                        Governor.register(state, ticket, sname, entry, sl)
+                        Governor.register(state, ticket, sname, entry, sl, be_enabled=eff_be_enabled, tf=sym_tf)
                         bump_today(state, key, sess_today if sname == "ivwall" else utc_today)
                         state.state["cooldown"][cd_key] = t0 / 60 + int(s.get("cooldown_bars", 6)) * tf_min
                         journal.log("ORDER_SENT", sleeve=sname, magic=magic, symbol=sym,
@@ -928,7 +955,8 @@ def run_loop(cfg: dict, mode: str, loop_seconds: int | None = None):
                         slv_cfg = cfg["sleeves"].get(slv_name, {})
                         mh_bars = int(slv_cfg.get("max_hold_bars") or 0)
                         if mh_bars > 0:
-                            max_sec = mh_bars * TF_MAP.get(slv_cfg.get("tf", "H4"), 240) * 60
+                            eff_tf = meta_p.get("tf") or slv_cfg.get("tf", "H4")
+                            max_sec = mh_bars * TF_MAP.get(eff_tf, 240) * 60
                             if (now - float(meta_p["open_ts"])) >= max_sec:
                                 res = bridge.close_position(p, dev)
                                 journal.log("TIME_STOP", sleeve=slv_name, magic=p.magic, symbol=p.symbol,
@@ -975,14 +1003,16 @@ def selftest() -> bool:
     # ---- S1: causality — signal at bar k identical when computed on prefix vs full
     print("\nS1 causal determinism (prefix == full at every probe):")
     cases = [
-        ("XAUUSD.pi", "4H", "htf_gold", cfg["sleeves"]["htf_gold"]["symbols"]["XAUUSD.pi"]),
-        ("XAUUSD.pi", "4H", "vc_gold", cfg["sleeves"]["vc_gold"]["symbols"]["XAUUSD.pi"]),
+        ("GAUUSD.pi", "4H", "htf_gold", cfg["sleeves"]["htf_gold"]["symbols"]["GAUUSD.pi"]),
+        ("GAUUSD.pi", "4H", "vc_gold", cfg["sleeves"]["vc_gold"]["symbols"]["GAUUSD.pi"]),
         ("EURUSD.pi", "15M", "ivwall", cfg["sleeves"]["ivwall"]),
-        ("NAS100.p", "15M", "orb_nas", cfg["sleeves"]["orb_nas"]),
-        ("SOLUSD.p", "4H", "ig_s7_daily_pivot", cfg["sleeves"]["ig_s7_daily_pivot"]),
-        ("ETHUSD.pi", "4H", "ig_s5_zscore_breakout", cfg["sleeves"]["ig_s5_zscore_breakout"]),
-        ("BNBUSD.p", "4H", "ig_s1_williams_pullback", cfg["sleeves"]["ig_s1_williams_pullback"]),
-        ("SP500.p", "4H", "ig_s2_rsi2_meanrev", cfg["sleeves"]["ig_s2_rsi2_meanrev"]),
+        ("EURUSD.pi", "15M", "orb_nas", cfg["sleeves"]["orb_nas"]),
+        ("UKBRENT.p", "4H", "ig_s7_daily_pivot", cfg["sleeves"]["ig_s7_daily_pivot"]),
+        ("UKBRENT.p", "4H", "ig_s5_zscore_breakout", cfg["sleeves"]["ig_s5_zscore_breakout"]),
+        ("UNIUSD.p",  "4H", "ig_s1_williams_pullback", cfg["sleeves"]["ig_s1_williams_pullback"]),
+        ("AU200.p",   "1H", "ig_s2_rsi2_meanrev", cfg["sleeves"]["ig_s2_rsi2_meanrev"]),
+        ("GAUUSD.pi", "4H", "ig_s9_donchian_cta", cfg["sleeves"]["ig_s9_donchian_cta"]),
+        ("ETHUSD.pi", "4H", "ig_s10_ema_pullback", cfg["sleeves"]["ig_s10_ema_pullback"]),
     ]
     for sym, tf, sname, params in cases:
         df = _load_parquet(sym, tf)
@@ -1194,18 +1224,23 @@ def selftest() -> bool:
 
     # ---- S5: determinism (two identical runs)
     print("\nS5 determinism (replay twice):")
-    a = replay("XAUUSD.pi", "4H", "htf_gold", cfg["sleeves"]["htf_gold"]["symbols"]["XAUUSD.pi"], 2.0)
-    b = replay("XAUUSD.pi", "4H", "htf_gold", cfg["sleeves"]["htf_gold"]["symbols"]["XAUUSD.pi"], 2.0)
+    a = replay("GAUUSD.pi", "4H", "htf_gold", cfg["sleeves"]["htf_gold"]["symbols"]["GAUUSD.pi"], 2.5)
+    b = replay("GAUUSD.pi", "4H", "htf_gold", cfg["sleeves"]["htf_gold"]["symbols"]["GAUUSD.pi"], 2.5)
     same = a == b
     print(f"  htf_gold replay A==B -> {'OK' if same else 'FAIL'} ({a})")
     if not same:
         failures.append("determinism")
-    s7a = replay("SOLUSD.p", "4H", "ig_s7_daily_pivot", cfg["sleeves"]["ig_s7_daily_pivot"], 3.5)
-    s7b = replay("SOLUSD.p", "4H", "ig_s7_daily_pivot", cfg["sleeves"]["ig_s7_daily_pivot"], 3.5)
+    s7a = replay("UKBRENT.p", "4H", "ig_s7_daily_pivot", cfg["sleeves"]["ig_s7_daily_pivot"], 3.0)
+    s7b = replay("UKBRENT.p", "4H", "ig_s7_daily_pivot", cfg["sleeves"]["ig_s7_daily_pivot"], 3.0)
     same7 = s7a == s7b
     print(f"  ig_s7_daily_pivot replay A==B -> {'OK' if same7 else 'FAIL'} ({s7a})")
     if not same7:
         failures.append("determinism s7")
+    s9a = replay("GAUUSD.pi", "4H", "ig_s9_donchian_cta", cfg["sleeves"]["ig_s9_donchian_cta"], 3.0)
+    s9b = replay("GAUUSD.pi", "4H", "ig_s9_donchian_cta", cfg["sleeves"]["ig_s9_donchian_cta"], 3.0)
+    if s9a != s9b:
+        failures.append("determinism s9")
+    print(f"  ig_s9_donchian_cta replay A==B -> {'OK' if s9a == s9b else 'FAIL'} ({s9a})")
 
     # ---- S6: IG-S8 Volatility-Targeting risk overlay bounds
     print("\nS6 IG-S8 volatility targeting ($5.00..$6.00 bounded risk):")
