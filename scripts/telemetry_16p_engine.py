@@ -193,12 +193,20 @@ def _inspect_closed_finished_auctions(sym: str, footprint_dir: str, tf_file: str
             if bb is not None and ba is not None and ba == 0 and bb > 0:
                 fin_l += 1
                 latest_tag = f"LOW_{round(bb, 1)}x0@{r.get('l')}"
+        closed_tail = closed[-1] if closed else {}
         return {
             "available": len(closed) > 0,
             "bars": len(rows),
+            "cum_delta": data.get("cum_delta") if data.get("cum_delta") is not None else data.get("cum_delta_7d"),
             "finished_highs": fin_h,
             "finished_lows": fin_l,
             "latest": latest_tag,
+            "latest_closed_diag": {
+                "buy_3x": closed_tail.get("diag_buy_3x"),
+                "sell_3x": closed_tail.get("diag_sell_3x"),
+                "buy_stack_zones": closed_tail.get("buy_stack_zones") or [],
+                "sell_stack_zones": closed_tail.get("sell_stack_zones") or [],
+            } if closed_tail else None,
         }
     except Exception:
         return {"available": False, "finished_highs": 0, "finished_lows": 0, "latest": None}
@@ -400,6 +408,7 @@ def audit_symbol_16p(
     sm24 = smap.get("m1_coin_24h") or {}
     sm3 = smap.get("m1_coin_3d") or {}
     sm3_kl = sm3.get("keyLevels") or {}
+    sm3_walls = sm3.get("walls") if isinstance(sm3.get("walls"), dict) else {}
     live_tape = liq.get("live_prints_tape") or {}
     p["8_liquidations"] = {
         "above_3d": a3, "below_3d": b3,
@@ -408,28 +417,45 @@ def audit_symbol_16p(
         "stopmap_24h_largest": (sm24.get("overview") or {}).get("largestLevel"),
         "stopmap_3d_above": [x.get("price") for x in (sm3_kl.get("above") or [])[:5] if isinstance(x, dict)],
         "stopmap_3d_below": [x.get("price") for x in (sm3_kl.get("below") or [])[:5] if isinstance(x, dict)],
+        "stopmap_3d_walls_active_short": sm3_walls.get("active_short_prices") or [],
+        "stopmap_3d_walls_active_long": sm3_walls.get("active_long_prices") or [],
+        "stopmap_3d_max_short": sm3_walls.get("max_short"),
+        "stopmap_3d_max_long": sm3_walls.get("max_long"),
+        "stopmap_models_present": sorted(smap.keys()),
         "lsr_3d": _compute_lsr(clusters, smap),
         "liq_5m_pace_usd": _compute_5m_liq_usd(live_tape) if live_tape else None,
         "liq_24h_usd": (live_tape.get("stats24h") or {}).get("usd") if live_tape else None,
     }
 
-    # 9. Book Walls (Futures + Spot m15/h1 + Live Binance top-1000 D09)
+    # 9. Book Walls (Futures + Spot 1m/5m/m15/1h/4h + Live Binance top-1000 D09)
     bw = d.get("book_walls") or {}
-    bw_fut = (bw.get("futures") or {}).get("m15") or {}
+    bw_futs = bw.get("futures") or {}
+    bw_fut = bw_futs.get("m15") or {}
     bw_spot = (bw.get("spot") or {}).get("m15") or {}
-    bw_h1 = (bw.get("futures") or {}).get("h1") or {}
+    bw_1m = bw_futs.get("1m") or {}
+    bw_h1 = bw_futs.get("1h") or bw_futs.get("h1") or {}
+    bw_4h = bw_futs.get("4h") or {}
     bw_live = bw.get("live_binance") or {}
+    bw_persist = bw_fut.get("persistence") if isinstance(bw_fut.get("persistence"), dict) else {}
     p["9_book_walls"] = {
+        "futures_intervals": sorted(bw_futs.keys()),
         "imbalance": bw_fut.get("imbalance"),
         "imbalance_5m_ago": bw_fut.get("imbalance5mAgo"),
         "bid_depth": bw_fut.get("bidDepth"),
         "ask_depth": bw_fut.get("askDepth"),
         "spot_imbalance": bw_spot.get("imbalance"),
+        "bw_1m_imbalance": bw_1m.get("imbalance"),
         "h1_imbalance": bw_h1.get("imbalance"),
+        "bw_4h_imbalance": bw_4h.get("imbalance"),
         "live_binance_imbalance": bw_live.get("imbalance"),
+        "live_binance_grid": bw_live.get("grid"),
         "largest_bid": bw_fut.get("largestBid") or bw_live.get("largestBid"),
         "largest_ask": bw_fut.get("largestAsk") or bw_live.get("largestAsk"),
         "wall_count": len(bw_fut.get("walls") or []) + len(bw_spot.get("walls") or []),
+        "ladder_levels": len(bw_fut.get("ladder") or []),
+        "untouched_bid_usd": bw_persist.get("untouched_bid_usd"),
+        "untouched_ask_usd": bw_persist.get("untouched_ask_usd"),
+        "max_wall_age_ms": bw_persist.get("max_wall_age_ms"),
     }
 
     # 10. CVD (Perp + Spot + Split across m15/h1 D08)
@@ -449,13 +475,15 @@ def audit_symbol_16p(
         "latest_div": perp_k.get("latestDiv"),
     }
 
-    # 11. Footprint (Signals 7D + 15m/1h Finished Auction Zero-Print + D06 Bar CumDelta)
+    # 11. Footprint (Signals 7D + 15m/1h Finished Auction Zero-Print + Diagonal Imbalances + Multi-TF)
     fp_counts = {"abs": 0, "trap": 0, "exh": 0, "div": 0}
+    fp_by_bt: Dict[str, Any] = {}
     fp_file = os.path.join(footprint_dir, sym, "signals_7d.json")
     if os.path.exists(fp_file):
         try:
             with open(fp_file, "r", encoding="utf-8") as fs:
                 fp_data = json.load(fs)
+                fp_by_bt = fp_data.get("by_bt") or {}
                 for s in fp_data.get("signals", []):
                     t_code = s.get("t", "")
                     if t_code in fp_counts:
@@ -465,12 +493,36 @@ def audit_symbol_16p(
     fa_15m = _inspect_closed_finished_auctions(sym, footprint_dir, "summary_7d.json")
     fa_1h = _inspect_closed_finished_auctions(sym, footprint_dir, "summary_1h.json")
     fp_obj = d.get("footprint") or {}
+    h7_obj = fp_obj.get("history_7d") or {}
+    h1_obj = fp_obj.get("history_1h") or {}
+    tail_rows = h7_obj.get("recent_bars_tail") or []
+    closed_row = tail_rows[-2] if len(tail_rows) >= 2 else (tail_rows[-1] if tail_rows else {})
+    diag_closed = (
+        {
+            "buy_3x": closed_row.get("diag_buy_3x"),
+            "sell_3x": closed_row.get("diag_sell_3x"),
+            "buy_stack_zones": closed_row.get("buy_stack_zones") or [],
+            "sell_stack_zones": closed_row.get("sell_stack_zones") or [],
+        }
+        if closed_row and closed_row.get("diag_buy_3x") is not None
+        else fa_15m.get("latest_closed_diag")
+    )
+    mtf = fp_obj.get("multi_tf") or {}
+    mtf_buckets = sorted([k for k, v in mtf.items() if isinstance(v, dict) and v.get("buckets_available")])
+    cum_delta_1h = (
+        h1_obj.get("cum_delta_1h")
+        if h1_obj.get("cum_delta_1h") is not None
+        else (h1_obj.get("cum_delta") if h1_obj.get("cum_delta") is not None else (h1_obj.get("cum_delta_7d") if h1_obj.get("cum_delta_7d") is not None else fa_1h.get("cum_delta")))
+    )
     p["11_footprint"] = {
         "signals_7d": fp_counts,
+        "signal_counts_by_bt": fp_by_bt,
         "fa_15m": fa_15m,
         "fa_1h": fa_1h,
-        "cum_delta_7d": (fp_obj.get("history_7d") or {}).get("cum_delta_7d"),
-        "cum_delta_1h": (fp_obj.get("history_1h") or {}).get("cum_delta_1h"),
+        "cum_delta_7d": h7_obj.get("cum_delta_7d") if h7_obj.get("cum_delta_7d") is not None else h7_obj.get("cum_delta"),
+        "cum_delta_1h": cum_delta_1h,
+        "diag_15m_latest_closed": diag_closed,
+        "multi_tf_buckets": mtf_buckets,
     }
 
     # 12. Large Orders & D10 LTO
