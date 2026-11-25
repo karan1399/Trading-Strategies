@@ -3742,3 +3742,17 @@ Empirical audit of today's MT5 deal history reveals the exact root causes of sto
 - **Memory & Selfcheck Committed:** Updated `data/agent_memory/{trade_postmortems.jsonl, prediction_calibration_log.jsonl, regime_signal_weights.json, adaptive_playbook.md}`.
 
 **Confidence:** VERIFIED (live MT5 `retcode=10009` + post-exec readback + closed `history_deals_get` + Delta live API + `252/252` JSON parse + `:3000` `7d/30d` live liq/CVD).
+
+
+
+### [2026-11-25T17:38:00Z] · Antigravity · R36 RED-TEAM BACKTEST AUDIT, DIRECT ANSWERS & `ig_s9` MINIMUM-LOT EXECUTION (`#20527955`) (23:08 IST)
+**Verdict:** Executed full `/thinking-red-team` adversarial audit of research & engine code, confirmed why Delta `XAUTUSD` `1`-contract minimum lot is risk-capped (`$0.0670 = 2.03% > 1.00% $0.0330`), verified & re-entered **`#20527955 GAUUSD.pi` (`42010`, `ig_s9_donchian_cta`) at `0.01` minimum lot (`$2.15` risk, `3.02R`, `SL 114.8305` clearing `30d/7d` shelves)** within MT5 `1.00%` portfolio cap (**`$25.09 / $25.45` = `0.986%`**).
+- **Red-Team Findings (`Zero Intra-Bar Lookahead Verified; 4 Non-Lookahead Biases & 1 Selftest Defect Found`):**
+  1. **Intra-Bar / Indicator Causality:** `PASS` across all research kernels (`next-bar o[i+1]` entry, `adverse-first` SL-before-TP, `cb+1` pivot lag, `searchsorted` closed-`4H` alignment for `ORB`, `0/151` symbols with `<250` IS bars before split).
+  2. **`--selftest` `orb_nas` Defect (`engine/unified_alpha_pilot.py` L476, L1022–23):** Live mode passes `r4[:-1]` (causal closed `4H` bars), so live is clean; `--selftest` passed full `df4["close"]`, evaluating `e4[-1]` on future `4H` end-of-history (`research sig_orb` unaffected).
+  3. **Unbounded Concurrency (`max_conc=30`, `~6.6%` overlap) vs `<=1.0%` Cap:** Capping concurrent OOS trades at `<=1.0%`: `4` slots `@ $5.50` -> `529/1511` trades (`PF 1.48, +140.3R, +35.6%, MaxDD 5.33%`), whereas **`10` slots `@ $2.50` minimum lot (`0.1%`/trade, `1.0%` total cap) -> `1,109/1511` trades (`PF 1.57, +343.0R, +40.7%, MaxDD 3.83%`)** — empirically validating user's minimum-lot diversification thesis.
+  4. **`N=1,800` Cross-Experiment DSR:** `42010_IG_S9_DON` (`DSR=0.878`) and `42004_VC_GOLD` (`DSR=0.737`) stay top-tier under full 1,800-trial penalty; `42003_HTF_GOLD` (`0.500`) & `42005_ORB_LDN_FX` (`0.464`) stay credible; weak OOS sleeves (`S1 0.006`, `S2 0.023`, `S10 0.068`, `S7 0.104`, `S5 0.167`) lose DSR confidence.
+  5. **`28`-Day `15M` Tail Compression:** `15M` data covers only `28` OOS days (`2026-10-23..11-20`); pure `471d 4H`-only OOS remains strong (`n=1,091, PF 1.60, +349.5R, +113.9%, MaxDD 8.23%, SR 3.44, MC 1.000`).
+- **Live MT5 Execution (`#5126976`, `ILK-01 connected=True, trade_allowed=True`, `retcode=10009`):** Punched `#20527955 GAUUSD.pi` (`42010`) `SELL 0.01 @ 112.6763`, `SL 114.8305` (clears `XAU 30d 114.21` & `7d 114.75`), `TP 106.1858` (`$2.15` risk, `3.02R`, `0.24% spr/rd`). Open book: `6` positions, Total SL Risk **`$25.09` (`0.986% <= 1.00%` Cap `$25.45`)**.
+
+**Confidence:** VERIFIED (`retcode=10009`, live MT5 readback, live Delta `/v2/products`, `task-25807` capped/DSR test outputs, line-by-line code inspection).

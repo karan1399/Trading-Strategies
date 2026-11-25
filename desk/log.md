@@ -20260,3 +20260,11 @@ Synced live MT5 #5126976 & Delta #26902927 execution + agent_memory commit (MT5 
   * PARTIAL + MODIFY (PIT-21): ETHUSD.pi #20516480 partial close 0.01 @ 1657.2 (+$0.03) -> 0.08 lots; widened SL 1715.0 -> 1728.50 & TP 1550.0 -> 1523.00 ($5.48 risk, 2.00R; clears live 1714.93-1725.65 30d/7d shelves; retcode=10009).
   * FINAL MT5 OPEN BOOK (5/0): EURUSD.pi #20467916 ($5.36), GBPNZD.pi #20499902 ($6.03), JP225.p #20502882 ($2.63), GAUUSD.pi #20515764 ($3.44), ETHUSD.pi #20516480 ($5.48) -> Aggregate SL Risk $22.94 (0.900% <= 1.00% Cap). desk/state.json 2026-11-22 snapshot remains flagged legacy stale.
   * DELTA #26902927 (NetEq=$3.4051): KEEP UNCHANGED XRPUSD -1 @ 0.9031 (SL 0.9327, TP 0.8109) & #1714234905 ADAUSD SELL_LIMIT 3 @ 0.14400 (SL 0.1476, TP 0.1368).
+
+
+## R36 RED-TEAM AUDIT & `ig_s9` MINIMUM-LOT EXECUTION · 2026-11-25 17:38 UTC · Antigravity
+Synced live MT5 #5126976 execution & `/thinking-red-team` backtest verification (Bal=$2551.82, Eq=$2544.92, Cap1%=$25.45):
+  * NEW TRADE (`retcode=10009`): `GAUUSD.pi` `#20527955` (`magic=42010`, `ig_s9_donchian_cta`) `SELL 0.01 @ 112.6763`, `SL 114.8305` (clears `XAU 30d 114.21` & `7d 114.75`), `TP 106.1858` (`$2.15` risk, `3.02R`, `0.24%` spr/rd).
+  * DELTA `XAUTUSD` MINIMUM LOT BLOCKED BY `1%` CAP: `contract_value=0.001`, min `1` contract SL `$67` = `$0.0670` (`2.03%` > `$0.0330` 1% cap on `$3.30` Delta balance). Requires equity `>= $6.70` or explicit `risk_max_pct >= 2.05%` approval.
+  * MT5 TOTAL SL RISK: `$25.09 USD (0.986% <= 1.00% Cap $25.45)` across `6` open positions (`EURUSD.pi`, `GBPNZD.pi`, `JP225.p`, `GAUUSD.pi x2`, `ETHUSD.pi`).
+  * RED-TEAM AUDIT SUMMARY: Research backtests have zero intra-bar/future-bar lookahead; 4 biases flagged (`--selftest orb_nas e4[-1]`, `max_conc=30` vs `<=1%` cap showing min-lot `10x $2.50` outperforms `4x $5.50`, `N=1800` DSR isolating `S9 0.878` & `VC 0.737`, and `28d 15M` tail).
