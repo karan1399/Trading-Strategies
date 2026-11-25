@@ -1,8 +1,8 @@
 {
   "symbol": "KSM",
   "feed_type": "coinglass_perp",
-  "updated_at": "2026-11-25T03:42:50.458873+00:00",
-  "updated_epoch": 1795578170.4588885,
+  "updated_at": "2026-11-25T03:56:46.647962+00:00",
+  "updated_epoch": 1795579006.647978,
   "mt5": {
     "symbol": "KSMUSD.p",
     "description": "Kusama vs US Dollar",
@@ -18,32 +18,155 @@
     "volume_step": 0.01,
     "contract_size": 100.0,
     "trade_mode": 4,
-    "updated_epoch": 1795577628.18
+    "updated_epoch": 1795578299.39
   },
   "ticker": {
-    "price": 2.53,
+    "price": 2.517,
     "dir": "flat",
-    "source": "mt5_fallback",
-    "updatedAt": 1795578171967
+    "source": "binance-fapi",
+    "updatedAt": null
   },
-  "market_structure": null,
+  "market_structure": {
+    "price": {
+      "last": 2.517,
+      "prevDayClose": 2.541,
+      "chgDayPct": -0.9445100354191271,
+      "dayHigh": 2.546,
+      "dayLow": 2.509,
+      "dayVolBase": 47645.40000000001
+    },
+    "auction": {
+      "session": {
+        "poc": 2.5335,
+        "vah": 2.5484999999999998,
+        "val": 2.5195,
+        "high": 2.569,
+        "low": 2.509,
+        "volume": 88445.80000000002,
+        "bins": 60
+      },
+      "day": {
+        "poc": 2.530275,
+        "vah": 2.537058333333333,
+        "val": 2.5197916666666664,
+        "high": 2.546,
+        "low": 2.509,
+        "volume": 47645.40000000002,
+        "bins": 60
+      },
+      "week": {
+        "poc": 2.592416666666667,
+        "vah": 2.6793722222222223,
+        "val": 2.5556277777777776,
+        "high": 2.768,
+        "low": 2.467,
+        "volume": 1269553.8000000007,
+        "bins": 90
+      },
+      "month": {
+        "poc": 2.7408333333333332,
+        "vah": 3.0921666666666665,
+        "val": 2.3171666666666666,
+        "high": 3.552,
+        "low": 2.312,
+        "volume": 10600349.9,
+        "bins": 120
+      }
+    },
+    "vwap": {
+      "anchorTs": 1795564800000,
+      "vwap": 2.527276573044477,
+      "bands": {
+        "sd1": 0.006298131619775185,
+        "sd2": 0.01259626323955037,
+        "sd3": 0.018894394859325557
+      },
+      "open": 2.541,
+      "high": 2.546,
+      "low": 2.509,
+      "bars": 16
+    },
+    "emas": {
+      "m15": {
+        "e13": 2.5260922953662486,
+        "e89": 2.567771848323258,
+        "e233": 2.573666424765749
+      },
+      "h1": {
+        "e13": 2.547723264410386,
+        "e89": 2.5735084304397535,
+        "e233": 2.6605518591342454
+      },
+      "h4": {
+        "e13": 2.570889872011527,
+        "e89": 2.7681646543633596,
+        "e233": 3.23475268223895
+      },
+      "d1": {
+        "e13": 2.6874848611260505,
+        "e89": 3.5735535398309173,
+        "e233": 4.460564228303494
+      }
+    },
+    "rsi": {
+      "m15": 37.49569081958154,
+      "h1": 33.86735827056036,
+      "h4": 42.902422833625955,
+      "d1": 29.7257428514597
+    }
+  },
   "narrative_engine": {
-    "regime": "RANGE_BALANCE",
-    "activeModel": "NO_TRADE",
-    "direction": "NEUTRAL",
-    "grade": "SKIP",
-    "confidence": 0,
-    "thesis": "No live market snapshot is available for KSM right now \u2014 the narrative engine refuses to trade blind.",
+    "regime": "TREND_DOWN",
+    "activeModel": "M1_TREND_PULLBACK",
+    "direction": "SHORT",
+    "grade": "B",
+    "confidence": 85,
+    "thesis": "trend down context (H4 stack down \u00b7 D1 stack down \u00b7 EMA spread -6.92 ATR \u00b7 price holds below Day VWAP) set the SHORT bias. Price pulled back into the confluence zone 2.528-2.566 (VWAP band \u00b7 POC \u00b7 EMA pocket \u00b7 PDH/PDL flip) \u2014 the trigger is still pending. Risk is defined beyond 2.581; the first objective pays 0.53R at 2.518.",
     "plan": {
-      "entryZone": null,
-      "triggerRule": "n/a",
-      "stop": null,
-      "invalidation": "no data",
-      "targets": [],
-      "bestR": null,
-      "vetoes": [
-        "market feed unavailable"
-      ]
+      "entryZone": [
+        2.5281057807632803,
+        2.566381091101175
+      ],
+      "ladder": [
+        {
+          "level": 2.530275,
+          "weightPct": 40,
+          "label": "L1 \u00b7 40% at POC"
+        },
+        {
+          "level": 2.533574704664252,
+          "weightPct": 40,
+          "label": "L2 \u00b7 40% at +1\u03c3 VWAP band"
+        },
+        {
+          "level": 2.5699447607704644,
+          "weightPct": 20,
+          "label": "L3 \u00b7 20% at zone ceiling"
+        }
+      ],
+      "compositeEntry": 2.5395288340197935,
+      "triggerRule": "await bearish footprint confirmation (absorption / strong divergence / trap) or wall+CVD confluence at 2.528-2.566",
+      "stop": 2.5806357697783326,
+      "invalidation": "structure beyond 2.581 (signal zone / \u00b12\u03c3 VWAP / 0.5 ATR buffer)",
+      "targets": [
+        {
+          "level": 2.5178293756148142,
+          "label": "T1 \u00b7 Day VAH/VAL or \u00b11.5\u03c3",
+          "rMultiple": 0.52787827661106
+        },
+        {
+          "level": 2.5,
+          "label": "T2 \u00b7 same-direction liquidation cluster",
+          "rMultiple": 0.9616098424846005
+        },
+        {
+          "level": 2.407,
+          "label": "T3 \u00b7 whale wall / PWH-PWL",
+          "rMultiple": 3.224001779122227
+        }
+      ],
+      "bestR": 3.224001779122227,
+      "vetoes": []
     },
     "probabilities": {
       "pFill": null,
@@ -54,17 +177,17 @@
     }
   },
   "athena_oracle": {
-    "score": 50,
-    "verdict": "Neutral equilibrium 50/100 \u2014 signals mixed, no dominant driver",
-    "regime": null,
+    "score": 40,
+    "verdict": "Cautious bearish lean 40/100 \u2014 trend broken",
+    "regime": "squeeze",
     "factors": [
       {
         "id": "apollo",
         "name": "Trend & Momentum",
         "icon": "sun",
-        "score": 50,
+        "score": 2,
         "weight": 0.25,
-        "detail": "source unavailable"
+        "detail": "EMA20<50<200, RSI 38, EMA50 -0.61%/3h"
       },
       {
         "id": "poseidon",
@@ -94,25 +217,23 @@
         "id": "atlas",
         "name": "Wall Pressure",
         "icon": "mountain",
-        "score": 49,
+        "score": 58,
         "weight": 0.15,
-        "detail": "bid wall $41k -1.2% \u00b7 ask wall $43k +2.0%"
+        "detail": "bid wall $42k -0.4% \u00b7 ask wall $28k +2.0%"
       },
       {
         "id": "nemesis",
         "name": "Funding Reversion",
         "icon": "scale",
-        "score": 54,
+        "score": 59,
         "weight": 0.1,
-        "detail": "funding -0.006%/8h, warm"
+        "detail": "funding -0.012%/8h, warm"
       }
     ],
     "partial": [
-      "apollo",
       "poseidon",
       "hades",
-      "zeus",
-      "regime"
+      "zeus"
     ]
   },
   "microstructure_l2_l3": {
@@ -127,31 +248,30 @@
       "venues": [
         {
           "venue": "binance",
-          "ok": false,
-          "bid": null,
-          "ask": null,
-          "mid": null,
-          "spreadBps": null,
-          "reason": "fapi IP ban active until 2026-11-25T03:43:09.125Z",
-          "at": 1795578172292
+          "ok": true,
+          "bid": 2.517,
+          "ask": 2.518,
+          "mid": 2.5175,
+          "spreadBps": 3.972,
+          "at": 1795579007859
         },
         {
           "venue": "okx",
           "ok": true,
-          "bid": 2.528,
-          "ask": 2.53,
-          "mid": 2.529,
-          "spreadBps": 7.908,
-          "at": 1795578172445
+          "bid": 2.517,
+          "ask": 2.519,
+          "mid": 2.518,
+          "spreadBps": 7.943,
+          "at": 1795579008050
         },
         {
           "venue": "bybit",
           "ok": true,
-          "bid": 2.525,
-          "ask": 2.528,
-          "mid": 2.5265,
-          "spreadBps": 11.874,
-          "at": 1795578172442
+          "bid": 2.513,
+          "ask": 2.516,
+          "mid": 2.5145,
+          "spreadBps": 11.931,
+          "at": 1795579007934
         },
         {
           "venue": "coinbase",
@@ -161,24 +281,22 @@
           "mid": null,
           "spreadBps": null,
           "reason": "not applicable \u2014 Coinbase spot ticker is mapped for BTC/ETH/SOL/DOGE/XRP/LINK only",
-          "at": 1795578172292
+          "at": 1795579007708
         }
       ],
       "best": {
-        "venue": "okx",
-        "bid": 2.528,
-        "ask": 2.53,
-        "mid": 2.529,
-        "spreadBps": 7.908
+        "venue": "binance",
+        "bid": 2.517,
+        "ask": 2.518,
+        "mid": 2.5175,
+        "spreadBps": 3.972
       },
       "missingVenues": [
-        "binance",
         "coinbase"
       ],
-      "at": 1795578172445
+      "at": 1795579008050
     },
     "missingVenues": [
-      "binance",
       "coinbase"
     ]
   },
@@ -214,15 +332,15 @@
       "venues": [
         {
           "name": "Binance",
-          "rate": -0.004048,
-          "rate8h": -0.004048,
+          "rate": -0.007531,
+          "rate8h": -0.007531,
           "nextFundingTime": 1795593600000,
           "fundingIntervalHours": 8
         },
         {
           "name": "OKX",
-          "rate": -0.00444981,
-          "rate8h": -0.00889962,
+          "rate": -0.01157247,
+          "rate8h": -0.02314493,
           "nextFundingTime": 1795579200000,
           "fundingIntervalHours": 4
         },
@@ -237,13 +355,13 @@
           "name": "KuCoin",
           "rate": 0.01,
           "rate8h": 0.01,
-          "nextFundingTime": 1795593540494,
+          "nextFundingTime": 1795593570380,
           "fundingIntervalHours": 8
         },
         {
           "name": "MEXC",
-          "rate": -0.0042,
-          "rate8h": -0.0042,
+          "rate": -0.0075,
+          "rate8h": -0.0075,
           "nextFundingTime": 1795593600000,
           "fundingIntervalHours": 8
         },
@@ -290,20 +408,20 @@
           "fundingIntervalHours": 8
         }
       ],
-      "oiWeightedRate8h": 0.0026624,
-      "annualizedAprPct": 2.9153,
-      "fundingSpreadBps": 1.92,
+      "oiWeightedRate8h": 0.00075073,
+      "annualizedAprPct": 0.822,
+      "fundingSpreadBps": 3.31,
       "spreadVenues": [
         "Bybit",
-        "Hotcoin"
+        "OKX"
       ]
     },
     "basis": {
       "spotPair": "KSMUSDT",
-      "spotPrice": 2.54,
+      "spotPrice": 2.53,
       "perpPrice": null,
       "basisPct": null,
-      "fundingImpliedAprPct": 2.9153,
+      "fundingImpliedAprPct": 0.822,
       "coinbasePremiumBps": null,
       "coinbaseReason": "Coinbase premium tracked for BTC/ETH/SOL only"
     },
@@ -413,31 +531,31 @@
   "book_walls": {
     "futures": {
       "m15": {
-        "imbalance": 0.2672301572860363,
-        "imbalance5mAgo": 0.2672301572860363,
-        "bidDepth": 172917.989,
-        "askDepth": 99989.009,
+        "imbalance": -0.19380170988204426,
+        "imbalance5mAgo": 0.11606421053978284,
+        "bidDepth": 160091.52000000002,
+        "askDepth": 237060.20300000004,
         "largestBid": null,
         "largestAsk": null,
         "walls": [
           {
             "side": "b",
             "price": 2.5,
-            "usd": 41045.52799999999,
-            "qty": 16352.8,
-            "distPct": -1.19,
+            "usd": 41908.46599999999,
+            "qty": 16696.6,
+            "distPct": -0.4,
             "firstSeen": 1795576500000,
-            "ageMs": 900000,
-            "touched": false
+            "ageMs": 1800000,
+            "touched": true
           },
           {
             "side": "a",
             "price": 2.56,
-            "usd": 33930.682,
-            "qty": 13202.6,
-            "distPct": 1.19,
+            "usd": 28190.072999999997,
+            "qty": 10968.9,
+            "distPct": 1.99,
             "firstSeen": 1795569300000,
-            "ageMs": 8100000,
+            "ageMs": 9000000,
             "touched": false
           },
           {
@@ -445,9 +563,9 @@
             "price": 2.58,
             "usd": 43421.868,
             "qty": 16765.2,
-            "distPct": 1.98,
+            "distPct": 2.79,
             "firstSeen": 1795536900000,
-            "ageMs": 40500000,
+            "ageMs": 41400000,
             "touched": false
           },
           {
@@ -455,9 +573,9 @@
             "price": 2.6,
             "usd": 32237.937,
             "qty": 12351.7,
-            "distPct": 2.77,
+            "distPct": 3.59,
             "firstSeen": 1795536000000,
-            "ageMs": 41400000,
+            "ageMs": 42300000,
             "touched": false
           }
         ],
@@ -467,8 +585,8 @@
             "type": "add",
             "side": "b",
             "p": 2.5,
-            "usd": 41045.52799999999,
-            "qty": 16352.8
+            "usd": 41908.46599999999,
+            "qty": 16696.6
           },
           {
             "t": 1795573800000,
@@ -505,39 +623,39 @@
         ]
       },
       "h1": {
-        "imbalance": 0.19967597003289225,
+        "imbalance": -0.19380170988204426,
         "imbalance5mAgo": 0.19967597003289225,
-        "bidDepth": 125493.013,
-        "askDepth": 83718.50099999999,
+        "bidDepth": 160091.52000000002,
+        "askDepth": 237060.20300000004,
         "largestBid": null,
         "largestAsk": null,
         "walls": [
           {
             "side": "b",
-            "price": 2.52,
-            "usd": 23696.486,
-            "qty": 9366.2,
+            "price": 2.5,
+            "usd": 48670.657,
+            "qty": 19390.7,
             "distPct": -0.4,
-            "firstSeen": 1795561200000,
-            "ageMs": 14400000,
+            "firstSeen": 1795568400000,
+            "ageMs": 7200000,
             "touched": true
           },
           {
             "side": "b",
-            "price": 2.5,
-            "usd": 48670.657,
-            "qty": 19390.7,
-            "distPct": -1.19,
-            "firstSeen": 1795568400000,
-            "ageMs": 7200000,
-            "touched": false
+            "price": 2.52,
+            "usd": 23696.486,
+            "qty": 9366.2,
+            "distPct": 0.4,
+            "firstSeen": 1795561200000,
+            "ageMs": 14400000,
+            "touched": true
           },
           {
             "side": "a",
             "price": 2.6,
             "usd": 34703.082,
             "qty": 13296.2,
-            "distPct": 2.77,
+            "distPct": 3.59,
             "firstSeen": 1795536000000,
             "ageMs": 39600000,
             "touched": true
@@ -592,7 +710,7 @@
         "imbalance": -1,
         "imbalance5mAgo": -1,
         "bidDepth": 0,
-        "askDepth": 32186.177499999998,
+        "askDepth": 28728.8725,
         "largestBid": null,
         "largestAsk": null,
         "walls": [],
@@ -602,7 +720,7 @@
         "imbalance": -1,
         "imbalance5mAgo": -1,
         "bidDepth": 0,
-        "askDepth": 32186.177499999998,
+        "askDepth": 28728.8725,
         "largestBid": null,
         "largestAsk": null,
         "walls": [],
@@ -1961,16 +2079,16 @@
     "funding": [
       {
         "name": "Binance",
-        "rate": -0.004048,
-        "rate8h": -0.004048,
+        "rate": -0.007531,
+        "rate8h": -0.007531,
         "fundingIntervalHours": 8,
         "nextFundingTime": 1795593600000,
         "status": 1
       },
       {
         "name": "OKX",
-        "rate": -0.00445,
-        "rate8h": -0.0089,
+        "rate": -0.011572,
+        "rate8h": -0.023145,
         "fundingIntervalHours": 4,
         "nextFundingTime": 1795579200000,
         "status": 1
@@ -1988,13 +2106,13 @@
         "rate": 0.01,
         "rate8h": 0.01,
         "fundingIntervalHours": 8,
-        "nextFundingTime": 1795593540494,
+        "nextFundingTime": 1795593570380,
         "status": 1
       },
       {
         "name": "MEXC",
-        "rate": -0.0042,
-        "rate8h": -0.0042,
+        "rate": -0.0075,
+        "rate8h": -0.0075,
         "fundingIntervalHours": 8,
         "nextFundingTime": 1795593600000,
         "status": 1
@@ -2042,7 +2160,7 @@
         "rate": -0.006784,
         "rate8h": -0.054272,
         "fundingIntervalHours": 1,
-        "predictedRate": -0.040068,
+        "predictedRate": -0.044859,
         "nextFundingTime": 1795579200000,
         "status": 2
       },
