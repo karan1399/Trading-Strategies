@@ -93,11 +93,13 @@ _THREAD_LOCAL = threading.local()
 _CACHE_LOCK = threading.Lock()
 _BACKTEST_CACHE = {}   # sym -> (ts, data)
 _COT_CACHE = {}        # sym -> (ts, data)
-_STOPMAP_CACHE = {}    # sym -> (ts, data)
+_STOPMAP_CACHE = {}    # (sym, mode, rng) -> (ts, data)
 _LIQ_CACHE = {}        # (sym, rng) -> (ts, data)
 _BW_CACHE = {}         # (sym, mkt_type, itv) -> (ts, data)
 _CVD_CACHE = {}        # (sym, mode, itv) -> (ts, data)
 _LO_CACHE = {}         # sym -> (ts, data)
+_LTO_CACHE = {}        # sym -> (ts, data)
+_PERPDEPTH_CACHE = {}  # sym -> (ts, data)
 _FP_SIGNALS_CACHE = {} # sym -> (ts, fp_dict, all_sigs)
 _FP_BARS_CACHE = {}    # (sym, tf) -> (ts, bars_dict, rows, cum_delta)
 _CLASSIC_CACHE = {}    # sym -> (ts, data)
@@ -626,6 +628,7 @@ def harvest_single_asset(sym, is_prime=True, mt5_quote=None):
             "vwap": mkt.get("vwap"),
             "emas": mkt.get("ema") or mkt.get("emas"),
             "rsi": mkt.get("rsi"),
+            "levels": mkt.get("levels"),
         }
 
     tk = fetch_json(f"/api/cg/ticker?sym={sym}", timeout=8, retries=2)
@@ -664,8 +667,8 @@ def harvest_single_asset(sym, is_prime=True, mt5_quote=None):
             },
         }
 
-    # 3. ATHENA ORACLE
-    orc = fetch_json(f"/api/cg/oracle?sym={sym}", timeout=8)
+    # 3. ATHENA ORACLE (20s computation window so complex venues never silently time out)
+    orc = fetch_json(f"/api/cg/oracle?sym={sym}", timeout=16)
     if orc and orc.get("ok"):
         profile["athena_oracle"] = {
             "score": orc.get("score"),
@@ -675,7 +678,7 @@ def harvest_single_asset(sym, is_prime=True, mt5_quote=None):
             "partial": orc.get("partial"),
         }
 
-    # 4. L2/L3 MICROSTRUCTURE & BBO
+    # 4. L2/L3 MICROSTRUCTURE & BBO (+ TradFi perpdepth when available)
     micro = fetch_json(f"/api/cg/micro?sym={sym}", timeout=8)
     if micro and micro.get("ok"):
         profile["microstructure_l2_l3"] = {
@@ -684,6 +687,15 @@ def harvest_single_asset(sym, is_prime=True, mt5_quote=None):
             "bbo": micro.get("bbo"),
             "missingVenues": micro.get("missingVenues"),
         }
+    if sym in ("XAU", "XAG", "XPT", "SPX500", "SP500", "NDX100", "JP225", "HK50", "UKO", "USO", "NATGAS"):
+        pd_res = _cached_get(_PERPDEPTH_CACHE, sym, 300, f"/api/cg/perpdepth?sym={sym}&quiet=1", timeout=8)
+        if pd_res and pd_res.get("ok") and pd_res.get("supported", True):
+            profile["microstructure_l2_l3"] = profile.get("microstructure_l2_l3") or {}
+            profile["microstructure_l2_l3"]["tradfi_perpdepth"] = {
+                "lead": pd_res.get("lead"),
+                "liquidity": pd_res.get("liquidity"),
+                "note": pd_res.get("note"),
+            }
 
     # 5. QUANT POSITIONING
     qnt = fetch_json(f"/api/cg/quant?sym={sym}", timeout=8)
@@ -696,19 +708,25 @@ def harvest_single_asset(sym, is_prime=True, mt5_quote=None):
             "notes": qnt.get("notes"),
         }
 
-    # 6. OPTIONS DERIBIT (BTC & ETH)
+    # 6. OPTIONS DERIBIT (BTC & ETH — preserve D13 GEX, Gamma Flip, MaxPainStrike & riskReversal25d)
     if sym in ("BTC", "ETH"):
         opt = fetch_json(f"/api/cg/options?sym={sym}", timeout=8)
         if opt and opt.get("ok"):
+            rr25 = opt.get("riskReversal25d") or opt.get("skew")
             profile["options_deribit"] = {
                 "dvol": opt.get("dvol"),
                 "termStructure": opt.get("termStructure"),
-                "skew": opt.get("skew"),
+                "riskReversal25d": rr25,
+                "skew": rr25,
                 "maxPain": opt.get("maxPain"),
+                "maxPainStrike": opt.get("maxPainStrike"),
+                "gammaFlipPrice": opt.get("gammaFlipPrice"),
+                "gex": opt.get("gex"),
+                "oiWalls": opt.get("oiWalls"),
                 "putCallRatio": opt.get("putCallRatio"),
             }
 
-    # 7. LIQUIDATIONS & STOPMAP (Prime: every cycle; Extended: 900s cached so cycles stay < 4 min)
+    # 7. LIQUIDATIONS, STOPMAP (24h + 3d + 7d) & LIVE 5M TAPE (D11 & D16)
     ext_ttl = 0 if is_prime else 900
     liq_ranges = ["3d", "7d", "30d"]
     for rng in liq_ranges:
@@ -720,18 +738,25 @@ def harvest_single_asset(sym, is_prime=True, mt5_quote=None):
                 "livePrice": l_res.get("livePrice"),
             }
 
-    sm_ttl = 0 if is_prime else 900
-    sm = _cached_get(_STOPMAP_CACHE, (sym, "coin"), sm_ttl, f"/api/cg/stopmap?sym={sym}&model=1&mode=coin&range=24h", timeout=12)
-    if sm and sm.get("ok"):
-        sm_model = sm.get("model") or sm
-        profile["liquidations"]["stopmap"]["m1_coin_24h"] = {
-            "keyLevels": sm_model.get("keyLevels"),
-            "overview": sm_model.get("overview"),
-            "source": sm.get("source"),
-            "stale": sm.get("stale"),
-        }
+    sm_24_ttl = 0 if is_prime else 900
+    sm_3d_ttl = 120 if is_prime else 900
+    sm_7d_ttl = 300 if is_prime else 1800
+    for rng, slot, ttl_s in [
+        ("24h", "m1_coin_24h", sm_24_ttl),
+        ("3d", "m1_coin_3d", sm_3d_ttl),
+        ("7d", "m1_coin_7d", sm_7d_ttl),
+    ]:
+        sm = _cached_get(_STOPMAP_CACHE, (sym, "coin", rng), ttl_s, f"/api/cg/stopmap?sym={sym}&model=1&mode=coin&range={rng}", timeout=12)
+        if sm and sm.get("ok"):
+            sm_model = sm.get("model") or sm
+            profile["liquidations"]["stopmap"][slot] = {
+                "keyLevels": sm_model.get("keyLevels"),
+                "overview": sm_model.get("overview"),
+                "source": sm.get("source"),
+                "stale": sm.get("stale"),
+            }
     if sym == "BTC":
-        sm_btc = _cached_get(_STOPMAP_CACHE, (sym, "pair"), 0, "/api/cg/stopmap?sym=BTC&model=1&mode=pair&range=24h", timeout=12)
+        sm_btc = _cached_get(_STOPMAP_CACHE, (sym, "pair", "24h"), 0, "/api/cg/stopmap?sym=BTC&model=1&mode=pair&range=24h", timeout=12)
         if sm_btc and sm_btc.get("ok"):
             sm_btc_model = sm_btc.get("model") or sm_btc
             profile["liquidations"]["stopmap"]["m1_pair_24h"] = {
@@ -741,7 +766,20 @@ def harvest_single_asset(sym, is_prime=True, mt5_quote=None):
                 "stale": sm_btc.get("stale"),
             }
 
-    # 8. BOOK WALLS (m15/h1 across futures & spot; Extended cached 900s)
+    ll = fetch_json(f"/api/cg/liq-live?sym={sym}", timeout=6)
+    if ll and ll.get("ok"):
+        ll_asset = ll.get("asset") or {}
+        profile["liquidations"]["live_prints_tape"] = {
+            "supported": ll_asset.get("supported", True),
+            "stats1h": ll_asset.get("stats1h"),
+            "stats24h": ll_asset.get("stats24h"),
+            "events": (ll_asset.get("events") or [])[:25],
+            "ageMs": ll.get("ageMs"),
+            "stale": ll.get("stale"),
+            "source": ll.get("source"),
+        }
+
+    # 8. BOOK WALLS (futures/spot m15/h1 + real-time Binance top-1000 /api/cg/livebook)
     bw_itvs = ["m15", "h1"]
     for mkt_type in ["futures", "spot"]:
         for itv in bw_itvs:
@@ -755,9 +793,24 @@ def harvest_single_asset(sym, is_prime=True, mt5_quote=None):
                     "askDepth": bw_model.get("askDepth") or (bw_model.get("depth", {}).get("askUsd") if isinstance(bw_model.get("depth"), dict) else None),
                     "largestBid": bw_model.get("largestBid"),
                     "largestAsk": bw_model.get("largestAsk"),
-                    "walls": bw_model.get("walls", [])[:8],
-                    "events": bw_model.get("events", [])[:5],
+                    "walls": bw_model.get("walls", [])[:15],
+                    "events": bw_model.get("events", [])[:10],
                 }
+    if is_prime:
+        lb = fetch_json(f"/api/cg/livebook?sym={sym}", timeout=6)
+        if lb and lb.get("ok"):
+            lb_mod = lb.get("model") or {}
+            profile["book_walls"]["live_binance"] = {
+                "covered": lb.get("covered"),
+                "imbalance": lb_mod.get("imbalance"),
+                "imbalance5mAgo": lb_mod.get("imbalance5mAgo"),
+                "bidDepth": lb_mod.get("bidDepth") or ((lb_mod.get("depth") or {}).get("bidUsd") if isinstance(lb_mod.get("depth"), dict) else None),
+                "askDepth": lb_mod.get("askDepth") or ((lb_mod.get("depth") or {}).get("askUsd") if isinstance(lb_mod.get("depth"), dict) else None),
+                "largestBid": lb_mod.get("largestBid"),
+                "largestAsk": lb_mod.get("largestAsk"),
+                "walls": (lb_mod.get("walls") or [])[:15],
+                "fapiBanned": lb.get("fapiBanned"),
+            }
 
     # 9. CVD (Prime: perp/spot/split on m15/h1; Extended: perp/spot on m15/h1 cached 900s)
     cvd_modes = ["perp", "spot", "split"] if is_prime else ["perp", "spot"]
@@ -844,10 +897,26 @@ def harvest_single_asset(sym, is_prime=True, mt5_quote=None):
                 "signals": all_sigs,
             })
 
-    # 11. LARGE ORDERS
-    lo = _cached_get(_LO_CACHE, sym, ext_ttl, f"/api/cg/largeorder?symbol=Binance_{sym}USDT&interval=m15&hours=24", timeout=8)
+    # 11. LARGE ORDERS & D10 LTO (/api/cg/largeorder cached to avoid Coinglass 429; /api/cg/lto uses ?symbol=)
+    lo_ttl = 300 if is_prime else 900
+    lo = _cached_get(_LO_CACHE, sym, lo_ttl, f"/api/cg/largeorder?symbol=Binance_{sym}USDT&interval=m15&hours=24", timeout=8)
     if lo and lo.get("ok"):
-        profile["large_orders"]["resting_and_executed"]["24h"] = lo.get("groups", [])[:4]
+        profile["large_orders"]["resting_and_executed"]["24h"] = (lo.get("groups") or [])[:8]
+        if lo.get("supported") is False and lo.get("reason"):
+            profile["large_orders"]["largeorder_status"] = lo.get("reason")
+    lto_ttl = 180 if is_prime else 900
+    lto = _cached_get(_LTO_CACHE, sym, lto_ttl, f"/api/cg/lto?symbol={sym}", timeout=10)
+    if lto and lto.get("ok"):
+        pe = lto.get("perExchange") or {}
+        active_exch = {k: v for k, v in pe.items() if isinstance(v, dict) and v.get("hasData")}
+        profile["large_orders"]["large_taker_orders_100k"] = {
+            "supported": lto.get("supported"),
+            "minVolUsd": lto.get("minVolUsd"),
+            "groups": (lto.get("groups") or [])[:12],
+            "activeExchanges": list(active_exch.keys()),
+            "hlFallback": lto.get("hlFallback"),
+            "updatedAt": lto.get("updatedAt"),
+        }
 
     # 12. PLAYBOOK STRATEGY CARDS (Prime only — non-prime skipped to save calls)
     if is_prime:
@@ -874,14 +943,20 @@ def harvest_single_asset(sym, is_prime=True, mt5_quote=None):
     if cot and not cot.get("_err"):
         profile["cot_report"] = cot
 
-    # 15. FUNDING & OI
+    # 15. FUNDING & OI (Preserve aggregate metrics for D14 4H OI & D15 Annualized Funding APR)
     fnd = fetch_json(f"/api/cg/funding?sym={sym}", timeout=6)
     if fnd and fnd.get("ok"):
+        f_agg = dict(fnd.get("aggregate") or {})
+        pct8h = f_agg.get("fundingPct8h")
+        if pct8h is not None:
+            f_agg["apr_pct"] = round(float(pct8h) * 3.0 * 365.0, 2)
         profile["funding_and_oi"]["funding"] = fnd.get("venues")
+        profile["funding_and_oi"]["funding_aggregate"] = f_agg
 
     oi = fetch_json(f"/api/cg/oi?sym={sym}", timeout=6)
     if oi and oi.get("ok"):
         profile["funding_and_oi"]["open_interest"] = oi.get("venues")
+        profile["funding_and_oi"]["oi_aggregate"] = oi.get("aggregate")
 
     target_file = os.path.join(ASSETS_DIR, f"{sym}.json")
     atomic_write(target_file, profile)
@@ -1121,13 +1196,14 @@ def main():
     os.makedirs(FOOTPRINT_DIR, exist_ok=True)
     once = "--once" in sys.argv
     no_git = "--no-git" in sys.argv
-    workers = int(os.environ.get("TELEMETRY_WORKERS", "2"))
-    interval = int(os.environ.get("TELEMETRY_INTERVAL_SECS", "20"))
+    workers = int(os.environ.get("TELEMETRY_WORKERS", "3"))
+    interval = int(os.environ.get("TELEMETRY_INTERVAL_SECS", "10"))
+    tail_batch = int(os.environ.get("TELEMETRY_TAIL_BATCH", "20"))
     git_sync_secs = 0 if no_git else int(os.environ.get("TELEMETRY_GIT_SYNC_SECS", "600"))
 
     print("==================================================================", flush=True)
-    print("Starting Full-Universe + All-MT5 Order-Flow Telemetry Daemon v4.0", flush=True)
-    print(f"Workers: {workers} | Cycle Pause: {interval}s | Async Git Sync: {git_sync_secs}s", flush=True)
+    print("Starting Full-Universe + All-MT5 Order-Flow Telemetry Daemon v4.1", flush=True)
+    print(f"Workers: {workers} | Cycle Pause: {interval}s | Tail Batch: {tail_batch} | Async Git Sync: {git_sync_secs}s", flush=True)
     print("==================================================================", flush=True)
 
     while True:
@@ -1143,13 +1219,16 @@ def main():
             # 2. Update Universe Overview (Screener, Risk, Alerts)
             screener_data = update_universe_overview()
 
-            # 3. Harvest ALL Coinglass / Terminal files (Prime + MT5 Cryptos + all existing files in data/telemetry/assets/)
+            # 3. Fast-Lane Prime Tier every cycle + rotating stalest-first Tail batch so Prime assets never breach 600s SLA
             cg_list, prime_set = build_coinglass_universe(native_base_syms)
-            print(f"[telemetry] Commencing parallel harvest of {len(cg_list)} Coinglass/Curated assets ({len(prime_set)} prime) with {workers} workers...", flush=True)
+            prime_cg = [s for s in cg_list if s in prime_set]
+            tail_cg = [s for s in cg_list if s not in prime_set]
+            sweep_cg = cg_list if once else (prime_cg + tail_cg[:tail_batch])
+            print(f"[telemetry] Commencing fast-lane harvest of {len(sweep_cg)}/{len(cg_list)} Coinglass assets ({len(prime_cg)} prime + {len(sweep_cg)-len(prime_cg)} tail) with {workers} workers...", flush=True)
             with ThreadPoolExecutor(max_workers=workers) as executor:
                 future_map = {
                     executor.submit(harvest_single_asset, sym, sym in prime_set, mt5_quotes_by_cg.get(sym)): sym
-                    for sym in cg_list
+                    for sym in sweep_cg
                 }
                 for future in as_completed(future_map):
                     sym = future_map[future]
