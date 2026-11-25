@@ -1,28 +1,156 @@
 {
   "symbol": "INIT",
   "feed_type": "coinglass_perp",
-  "updated_at": "2026-11-25T07:03:51.006766+00:00",
-  "updated_epoch": 1795590231.006781,
+  "updated_at": "2026-11-25T07:19:37.703706+00:00",
+  "updated_epoch": 1795591177.7037272,
   "mt5": null,
-  "ticker": null,
-  "market_structure": null,
+  "ticker": {
+    "price": 0.08786,
+    "dir": "flat",
+    "source": "binance-fapi",
+    "updatedAt": null
+  },
+  "market_structure": {
+    "price": {
+      "last": 0.08796,
+      "prevDayClose": 0.08662,
+      "chgDayPct": 1.546986839067183,
+      "dayHigh": 0.0924,
+      "dayLow": 0.08526,
+      "dayVolBase": 184804885
+    },
+    "auction": {
+      "session": {
+        "poc": 0.0887705,
+        "vah": 0.0905555,
+        "val": 0.0867475,
+        "high": 0.0924,
+        "low": 0.08526,
+        "volume": 187525215,
+        "bins": 60
+      },
+      "day": {
+        "poc": 0.0887705,
+        "vah": 0.09067449999999999,
+        "val": 0.0868665,
+        "high": 0.0924,
+        "low": 0.08526,
+        "volume": 184804885,
+        "bins": 60
+      },
+      "week": {
+        "poc": 0.08639777777777778,
+        "vah": 0.08804222222222222,
+        "val": 0.08080666666666667,
+        "high": 0.0924,
+        "low": 0.0776,
+        "volume": 694563420.9999996,
+        "bins": 90
+      },
+      "month": {
+        "poc": 0.09919891666666666,
+        "vah": 0.20437625,
+        "val": 0.08041725,
+        "high": 0.30298,
+        "low": 0.0776,
+        "volume": 20930039033.999977,
+        "bins": 120
+      }
+    },
+    "vwap": {
+      "anchorTs": 1795564800000,
+      "vwap": 0.08889699159362953,
+      "bands": {
+        "sd1": 0.0014993217992414615,
+        "sd2": 0.002998643598482923,
+        "sd3": 0.004497965397724384
+      },
+      "open": 0.08662,
+      "high": 0.0924,
+      "low": 0.08526,
+      "bars": 30
+    },
+    "emas": {
+      "m15": {
+        "e13": 0.08777925971076075,
+        "e89": 0.08647659204315676,
+        "e233": 0.0854620029973242
+      },
+      "h1": {
+        "e13": 0.0874478186820074,
+        "e89": 0.08636984857079091,
+        "e233": 0.09579301306939575
+      },
+      "h4": {
+        "e13": 0.08566361750561916,
+        "e89": 0.10413856159452435,
+        "e233": 0.11844534809495004
+      },
+      "d1": {
+        "e13": 0.09855590240729836,
+        "e89": 0.10958574282566494,
+        "e233": 0.10527508581958957
+      }
+    },
+    "rsi": {
+      "m15": 49.43737818394209,
+      "h1": 55.241401522483415,
+      "h4": 50.92992168147366,
+      "d1": 40.92522008135931
+    }
+  },
   "narrative_engine": {
-    "regime": "RANGE_BALANCE",
-    "activeModel": "NO_TRADE",
-    "direction": "NEUTRAL",
-    "grade": "SKIP",
-    "confidence": 0,
-    "thesis": "No live market snapshot is available for INIT right now \u2014 the narrative engine refuses to trade blind.",
+    "regime": "TREND_DOWN",
+    "activeModel": "M1_TREND_PULLBACK",
+    "direction": "SHORT",
+    "grade": "B",
+    "confidence": 85,
+    "thesis": "trend down context (H4 stack down \u00b7 D1 stack tangled \u00b7 EMA spread -7.13 ATR \u00b7 price holds below Day VWAP) set the SHORT bias. Price pulled back into the confluence zone 0.08702-0.08812 (VWAP band \u00b7 POC \u00b7 EMA pocket \u00b7 PDH/PDL flip) \u2014 the trigger is still pending. Risk is defined beyond 0.09190; the first objective pays 1.30R at 0.08665.",
     "plan": {
-      "entryZone": null,
-      "triggerRule": "n/a",
-      "stop": null,
-      "invalidation": "no data",
-      "targets": [],
-      "bestR": null,
-      "vetoes": [
-        "market feed unavailable"
-      ]
+      "entryZone": [
+        0.08701759076600347,
+        0.08812275780478744
+      ],
+      "ladder": [
+        {
+          "level": 0.08844662890239373,
+          "weightPct": 40,
+          "label": "L1 \u00b7 40% at POC"
+        },
+        {
+          "level": 0.09039631339287099,
+          "weightPct": 40,
+          "label": "L2 \u00b7 40% at +1\u03c3 VWAP band"
+        },
+        {
+          "level": 0.09039631339287099,
+          "weightPct": 20,
+          "label": "L3 \u00b7 20% at zone ceiling"
+        }
+      ],
+      "compositeEntry": 0.08961643959668009,
+      "triggerRule": "await bearish footprint confirmation (absorption / strong divergence / trap) or wall+CVD confluence at 0.08702-0.08812",
+      "stop": 0.09189563519211245,
+      "invalidation": "structure beyond 0.09190 (signal zone / \u00b12\u03c3 VWAP / 0.5 ATR buffer)",
+      "targets": [
+        {
+          "level": 0.08664800889476734,
+          "label": "T1 \u00b7 Day VAH/VAL or \u00b11.5\u03c3",
+          "rMultiple": 1.3024027897656705
+        },
+        {
+          "level": 0.1,
+          "label": "T2 \u00b7 same-direction liquidation cluster",
+          "rMultiple": null
+        },
+        {
+          "level": 0.08353,
+          "label": "T3 \u00b7 whale wall / PWH-PWL",
+          "rMultiple": 2.6704332040995733
+        }
+      ],
+      "bestR": 2.6704332040995733,
+      "vetoes": []
     },
     "probabilities": {
       "pFill": null,
@@ -33,17 +161,17 @@
     }
   },
   "athena_oracle": {
-    "score": 55,
-    "verdict": "Constructive bullish lean 55/100 \u2014 funding still cool",
-    "regime": null,
+    "score": 64,
+    "verdict": "Constructive bullish lean 64/100 \u2014 trend aligned, funding still cool",
+    "regime": "range",
     "factors": [
       {
         "id": "apollo",
         "name": "Trend & Momentum",
         "icon": "sun",
-        "score": 50,
+        "score": 96,
         "weight": 0.25,
-        "detail": "source unavailable"
+        "detail": "EMA20>50>200, RSI 49, EMA50 +0.18%/3h"
       },
       {
         "id": "poseidon",
@@ -73,25 +201,23 @@
         "id": "atlas",
         "name": "Wall Pressure",
         "icon": "mountain",
-        "score": 49,
+        "score": 37,
         "weight": 0.15,
-        "detail": "bid wall $40k -1.5% \u00b7 ask wall $42k +1.1%"
+        "detail": "bid wall $21k -1.9% \u00b7 ask wall $42k +-0.6%"
       },
       {
         "id": "nemesis",
         "name": "Funding Reversion",
         "icon": "scale",
-        "score": 98,
+        "score": 92,
         "weight": 0.1,
-        "detail": "funding -0.073%/8h, extreme, shorts crowded"
+        "detail": "funding -0.061%/8h, extreme, shorts crowded"
       }
     ],
     "partial": [
-      "apollo",
       "poseidon",
       "hades",
-      "zeus",
-      "regime"
+      "zeus"
     ]
   },
   "microstructure_l2_l3": {
@@ -106,31 +232,30 @@
       "venues": [
         {
           "venue": "binance",
-          "ok": false,
-          "bid": null,
-          "ask": null,
-          "mid": null,
-          "spreadBps": null,
-          "reason": "fapi IP ban active until 2026-11-25T07:04:02.588Z",
-          "at": 1795590232993
+          "ok": true,
+          "bid": 0.08785,
+          "ask": 0.08788,
+          "mid": 0.087865,
+          "spreadBps": 3.414,
+          "at": 1795591180277
         },
         {
           "venue": "okx",
           "ok": true,
-          "bid": 0.08381,
-          "ask": 0.08382,
-          "mid": 0.083815,
-          "spreadBps": 1.193,
-          "at": 1795590233191
+          "bid": 0.08613,
+          "ask": 0.08616,
+          "mid": 0.086145,
+          "spreadBps": 3.483,
+          "at": 1795591180278
         },
         {
           "venue": "bybit",
           "ok": true,
-          "bid": 0.08509,
-          "ask": 0.08512,
-          "mid": 0.085105,
-          "spreadBps": 3.525,
-          "at": 1795590233223
+          "bid": 0.08738,
+          "ask": 0.08743,
+          "mid": 0.087405,
+          "spreadBps": 5.72,
+          "at": 1795591180277
         },
         {
           "venue": "coinbase",
@@ -140,46 +265,101 @@
           "mid": null,
           "spreadBps": null,
           "reason": "not applicable \u2014 Coinbase spot ticker is mapped for BTC/ETH/SOL/DOGE/XRP/LINK only",
-          "at": 1795590232993
+          "at": 1795591179856
         }
       ],
       "best": {
-        "venue": "okx",
-        "bid": 0.08381,
-        "ask": 0.08382,
-        "mid": 0.083815,
-        "spreadBps": 1.193
+        "venue": "binance",
+        "bid": 0.08785,
+        "ask": 0.08788,
+        "mid": 0.087865,
+        "spreadBps": 3.414
       },
       "missingVenues": [
-        "binance",
         "coinbase"
       ],
-      "at": 1795590233223
+      "at": 1795591180278
     },
     "missingVenues": [
-      "binance",
       "coinbase"
     ]
   },
   "quant_positioning": {
     "lsRatios": {
       "15m": {
-        "global": null,
-        "topAccounts": null,
-        "topPositions": null,
-        "taker": null
+        "global": {
+          "ratio": 0.5726,
+          "longPct": 36.41,
+          "shortPct": 63.59,
+          "chgPct": -1.16
+        },
+        "topAccounts": {
+          "ratio": 0.7486,
+          "longPct": 42.81,
+          "shortPct": 57.19,
+          "chgPct": -1.49
+        },
+        "topPositions": {
+          "ratio": 1.2127,
+          "longPct": 54.81,
+          "shortPct": 45.19,
+          "chgPct": -0.84
+        },
+        "taker": {
+          "buySellRatio": 1.0466,
+          "buyVolUsd": 271898,
+          "sellVolUsd": 259804
+        }
       },
       "1h": {
-        "global": null,
-        "topAccounts": null,
-        "topPositions": null,
-        "taker": null
+        "global": {
+          "ratio": 0.5793,
+          "longPct": 36.68,
+          "shortPct": 63.32,
+          "chgPct": -0.63
+        },
+        "topAccounts": {
+          "ratio": 0.7599,
+          "longPct": 43.18,
+          "shortPct": 56.82,
+          "chgPct": -0.46
+        },
+        "topPositions": {
+          "ratio": 1.223,
+          "longPct": 55.01,
+          "shortPct": 44.99,
+          "chgPct": 0.07
+        },
+        "taker": {
+          "buySellRatio": 0.7841,
+          "buyVolUsd": 684839,
+          "sellVolUsd": 873377
+        }
       },
       "4h": {
-        "global": null,
-        "topAccounts": null,
-        "topPositions": null,
-        "taker": null
+        "global": {
+          "ratio": 0.6213,
+          "longPct": 38.32,
+          "shortPct": 61.68,
+          "chgPct": 8.18
+        },
+        "topAccounts": {
+          "ratio": 0.8228,
+          "longPct": 45.14,
+          "shortPct": 54.86,
+          "chgPct": 4.3
+        },
+        "topPositions": {
+          "ratio": 1.2211,
+          "longPct": 54.98,
+          "shortPct": 45.02,
+          "chgPct": -1.37
+        },
+        "taker": {
+          "buySellRatio": 1.0677,
+          "buyVolUsd": 4719056,
+          "sellVolUsd": 4420032
+        }
       }
     },
     "oiQuadrant": {
@@ -193,15 +373,15 @@
       "venues": [
         {
           "name": "Binance",
-          "rate": -0.073125,
-          "rate8h": -0.585,
-          "nextFundingTime": 1795590000000,
+          "rate": -0.067222,
+          "rate8h": -0.537776,
+          "nextFundingTime": 1795593600000,
           "fundingIntervalHours": 1
         },
         {
           "name": "OKX",
-          "rate": -0.12607334,
-          "rate8h": -0.25214668,
+          "rate": -0.08239638,
+          "rate8h": -0.16479275,
           "nextFundingTime": 1795593600000,
           "fundingIntervalHours": 4
         },
@@ -209,106 +389,105 @@
           "name": "Bybit",
           "rate": 0.00125,
           "rate8h": 0.01,
-          "nextFundingTime": 1795590000000,
+          "nextFundingTime": 1795593600000,
           "fundingIntervalHours": 1
         },
         {
           "name": "KuCoin",
-          "rate": -0.0356,
-          "rate8h": -0.2848,
-          "nextFundingTime": 1795589970493,
+          "rate": -0.0303,
+          "rate8h": -0.2424,
+          "nextFundingTime": 1795593585328,
           "fundingIntervalHours": 1
         },
         {
           "name": "MEXC",
-          "rate": -0.073,
-          "rate8h": -0.584,
-          "nextFundingTime": 1795590000000,
+          "rate": -0.0684,
+          "rate8h": -0.5472,
+          "nextFundingTime": 1795593600000,
           "fundingIntervalHours": 1
         },
         {
           "name": "HTX",
-          "rate": -0.10070103,
-          "rate8h": -0.10070103,
-          "nextFundingTime": 1795590000000,
+          "rate": -0.08056304,
+          "rate8h": -0.08056304,
+          "nextFundingTime": 1795593600000,
           "fundingIntervalHours": 8
         },
         {
           "name": "BingX",
-          "rate": -0.0697,
-          "rate8h": -0.5576,
+          "rate": -0.0682,
+          "rate8h": -0.5456,
           "nextFundingTime": 1795593600000,
           "fundingIntervalHours": 1
         },
         {
           "name": "Hyperliquid",
-          "rate": -0.02911995,
-          "rate8h": -0.2329596,
-          "nextFundingTime": 1795590000000,
+          "rate": -0.04618509,
+          "rate8h": -0.36948072,
+          "nextFundingTime": 1795593600000,
           "fundingIntervalHours": 1
         },
         {
           "name": "Bitunix",
-          "rate": -0.073062,
-          "rate8h": -0.073062,
+          "rate": -0.07184,
+          "rate8h": -0.07184,
           "nextFundingTime": null,
           "fundingIntervalHours": 8
         },
         {
           "name": "Bitget",
-          "rate": -0.0065,
-          "rate8h": -0.052,
-          "nextFundingTime": 1795590000000,
+          "rate": 0.0013,
+          "rate8h": 0.0104,
+          "nextFundingTime": 1795593600000,
           "fundingIntervalHours": 1
         },
         {
           "name": "WhiteBIT",
           "rate": 0.00125,
           "rate8h": 0.01,
-          "nextFundingTime": 1795590000000,
+          "nextFundingTime": 1795593600000,
           "fundingIntervalHours": 1
         },
         {
           "name": "LBank",
-          "rate": -0.073047,
-          "rate8h": -0.584376,
-          "nextFundingTime": 1795590000000,
+          "rate": 0.01,
+          "rate8h": 0.08,
+          "nextFundingTime": 1795593600000,
           "fundingIntervalHours": 1
         },
         {
           "name": "Hotcoin",
-          "rate": -0.066275,
-          "rate8h": -0.5302,
-          "nextFundingTime": 1795590000000,
+          "rate": -0.073188,
+          "rate8h": -0.585504,
+          "nextFundingTime": 1795593600000,
           "fundingIntervalHours": 1
         },
         {
           "name": "Aster",
-          "rate": -0.065449,
-          "rate8h": -0.523592,
-          "nextFundingTime": 1795590000000,
+          "rate": -0.062958,
+          "rate8h": -0.503664,
+          "nextFundingTime": 1795593600000,
           "fundingIntervalHours": 1
         }
       ],
-      "oiWeightedRate8h": -0.31003124,
-      "annualizedAprPct": -339.4842,
-      "fundingSpreadBps": 59.5,
+      "oiWeightedRate8h": -0.25274432,
+      "annualizedAprPct": -276.755,
+      "fundingSpreadBps": 66.55,
       "spreadVenues": [
-        "Bybit",
-        "Binance"
+        "LBank",
+        "Hotcoin"
       ]
     },
     "basis": {
       "spotPair": "INITUSDT",
-      "spotPrice": 0.08627,
-      "perpPrice": null,
-      "basisPct": null,
-      "fundingImpliedAprPct": -339.4842,
+      "spotPrice": 0.08886,
+      "perpPrice": 0.08791,
+      "basisPct": -1.0691,
+      "fundingImpliedAprPct": -276.755,
       "coinbasePremiumBps": null,
       "coinbaseReason": "Coinbase premium tracked for BTC/ETH/SOL only"
     },
     "notes": [
-      "lsRatios: all Binance /futures/data endpoints failed for this pair",
       "taker buyVolUsd/sellVolUsd = Binance base-asset taker volume converted at the perp last price",
       "funding: no per-venue OI available \u2014 oiWeightedRate8h is the equal-weight mean",
       "funding rates are percent per interval; annualizedAprPct = oiWeightedRate8h(%) x 3 x 365",
@@ -413,51 +592,21 @@
   "book_walls": {
     "futures": {
       "m15": {
-        "imbalance": -0.0062488553063939365,
-        "imbalance5mAgo": 0.004449116228233491,
-        "bidDepth": 307424.75850000005,
-        "askDepth": 311291.0239,
+        "imbalance": 0.09333436594180809,
+        "imbalance5mAgo": -0.039458602384754654,
+        "bidDepth": 340690.61110000004,
+        "askDepth": 282523.3328,
         "largestBid": null,
         "largestAsk": null,
         "walls": [
           {
-            "side": "b",
-            "price": 0.085,
-            "usd": 33823.675800000005,
-            "qty": 397458,
-            "distPct": -0.12,
+            "side": "a",
+            "price": 0.0878,
+            "usd": 19755.6129,
+            "qty": 224751,
+            "distPct": 0.34,
             "firstSeen": 1795588200000,
-            "ageMs": 1800000,
-            "touched": true
-          },
-          {
-            "side": "b",
-            "price": 0.0848,
-            "usd": 29762.374200000002,
-            "qty": 350558,
-            "distPct": -0.35,
-            "firstSeen": 1795589100000,
-            "ageMs": 900000,
-            "touched": false
-          },
-          {
-            "side": "b",
-            "price": 0.08460000000000001,
-            "usd": 26056.515100000004,
-            "qty": 307633,
-            "distPct": -0.59,
-            "firstSeen": 1795588200000,
-            "ageMs": 1800000,
-            "touched": false
-          },
-          {
-            "side": "b",
-            "price": 0.0858,
-            "usd": 20894.144200000002,
-            "qty": 243238,
-            "distPct": 0.82,
-            "firstSeen": 1795585500000,
-            "ageMs": 4500000,
+            "ageMs": 2700000,
             "touched": true
           },
           {
@@ -465,18 +614,58 @@
             "price": 0.08700000000000001,
             "usd": 41961.7315,
             "qty": 481765,
-            "distPct": 2.23,
+            "distPct": -0.57,
             "firstSeen": 1795588200000,
-            "ageMs": 1800000,
+            "ageMs": 2700000,
+            "touched": true
+          },
+          {
+            "side": "a",
+            "price": 0.08800000000000001,
+            "usd": 39273.92280000001,
+            "qty": 445788,
+            "distPct": 0.57,
+            "firstSeen": 1795586400000,
+            "ageMs": 4500000,
             "touched": false
           },
           {
             "side": "a",
-            "price": 0.0878,
-            "usd": 26403.841500000002,
-            "qty": 300385,
-            "distPct": 3.17,
+            "price": 0.0882,
+            "usd": 26601.169700000002,
+            "qty": 301259,
+            "distPct": 0.8,
+            "firstSeen": 1795585500000,
+            "ageMs": 5400000,
+            "touched": false
+          },
+          {
+            "side": "b",
+            "price": 0.0858,
+            "usd": 20894.144200000002,
+            "qty": 243238,
+            "distPct": -1.94,
+            "firstSeen": 1795585500000,
+            "ageMs": 5400000,
+            "touched": true
+          },
+          {
+            "side": "b",
+            "price": 0.085,
+            "usd": 21686.5436,
+            "qty": 254836,
+            "distPct": -2.86,
             "firstSeen": 1795588200000,
+            "ageMs": 2700000,
+            "touched": false
+          },
+          {
+            "side": "b",
+            "price": 0.0848,
+            "usd": 33929.605800000005,
+            "qty": 399642,
+            "distPct": -3.09,
+            "firstSeen": 1795589100000,
             "ageMs": 1800000,
             "touched": false
           }
@@ -487,8 +676,8 @@
             "type": "add",
             "side": "b",
             "p": 0.0848,
-            "usd": 29762.374200000002,
-            "qty": 350558
+            "usd": 33929.605800000005,
+            "qty": 399642
           },
           {
             "t": 1795589100000,
@@ -525,22 +714,52 @@
         ]
       },
       "h1": {
-        "imbalance": -0.1462564643271223,
+        "imbalance": 0.010558621135822678,
         "imbalance5mAgo": 0.010558621135822678,
-        "bidDepth": 207549.3394,
-        "askDepth": 278660.7008,
+        "bidDepth": 327649.09750000003,
+        "askDepth": 320802.3444,
         "largestBid": null,
         "largestAsk": null,
         "walls": [
           {
             "side": "a",
             "price": 0.0876,
-            "usd": 20713.4245,
-            "qty": 236185,
-            "distPct": 2.94,
+            "usd": 38076.5336,
+            "qty": 434168,
+            "distPct": 0.81,
             "firstSeen": 1795586400000,
             "ageMs": 3600000,
-            "touched": false
+            "touched": true
+          },
+          {
+            "side": "b",
+            "price": 0.08600000000000001,
+            "usd": 43790.115600000005,
+            "qty": 508596,
+            "distPct": -1.04,
+            "firstSeen": 1795586400000,
+            "ageMs": 3600000,
+            "touched": true
+          },
+          {
+            "side": "a",
+            "price": 0.08800000000000001,
+            "usd": 41976.918900000004,
+            "qty": 476469,
+            "distPct": 1.27,
+            "firstSeen": 1795586400000,
+            "ageMs": 3600000,
+            "touched": true
+          },
+          {
+            "side": "b",
+            "price": 0.08560000000000001,
+            "usd": 38610.76380000001,
+            "qty": 450534,
+            "distPct": -1.5,
+            "firstSeen": 1795586400000,
+            "ageMs": 3600000,
+            "touched": true
           }
         ],
         "events": [
@@ -548,51 +767,51 @@
             "t": 1795586400000,
             "type": "add",
             "side": "a",
-            "p": 0.0876,
-            "usd": 20713.4245,
-            "qty": 236185
+            "p": 0.08800000000000001,
+            "usd": 41976.918900000004,
+            "qty": 476469
           },
           {
-            "t": 1795582800000,
-            "type": "fill",
+            "t": 1795586400000,
+            "type": "add",
             "side": "a",
-            "p": 0.0892,
-            "usd": 39645.0029,
-            "qty": 402006
+            "p": 0.0876,
+            "usd": 38076.5336,
+            "qty": 434168
           },
           {
-            "t": 1795572000000,
+            "t": 1795586400000,
             "type": "add",
             "side": "b",
+            "p": 0.08600000000000001,
+            "usd": 43790.115600000005,
+            "qty": 508596
+          },
+          {
+            "t": 1795586400000,
+            "type": "add",
+            "side": "b",
+            "p": 0.08560000000000001,
+            "usd": 38610.76380000001,
+            "qty": 450534
+          },
+          {
+            "t": 1795575600000,
+            "type": "fill",
+            "side": "a",
             "p": 0.0874,
-            "usd": 20055.0875,
-            "qty": 229201
-          },
-          {
-            "t": 1795572000000,
-            "type": "fill",
-            "side": "a",
-            "p": 0.08700000000000001,
-            "usd": 44919.299100000004,
-            "qty": 235164
-          },
-          {
-            "t": 1795572000000,
-            "type": "fill",
-            "side": "a",
-            "p": 0.0876,
-            "usd": 43300.3841,
-            "qty": 481365
+            "usd": 39973.50000000001,
+            "qty": 371027
           }
         ]
       }
     },
     "spot": {
       "m15": {
-        "imbalance": -0.07872865698540929,
-        "imbalance5mAgo": 0.045299632396193716,
-        "bidDepth": 33386.21256000001,
-        "askDepth": 39092.352660000004,
+        "imbalance": 0.16723012187033998,
+        "imbalance5mAgo": 0.05194654629306776,
+        "bidDepth": 44980.57561,
+        "askDepth": 32091.759600000005,
         "largestBid": null,
         "largestAsk": null,
         "walls": [],
@@ -1821,16 +2040,16 @@
     "funding": [
       {
         "name": "Binance",
-        "rate": -0.073125,
-        "rate8h": -0.585,
+        "rate": -0.067222,
+        "rate8h": -0.537776,
         "fundingIntervalHours": 1,
-        "nextFundingTime": 1795590000000,
+        "nextFundingTime": 1795593600000,
         "status": 1
       },
       {
         "name": "OKX",
-        "rate": -0.126073,
-        "rate8h": -0.252147,
+        "rate": -0.082396,
+        "rate8h": -0.164793,
         "fundingIntervalHours": 4,
         "nextFundingTime": 1795593600000,
         "status": 1
@@ -1840,23 +2059,23 @@
         "rate": 0.00125,
         "rate8h": 0.01,
         "fundingIntervalHours": 1,
-        "nextFundingTime": 1795590000000,
+        "nextFundingTime": 1795593600000,
         "status": 1
       },
       {
         "name": "KuCoin",
-        "rate": -0.0356,
-        "rate8h": -0.2848,
+        "rate": -0.0303,
+        "rate8h": -0.2424,
         "fundingIntervalHours": 1,
-        "nextFundingTime": 1795589970493,
+        "nextFundingTime": 1795593585328,
         "status": 1
       },
       {
         "name": "MEXC",
-        "rate": -0.073,
-        "rate8h": -0.584,
+        "rate": -0.0684,
+        "rate8h": -0.5472,
         "fundingIntervalHours": 1,
-        "nextFundingTime": 1795590000000,
+        "nextFundingTime": 1795593600000,
         "status": 1
       },
       {
@@ -1875,26 +2094,26 @@
       },
       {
         "name": "HTX",
-        "rate": -0.100701,
-        "rate8h": -0.100701,
+        "rate": -0.080563,
+        "rate8h": -0.080563,
         "fundingIntervalHours": 8,
-        "nextFundingTime": 1795590000000,
+        "nextFundingTime": 1795593600000,
         "status": 1
       },
       {
         "name": "BingX",
-        "rate": -0.0697,
-        "rate8h": -0.5576,
+        "rate": -0.0682,
+        "rate8h": -0.5456,
         "fundingIntervalHours": 1,
         "nextFundingTime": 1795593600000,
         "status": 1
       },
       {
         "name": "Gate",
-        "rate": -0.12447,
-        "rate8h": -0.24894,
+        "rate": -0.10412,
+        "rate8h": -0.20824,
         "fundingIntervalHours": 4,
-        "predictedRate": -0.12447,
+        "predictedRate": -0.10412,
         "nextFundingTime": 1795593600000,
         "status": 2
       },
@@ -1903,31 +2122,31 @@
         "rate": 0.105904,
         "rate8h": 0.847229,
         "fundingIntervalHours": 1,
-        "predictedRate": -0.046348,
-        "nextFundingTime": 1795590000000,
+        "predictedRate": -0.059945,
+        "nextFundingTime": 1795593600000,
         "status": 2
       },
       {
         "name": "Hyperliquid",
-        "rate": -0.02912,
-        "rate8h": -0.23296,
+        "rate": -0.046185,
+        "rate8h": -0.369481,
         "fundingIntervalHours": 1,
-        "nextFundingTime": 1795590000000,
+        "nextFundingTime": 1795593600000,
         "status": 1
       },
       {
         "name": "Bitunix",
-        "rate": -0.073062,
-        "rate8h": -0.073062,
+        "rate": -0.07184,
+        "rate8h": -0.07184,
         "fundingIntervalHours": 8,
         "status": 1
       },
       {
         "name": "Bitget",
-        "rate": -0.0065,
-        "rate8h": -0.052,
+        "rate": 0.0013,
+        "rate8h": 0.0104,
         "fundingIntervalHours": 1,
-        "nextFundingTime": 1795590000000,
+        "nextFundingTime": 1795593600000,
         "status": 1
       },
       {
@@ -1935,23 +2154,23 @@
         "rate": 0.00125,
         "rate8h": 0.01,
         "fundingIntervalHours": 1,
-        "nextFundingTime": 1795590000000,
+        "nextFundingTime": 1795593600000,
         "status": 1
       },
       {
         "name": "LBank",
-        "rate": -0.073047,
-        "rate8h": -0.584376,
+        "rate": 0.01,
+        "rate8h": 0.08,
         "fundingIntervalHours": 1,
-        "nextFundingTime": 1795590000000,
+        "nextFundingTime": 1795593600000,
         "status": 1
       },
       {
         "name": "Hotcoin",
-        "rate": -0.066275,
-        "rate8h": -0.5302,
+        "rate": -0.073188,
+        "rate8h": -0.585504,
         "fundingIntervalHours": 1,
-        "nextFundingTime": 1795590000000,
+        "nextFundingTime": 1795593600000,
         "status": 1
       },
       {
@@ -1963,10 +2182,10 @@
       },
       {
         "name": "Aster",
-        "rate": -0.065449,
-        "rate8h": -0.523592,
+        "rate": -0.062958,
+        "rate8h": -0.503664,
         "fundingIntervalHours": 1,
-        "nextFundingTime": 1795590000000,
+        "nextFundingTime": 1795593600000,
         "status": 1
       },
       {
