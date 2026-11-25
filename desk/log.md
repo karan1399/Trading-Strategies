@@ -20153,3 +20153,11 @@ Live MT5 #5126976 trailing SL ratchet executed (Bal=$2570.35, Eq=$2584.91, Cap1%
   * MODIFY SLTP: UNIUSD.p #20475921 (SELL 0.05 @ 4.740, +$7.55 / +1.51R) -> SL 4.702 -> 4.680 (TP 4.535 held; +$3.00 / +0.60R locked above MT5 M15 EMA89 4.6710 & 4.64/4.66 ask walls; retcode=10009).
   * HOLD: BNBUSD.p #20432336 (SL 554.50, +$1.22 locked), EURUSD.pi #20467916 (effRisk $5.36), ETHUSD.pi #20496681 (0.18 @ 1695.50, $5.22), USWTI.p #20496682 (0.05 @ 82.38, $5.50).
   * Aggregate Book Risk: $5.36 open + $10.72 pending = $16.08 USD (0.622% <= 1.000% Cap). desk/state.json legacy 2026-11-22 snapshot remains superseded by live MT5 readback.
+
+## CLOSE & REPLACE · 2026-11-25 07:47 UTC · Antigravity (R18)
+
+Realized TP & Limit Re-Anchor on MT5 #5126976 (Bal=$2580.62, Eq=$2587.67, Cap1%=$25.88):
+  * TP CLOSED: UNIUSD.p #20475921 (deal#18587579 @ 4.534, +$10.30 gross / -$0.03 swap = +$10.27 net).
+  * CANCEL + REPLACE: ETHUSD.pi #20496681 cancelled after spot swept 1,634.9 through TP 1,637.50; staged #20498955 SELL_LIMIT 0.15 @ 1,671.50, SL 1,707.50, TP 1,599.50 ($5.40 risk, 2.00R, retcode=10009).
+  * HOLD: BNBUSD.p #20432336 (SL 554.50, +$1.22 locked), EURUSD.pi #20467916 (effRisk $5.36), USWTI.p #20496682 (0.05 @ 82.38, $5.50).
+  * Aggregate Book Risk: $5.36 open + $10.90 pending = $16.26 USD (0.628% <= 1.000% Cap).
