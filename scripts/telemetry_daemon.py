@@ -147,6 +147,7 @@ CACHES: Dict[str, BoundedTTLCache] = {
     "lo": BoundedTTLCache(max_entries=120, max_bytes=2 * 1024 * 1024),
     "lto": BoundedTTLCache(max_entries=120, max_bytes=2 * 1024 * 1024),
     "perpdepth": BoundedTTLCache(max_entries=32, max_bytes=1 * 1024 * 1024),
+    "cards": BoundedTTLCache(max_entries=120, max_bytes=2 * 1024 * 1024),
     "fp_sig": BoundedTTLCache(max_entries=140, max_bytes=3 * 1024 * 1024),
     "fp_meta": BoundedTTLCache(max_entries=220, max_bytes=4 * 1024 * 1024),
     "classic": BoundedTTLCache(max_entries=32, max_bytes=1 * 1024 * 1024),
@@ -1020,6 +1021,7 @@ class AsyncTelemetryHarvester:
         iso_now = datetime.now(timezone.utc).isoformat()
         existing_profile = _read_json_if_exists(os.path.join(ASSETS_DIR, f"{sym}.json"))
         existing_smap: Dict[str, Any] = {}
+        existing_keep: Dict[str, Any] = {}
         if isinstance(existing_profile, dict):
             raw_smap = (existing_profile.get("liquidations") or {}).get("stopmap")
             if isinstance(raw_smap, dict):
@@ -1027,6 +1029,23 @@ class AsyncTelemetryHarvester:
                     k: v for k, v in raw_smap.items()
                     if isinstance(v, dict) and k != "rolling_archive_shared_across"
                 }
+            for k in (
+                "market_structure", "narrative_engine", "athena_oracle",
+                "microstructure_l2_l3", "quant_positioning", "options_deribit",
+                "playbook_cards", "backtest_metrics", "cot_report", "funding_and_oi",
+            ):
+                if existing_profile.get(k):
+                    existing_keep[k] = existing_profile[k]
+            if (existing_profile.get("liquidations") or {}).get("clusters"):
+                existing_keep["liq_clusters"] = existing_profile["liquidations"]["clusters"]
+            if (existing_profile.get("liquidations") or {}).get("live_prints_tape"):
+                existing_keep["liq_tape"] = existing_profile["liquidations"]["live_prints_tape"]
+            if existing_profile.get("book_walls"):
+                existing_keep["book_walls"] = existing_profile["book_walls"]
+            if existing_profile.get("cvd"):
+                existing_keep["cvd"] = existing_profile["cvd"]
+            if (existing_profile.get("footprint") or {}).get("signals"):
+                existing_keep["fp_signals"] = existing_profile["footprint"]["signals"]
         del existing_profile
         profile: Dict[str, Any] = {
             "symbol": sym,
@@ -1335,7 +1354,7 @@ class AsyncTelemetryHarvester:
         tasks["lo"] = self.cached_get("lo", sym, 300.0 if is_prime else 900.0, f"/api/cg/largeorder?symbol=Binance_{sym}USDT&interval=m15&hours=24", timeout=10, heavy=False)
         tasks["lto"] = self.cached_get("lto", sym, 180.0 if is_prime else 900.0, f"/api/cg/lto?symbol={sym}", timeout=12, heavy=False)
         if is_prime:
-            tasks["cards"] = self.fetch_json(f"/api/strategy/cards?sym={sym}", timeout=8)
+            tasks["cards"] = self.cached_get("cards", sym, 600.0, f"/api/strategy/cards?sym={sym}", timeout=8, heavy=False)
         tasks["bt"] = self.cached_get(
             "backtest",
             sym,
@@ -1549,6 +1568,30 @@ class AsyncTelemetryHarvester:
                 "updated_at": iso_now,
                 "timeframes": mtf_summary,
             })
+
+        # Preserve prior valid non-empty sections on transient upstream 429/fapi cooldowns
+        for k in (
+            "market_structure", "narrative_engine", "athena_oracle",
+            "microstructure_l2_l3", "quant_positioning", "options_deribit",
+            "playbook_cards", "backtest_metrics", "cot_report", "funding_and_oi",
+        ):
+            if not profile.get(k) and existing_keep.get(k):
+                profile[k] = existing_keep[k]
+        if not profile["liquidations"]["clusters"] and existing_keep.get("liq_clusters"):
+            profile["liquidations"]["clusters"] = existing_keep["liq_clusters"]
+        if not profile["liquidations"]["live_prints_tape"] and existing_keep.get("liq_tape"):
+            profile["liquidations"]["live_prints_tape"] = existing_keep["liq_tape"]
+        for mkt_k in ("futures", "spot"):
+            if not profile["book_walls"][mkt_k] and ((existing_keep.get("book_walls") or {}).get(mkt_k)):
+                profile["book_walls"][mkt_k] = existing_keep["book_walls"][mkt_k]
+        if not profile["book_walls"].get("live_binance") and ((existing_keep.get("book_walls") or {}).get("live_binance")):
+            profile["book_walls"]["live_binance"] = existing_keep["book_walls"]["live_binance"]
+        for c_k in ("perp", "spot", "split"):
+            if not profile["cvd"][c_k] and ((existing_keep.get("cvd") or {}).get(c_k)):
+                profile["cvd"][c_k] = existing_keep["cvd"][c_k]
+        if not profile["footprint"]["signals"] and existing_keep.get("fp_signals"):
+            profile["footprint"]["signals"] = existing_keep["fp_signals"]
+        del existing_keep
 
         # Stream-write full asset profile immediately and keep ONLY compact 2 KB summary in RAM!
         target_file = os.path.join(ASSETS_DIR, f"{sym}.json")
@@ -1840,10 +1883,10 @@ async def async_main() -> None:
         if idx + 1 < len(sys.argv):
             bench_cycles = max(1, int(sys.argv[idx + 1]))
 
-    concurrency = int(os.environ.get("TELEMETRY_CONCURRENCY", os.environ.get("TELEMETRY_WORKERS", "8")))
+    concurrency = int(os.environ.get("TELEMETRY_CONCURRENCY", os.environ.get("TELEMETRY_WORKERS", "4")))
     cg_heavy_concurrency = int(os.environ.get("TELEMETRY_CG_CONCURRENCY", "2"))
-    worker_count = int(os.environ.get("TELEMETRY_ASSET_WORKERS", "3"))
-    interval = int(os.environ.get("TELEMETRY_INTERVAL_SECS", "10"))
+    worker_count = int(os.environ.get("TELEMETRY_ASSET_WORKERS", "2"))
+    interval = int(os.environ.get("TELEMETRY_INTERVAL_SECS", "25"))
     tail_batch = int(os.environ.get("TELEMETRY_TAIL_BATCH", "20"))
     git_sync_secs = 0 if no_git else int(os.environ.get("TELEMETRY_GIT_SYNC_SECS", "600"))
 
@@ -1902,6 +1945,7 @@ async def async_main() -> None:
                                 sym_req, sym_req in prime_set, mt5_quotes_by_cg.get(sym_req)
                             )
                             harvested_summaries[sym_k] = summary
+                            await asyncio.sleep(0.25)
                         except Exception as exc:
                             print(f"  [ERROR] Asset {sym_req} harvesting failed: {exc}", file=sys.stderr, flush=True)
                         finally:
