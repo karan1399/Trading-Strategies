@@ -3664,3 +3664,9 @@ Empirical audit of today's MT5 deal history reveals the exact root causes of sto
 
 **Confidence:** VERIFIED (Delta balances/positions/orders + MT5 readback + 252/252 telemetry audit + antigravity_selfcheck.py).
 
+
+### [2026-11-25T12:22:00Z] · Antigravity · ZERO-CACHE 252-ASSET AUDIT, BTC TRAILING SL, FILUSD ENTRY & WS-14 MT5 RE-ANCHORS — R28 (17:52 IST)
+**Verdict:** Completed fresh zero-cache audit of all 252 assets and 168 footprint directories (artifact ALL_252_ASSETS_QUANT_AUDIT_20261125.md) + cleaned __pycache__. **DELTA EXCHANGE #26902927 EXECUTED:** (1) Trailed BTCUSD -1 @ 60337 SL atomically 59850 -> 59520.0 (#1714517851 placed first, #1714234069 cancelled cleanly; locks +$0.817 above M15 EMA89 59447 & Day VAH 59405 while mark=58591, uPnL=+$1.7450, +282% ROE); (2) Staged #1714518260 FILUSD SELL_LIMIT 1 @ 0.5340 (post_only=true, SL 0.5465 clears 0.5415 3d/7d/30d peaks, TP 0.5090, $0.0125 risk=0.88%, 2.00R); kept #1714234905 ADAUSD. **MT5 #5126976 WS-14 RE-ANCHORS (etcode=10009):** (1) Modified #20501509 ETHUSD.pi -> 1662.50 / SL 1716.50 / TP 1554.50 ($5.40, 2.00R, clears 1696.17 30d peak + 2.29 ATR); (2) Modified #20502882 JP225.p -> Session POC 56450.0 / SL 57050.0 / TP 55250.0 ($2.64, 2.00R). Kept BNBUSD.p (#20432336), EURUSD.pi (#20467916), GBPNZD.pi (#20499902), NOKJPY.pi (#20501510).
+
+**Confidence:** VERIFIED (Delta & MT5 post-exec readbacks + 252/252 audit + :3000 live checks + antigravity_selfcheck.py).
+
