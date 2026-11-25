@@ -1086,33 +1086,54 @@ class AsyncTelemetryHarvester:
         if sym in ("BTC", "ETH"):
             tasks["opt"] = self.fetch_json(f"/api/cg/options?sym={sym}", timeout=8)
 
-        # Liquidation Clusters 3d / 7d / 30d
+        # Liquidation Clusters 3d / 7d / 30d (fast cache/REST)
         for rng in ("3d", "7d", "30d"):
             tasks[f"liq_{rng}"] = self.cached_get(
                 "liq", (sym, rng), 90.0 if is_prime else 900.0,
-                f"/api/cg/liqlevels?sym={sym}&range={rng}", timeout=10, heavy=True
+                f"/api/cg/liqlevels?sym={sym}&range={rng}", timeout=12, heavy=False
             )
 
-        # Fetch Model 1 24h first so if asset uses rolling snapshot fallback we avoid 4 duplicate upstream calls
-        sm_m1_24h = await self.cached_get(
-            "stopmap",
-            (sym, "1", "coin", "24h"),
-            120.0 if is_prime else 900.0,
-            f"/api/cg/stopmap?sym={sym}&model=1&mode=coin&range=24h",
-            timeout=14,
-            transform=summarize_stopmap_payload,
-            heavy=True,
-        )
+        # Fetch Model 1 24h (all) & Model 1 3d (Prime) concurrently; fetch 7d/M2/M3 when native or deep core
+        sm_first_tasks = [
+            self.cached_get(
+                "stopmap",
+                (sym, "1", "coin", "24h"),
+                120.0 if is_prime else 900.0,
+                f"/api/cg/stopmap?sym={sym}&model=1&mode=coin&range=24h",
+                timeout=22,
+                transform=summarize_stopmap_payload,
+                heavy=True,
+            )
+        ]
+        if is_prime:
+            sm_first_tasks.append(
+                self.cached_get(
+                    "stopmap",
+                    (sym, "1", "coin", "3d"),
+                    240.0,
+                    f"/api/cg/stopmap?sym={sym}&model=1&mode=coin&range=3d",
+                    timeout=22,
+                    transform=summarize_stopmap_payload,
+                    heavy=True,
+                )
+            )
+        sm_first_res = await asyncio.gather(*sm_first_tasks, return_exceptions=True)
+        sm_m1_24h = sm_first_res[0] if not isinstance(sm_first_res[0], Exception) else None
+        sm_m1_3d = sm_first_res[1] if (len(sm_first_res) > 1 and not isinstance(sm_first_res[1], Exception)) else None
         if sm_m1_24h:
             profile["liquidations"]["stopmap"]["m1_coin_24h"] = sm_m1_24h
+        if sm_m1_3d:
+            profile["liquidations"]["stopmap"]["m1_coin_3d"] = sm_m1_3d
 
-        is_native_sm = bool(sm_m1_24h and sm_m1_24h.get("kind") == "native_heatmap_grid")
+        is_native_sm = bool(
+            (sm_m1_24h and sm_m1_24h.get("kind") == "native_heatmap_grid")
+            or (sm_m1_3d and sm_m1_3d.get("kind") == "native_heatmap_grid")
+        )
         sm_specs: List[Tuple[str, str, str, str, float]] = []
         if is_native_sm or is_deep_core:
-            sm_specs.extend([
-                ("m1_coin_3d", "1", "coin", "3d", 240.0 if is_prime else 900.0),
-                ("m1_coin_7d", "1", "coin", "7d", 600.0 if is_prime else 1800.0),
-            ])
+            sm_specs.append(("m1_coin_7d", "1", "coin", "7d", 600.0 if is_prime else 1800.0))
+            if not is_prime:
+                sm_specs.append(("m1_coin_3d", "1", "coin", "3d", 900.0))
             if is_deep_core:
                 sm_specs.extend([
                     ("m2_coin_3d", "2", "coin", "3d", 600.0),
@@ -1127,22 +1148,22 @@ class AsyncTelemetryHarvester:
                 (sym, mdl, mode, rng),
                 ttl_s,
                 f"/api/cg/stopmap?sym={sym}&model={mdl}&mode={mode}&range={rng}",
-                timeout=14,
+                timeout=22,
                 transform=summarize_stopmap_payload,
                 heavy=True,
             )
 
-        # Book Walls across timeframes (smart caching & 4h on deep core so Coinglass never 429s)
+        # Book Walls across timeframes (timeout=24s so XAU/majors never drop under queue wait)
         bw_specs = [
-            ("futures", "m15", 90.0 if is_prime else 900.0, 150),
-            ("futures", "1h", 240.0 if is_prime else 900.0, 150),
-            ("spot", "m15", 180.0 if is_prime else 900.0, 150),
+            ("futures", "m15", 120.0 if is_prime else 900.0, 150),
+            ("futures", "1h", 300.0 if is_prime else 900.0, 150),
+            ("spot", "m15", 240.0 if is_prime else 900.0, 150),
         ]
         if is_prime:
             bw_specs.extend([
-                ("futures", "1m", 180.0, 150),
-                ("futures", "5m", 300.0, 150),
-                ("spot", "1h", 360.0, 150),
+                ("futures", "1m", 300.0, 150),
+                ("futures", "5m", 480.0, 150),
+                ("spot", "1h", 480.0, 150),
             ])
         if is_deep_core:
             bw_specs.append(("futures", "4h", 1800.0, 60))
@@ -1153,7 +1174,7 @@ class AsyncTelemetryHarvester:
                 (sym, mkt_type, itv, lim),
                 ttl_s,
                 f"/api/cg/bookwalls?sym={sym}&market={mkt_type}&interval={itv}&limit={lim}&band=5",
-                timeout=14,
+                timeout=24,
                 transform=build_compact_bookwalls,
                 heavy=True,
             )
@@ -1164,12 +1185,12 @@ class AsyncTelemetryHarvester:
             for c_itv in ("m15", "h1"):
                 tasks[f"cvd_{c_mode}_{c_itv}"] = self.cached_get(
                     "cvd", (sym, c_mode, c_itv), 90.0 if is_prime else 900.0,
-                    f"/api/cg/cvd?sym={sym}&mode={c_mode}&itv={c_itv}&anchor=day", timeout=12, heavy=True
+                    f"/api/cg/cvd?sym={sym}&mode={c_mode}&itv={c_itv}&anchor=day", timeout=14, heavy=False
                 )
 
         # Large orders, LTO, Playbook cards, Backtest, COT, Signals
-        tasks["lo"] = self.cached_get("lo", sym, 300.0 if is_prime else 900.0, f"/api/cg/largeorder?symbol=Binance_{sym}USDT&interval=m15&hours=24", timeout=8, heavy=True)
-        tasks["lto"] = self.cached_get("lto", sym, 180.0 if is_prime else 900.0, f"/api/cg/lto?symbol={sym}", timeout=10, heavy=True)
+        tasks["lo"] = self.cached_get("lo", sym, 300.0 if is_prime else 900.0, f"/api/cg/largeorder?symbol=Binance_{sym}USDT&interval=m15&hours=24", timeout=10, heavy=False)
+        tasks["lto"] = self.cached_get("lto", sym, 180.0 if is_prime else 900.0, f"/api/cg/lto?symbol={sym}", timeout=12, heavy=False)
         if is_prime:
             tasks["cards"] = self.fetch_json(f"/api/strategy/cards?sym={sym}", timeout=8)
         tasks["bt"] = self.cached_get(
@@ -1186,7 +1207,7 @@ class AsyncTelemetryHarvester:
             },
         )
         tasks["cot"] = self.cached_get("cot", sym, 3600.0, f"/api/cg/cot?sym={sym}&quiet=1", timeout=6)
-        tasks["sg"] = self.cached_get("fp_sig", sym, 90.0 if is_prime else 900.0, f"/api/cg/signals?sym={sym}&bt=all", timeout=12, heavy=True)
+        tasks["sg"] = self.cached_get("fp_sig", sym, 90.0 if is_prime else 900.0, f"/api/cg/signals?sym={sym}&bt=all", timeout=14, heavy=False)
 
         results_list = await asyncio.gather(*tasks.values(), return_exceptions=True)
         res_map = {k: (v if not isinstance(v, Exception) else None) for k, v in zip(tasks.keys(), results_list)}
@@ -1334,23 +1355,17 @@ class AsyncTelemetryHarvester:
                 "signals": all_sigs,
             })
 
-        # Footprint Timeframes (15m 7d incremental splice + 1h 7d incremental splice + m5/m30/h4 summary_mtf)
-        fp_m15_task = self._harvest_fp_timeframe(
-            sym, "m15", "15m", "bars_15m_7d.json", "summary_7d.json", "cum_delta_7d",
-            target_bars=672, delta_limit=32, is_prime=is_prime, ttl_secs=0.0 if is_prime else 900.0
+        # Footprint Timeframes (15m 7d incremental splice + 1h 7d incremental splice; extra m5/m30/h4 only if buckets supported!)
+        h7_meta, h1_meta = await asyncio.gather(
+            self._harvest_fp_timeframe(
+                sym, "m15", "15m", "bars_15m_7d.json", "summary_7d.json", "cum_delta_7d",
+                target_bars=672, delta_limit=32, is_prime=is_prime, ttl_secs=0.0 if is_prime else 900.0
+            ),
+            self._harvest_fp_timeframe(
+                sym, "h1", "1h", "bars_1h.json", "summary_1h.json", "cum_delta_1h",
+                target_bars=168, delta_limit=12, is_prime=is_prime, ttl_secs=180.0 if is_prime else 900.0
+            ),
         )
-        fp_h1_task = self._harvest_fp_timeframe(
-            sym, "h1", "1h", "bars_1h.json", "summary_1h.json", "cum_delta_1h",
-            target_bars=168, delta_limit=12, is_prime=is_prime, ttl_secs=120.0 if is_prime else 900.0
-        )
-        fp_results = [fp_m15_task, fp_h1_task]
-        extra_tfs = [("m5", "5m", 300.0), ("m30", "30m", 600.0), ("h4", "4h", 900.0)] if is_prime else []
-        for itv, lbl, ttl_s in extra_tfs:
-            fp_results.append(self._probe_fp_summary_light(sym, itv, lbl, ttl_s))
-
-        fp_out = await asyncio.gather(*fp_results, return_exceptions=True)
-        h7_meta = fp_out[0] if not isinstance(fp_out[0], Exception) else None
-        h1_meta = fp_out[1] if not isinstance(fp_out[1], Exception) else None
         if h7_meta:
             profile["footprint"]["history_7d"] = h7_meta
         if h1_meta:
@@ -1361,10 +1376,17 @@ class AsyncTelemetryHarvester:
             mtf_summary["m15"] = self._compact_tf_rollup(h7_meta)
         if h1_meta:
             mtf_summary["h1"] = self._compact_tf_rollup(h1_meta)
-        for idx, (itv, _, _) in enumerate(extra_tfs):
-            r = fp_out[2 + idx]
-            if not isinstance(r, Exception) and r:
-                mtf_summary[itv] = r
+
+        has_buckets = bool((h7_meta and h7_meta.get("buckets_available")) or (h1_meta and h1_meta.get("buckets_available")))
+        if is_prime and has_buckets:
+            extra_tfs = [("m5", "5m", 300.0), ("m30", "30m", 600.0), ("h4", "4h", 900.0)]
+            extra_res = await asyncio.gather(
+                *(self._probe_fp_summary_light(sym, itv, lbl, ttl_s) for itv, lbl, ttl_s in extra_tfs),
+                return_exceptions=True,
+            )
+            for (itv, _, _), r in zip(extra_tfs, extra_res):
+                if not isinstance(r, Exception) and r:
+                    mtf_summary[itv] = r
         if mtf_summary:
             profile["footprint"]["multi_tf"] = mtf_summary
             sym_fp_dir = os.path.join(FOOTPRINT_DIR, sym)
@@ -1665,8 +1687,9 @@ async def async_main() -> None:
         if idx + 1 < len(sys.argv):
             bench_cycles = max(1, int(sys.argv[idx + 1]))
 
-    concurrency = int(os.environ.get("TELEMETRY_CONCURRENCY", os.environ.get("TELEMETRY_WORKERS", "6")))
-    cg_heavy_concurrency = int(os.environ.get("TELEMETRY_CG_CONCURRENCY", "3"))
+    concurrency = int(os.environ.get("TELEMETRY_CONCURRENCY", os.environ.get("TELEMETRY_WORKERS", "8")))
+    cg_heavy_concurrency = int(os.environ.get("TELEMETRY_CG_CONCURRENCY", "4"))
+    worker_count = int(os.environ.get("TELEMETRY_ASSET_WORKERS", "6"))
     interval = int(os.environ.get("TELEMETRY_INTERVAL_SECS", "10"))
     tail_batch = int(os.environ.get("TELEMETRY_TAIL_BATCH", "20"))
     git_sync_secs = 0 if no_git else int(os.environ.get("TELEMETRY_GIT_SYNC_SECS", "600"))
@@ -1676,7 +1699,7 @@ async def async_main() -> None:
 
     print("==================================================================", flush=True)
     print(f"Starting Async Zero-Leak Order-Flow + MT5 Telemetry Engine v5.0 ({loop_name})", flush=True)
-    print(f"Concurrency(fast/cg): {concurrency}/{cg_heavy_concurrency} | Pause: {interval}s | Tail Batch: {tail_batch} | Git Sync: {git_sync_secs}s | Start RSS: {baseline_rss:.1f}MB", flush=True)
+    print(f"Workers: {worker_count} | Sem(fast/cg): {concurrency}/{cg_heavy_concurrency} | Pause: {interval}s | Tail Batch: {tail_batch} | Git Sync: {git_sync_secs}s | Start RSS: {baseline_rss:.1f}MB", flush=True)
     print("==================================================================", flush=True)
 
     cycle_num = 0
@@ -1700,7 +1723,7 @@ async def async_main() -> None:
                     flush=True,
                 )
 
-                # 2. Fast-Lane Prime Tier + rotating stalest-first Tail batch
+                # 2. Fast-Lane Prime Tier + rotating stalest-first Tail batch via continuous queue (no straggler barrier!)
                 cg_list, prime_set = build_coinglass_universe(native_base_syms)
                 prime_cg = [s for s in cg_list if s in prime_set]
                 tail_cg = [s for s in cg_list if s not in prime_set]
@@ -1710,20 +1733,28 @@ async def async_main() -> None:
                     flush=True,
                 )
 
-                # Process in clean batches of 10 async coroutines (respecting semaphore <= 4) so peak transient objects stay tiny
-                for i in range(0, len(sweep_cg), 10):
-                    batch_syms = sweep_cg[i : i + 10]
-                    batch_tasks = [
-                        harvester.harvest_single_asset(s, s in prime_set, mt5_quotes_by_cg.get(s))
-                        for s in batch_syms
-                    ]
-                    batch_res = await asyncio.gather(*batch_tasks, return_exceptions=True)
-                    for sym_req, item in zip(batch_syms, batch_res):
-                        if isinstance(item, Exception):
-                            print(f"  [ERROR] Asset {sym_req} harvesting failed: {item}", file=sys.stderr, flush=True)
-                        else:
-                            sym_k, summary = item
+                queue: asyncio.Queue[Optional[str]] = asyncio.Queue()
+                for s in sweep_cg:
+                    queue.put_nowait(s)
+                for _ in range(worker_count):
+                    queue.put_nowait(None)
+
+                async def _queue_worker() -> None:
+                    while True:
+                        sym_req = await queue.get()
+                        try:
+                            if sym_req is None:
+                                return
+                            sym_k, summary = await harvester.harvest_single_asset(
+                                sym_req, sym_req in prime_set, mt5_quotes_by_cg.get(sym_req)
+                            )
                             harvested_summaries[sym_k] = summary
+                        except Exception as exc:
+                            print(f"  [ERROR] Asset {sym_req} harvesting failed: {exc}", file=sys.stderr, flush=True)
+                        finally:
+                            queue.task_done()
+
+                await asyncio.gather(*(_queue_worker() for _ in range(worker_count)))
 
                 # 3. Generate compact Authoritative Datasets
                 generate_authoritative_datasets(harvested_summaries, screener_data)
