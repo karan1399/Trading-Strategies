@@ -937,6 +937,10 @@ async function toolAnalyzeSetup(args) {
   if (liq) parts.push(`\n--- LIQUIDATION CLUSTERS (sweep magnets) ---\n${liq.text}`);
   if (whale) parts.push(`\n--- WHALE OPEN ORDERS ---\n${whale.text}`);
   if (book) parts.push(`\n--- ORDER-BOOK WALLS ---\n${book.text}`);
+  if (livebook) parts.push(`\n--- BINANCE LIVE TOP-1000 BOOK ---\n${livebook.text}`);
+  if (sm3) parts.push(`\n--- STOPMAP (3D WALLS) ---\n${sm3.text}`);
+  if (oracle) parts.push(`\n--- ATHENA ORACLE ---\n${oracle.text}`);
+  if (micro) parts.push(`\n--- L2/L3 MICROSTRUCTURE ---\n${micro.text}`);
   if (cvd) parts.push(`\n--- CVD STATE ---\n${cvd.text}`);
   if (notif?.items?.length) {
     parts.push(
@@ -1346,10 +1350,10 @@ const TOOLS = [
   },
   {
     name: "liquidation_levels",
-    description: "Aggregated liquidation clusters (3d/7d/30d, ±4%, Binance+OKX+Bybit+Hyperliquid) with strongest levels above/below — the sweep magnets.",
+    description: "Aggregated liquidation clusters (3d/7d/14d/30d, ±4%, Binance+OKX+Bybit+Hyperliquid) with strongest levels above/below — the sweep magnets.",
     inputSchema: {
       type: "object",
-      properties: { sym: { type: "string" }, range: { type: "string", enum: ["3d", "7d", "30d"] } },
+      properties: { sym: { type: "string" }, range: { type: "string", enum: ["3d", "7d", "14d", "30d"] } },
       required: ["sym"],
     },
     handler: toolLiquidationLevels,
@@ -1419,7 +1423,7 @@ const TOOLS = [
         sym: { type: "string", description: "any curated perp (XAU, BTC, ETH…) in model/mode/range form; legacy form is BTC-only" },
         model: { type: "string", enum: ["1", "2", "3"], description: "Coinglass model tab (default 1)" },
         mode: { type: "string", enum: ["coin", "pair"], description: "coin = all venues aggregated (default), pair = Binance venue" },
-        range: { type: "string", enum: ["12h", "24h", "48h", "3d", "7d", "14d", "30d", "90d", "180d", "1y", "2y"], description: "window (default 24h; 180d+ need a paid Coinglass grade)" },
+        range: { type: "string", enum: ["12h", "24h", "48h", "3d", "7d", "14d", "30d", "90d", "180d", "1y", "2y", "all"], description: "window (default 24h; 'all' sweeps 12h..90d; 180d+ need a paid Coinglass grade)" },
         endTime: { type: "number", description: "Unix seconds — legacy BTC 24h historical window (up to 30 days back)" },
       },
       required: ["sym"],
@@ -1567,7 +1571,249 @@ const TOOLS = [
     },
     handler: toolNarrativeAiBrief,
   },
+  {
+    name: "athena_oracle",
+    description: "Athena Oracle 6-factor confluence score (Apollo trend, Poseidon CVD, Hades liq gravity, Zeus whales, Atlas book walls, Nemesis funding).",
+    inputSchema: { type: "object", properties: { sym: { type: "string" } }, required: ["sym"] },
+    handler: toolAthenaOracle,
+  },
+  {
+    name: "microstructure",
+    description: "Multi-venue L2/L3 microstructure: Hyperliquid L2, Lighter L3, Binance/OKX/Bybit/Coinbase BBO best spread bps.",
+    inputSchema: { type: "object", properties: { sym: { type: "string" } }, required: ["sym"] },
+    handler: toolMicrostructure,
+  },
+  {
+    name: "live_orderbook",
+    description: "Binance live top-1000 depth orderbook (/api/cg/livebook): immediate bid/ask imbalance, resting walls, covered range.",
+    inputSchema: { type: "object", properties: { sym: { type: "string" }, band: { type: "number", enum: [0.5, 1, 2, 5] } }, required: ["sym"] },
+    handler: toolLiveOrderbook,
+  },
+  {
+    name: "live_tick",
+    description: "Fast 250ms REST live BBO price tick (/api/cg/live): last, bid, ask, source.",
+    inputSchema: { type: "object", properties: { sym: { type: "string" } }, required: ["sym"] },
+    handler: toolLiveTick,
+  },
+  {
+    name: "funding_venues",
+    description: "Full 21-venue funding breakdown + OI-weighted 8h rate and annualized APR (/api/cg/funding).",
+    inputSchema: { type: "object", properties: { sym: { type: "string" } }, required: ["sym"] },
+    handler: toolFundingVenues,
+  },
+  {
+    name: "open_interest",
+    description: "Per-venue Open Interest breakdown and aggregate total (/api/cg/oi).",
+    inputSchema: { type: "object", properties: { sym: { type: "string" } }, required: ["sym"] },
+    handler: toolOpenInterest,
+  },
+  {
+    name: "perp_depth",
+    description: "Verified derivatives coverage for Tier-3 classic/TradFi instruments (/api/cg/perpdepth): SP500, JP225, CL, NATGAS, etc.",
+    inputSchema: { type: "object", properties: { sym: { type: "string" } }, required: ["sym"] },
+    handler: toolPerpDepth,
+  },
+  {
+    name: "cot_report",
+    description: "CFTC Legacy Commitment of Traders institutional positioning (/api/cg/cot): XAU, XAG, SP500, EURUSD, etc.",
+    inputSchema: { type: "object", properties: { sym: { type: "string" } }, required: ["sym"] },
+    handler: toolCotReport,
+  },
+  {
+    name: "classic_macro_quotes",
+    description: "Live classic indices/commodities/FX quotes from Yahoo + CNBC (/api/cg/classic & /api/cg/cnbc).",
+    inputSchema: { type: "object", properties: { sym: { type: "string" }, syms: { type: "string", description: "Comma list for CNBC, e.g. SP500,NDX100,EURUSD" } } },
+    handler: toolClassicMacroQuotes,
+  },
+  {
+    name: "playbook_cards",
+    description: "Validated EA-2 / EA-5 / EA-6 live playbook candidate cards (/api/strategy/cards).",
+    inputSchema: { type: "object", properties: { sym: { type: "string", description: "Optional symbol or comma list (default BTC,ETH,SOL)" } } },
+    handler: toolPlaybookCards,
+  },
+  {
+    name: "alert_rules",
+    description: "Active order-flow alert rules and telemetry status (/api/cg/alert-rules).",
+    inputSchema: { type: "object", properties: {} },
+    handler: toolAlertRules,
+  },
+  {
+    name: "terminal_health",
+    description: "Live CG Terminal server health, Node heap/RSS, engine backfill & active series counts (/api/health, /api/cg/engine/status, /api/cg/debug/mem).",
+    inputSchema: { type: "object", properties: {} },
+    handler: toolTerminalHealth,
+  },
+  {
+    name: "binance_market_data",
+    description: "Direct Binance Futures market telemetry (/api/binance/quotes | market | klines | universe | account).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        action: { type: "string", enum: ["quotes", "market", "klines", "universe", "account"] },
+        sym: { type: "string" },
+        syms: { type: "string" },
+        interval: { type: "string" },
+        limit: { type: "number" },
+      },
+    },
+    handler: toolBinanceMarketData,
+  },
+  {
+    name: "telemetry_snapshot",
+    description: "Read hydrated local telemetry JSON for an asset (MT5 quote/spread, all 12h..90d stopmap walls, 16-param cache, 7d footprint summary).",
+    inputSchema: { type: "object", properties: { sym: { type: "string" } }, required: ["sym"] },
+    handler: toolTelemetrySnapshot,
+  },
+  {
+    name: "open_live_visual",
+    description: "Open or update the live interactive CG Order-Flow Visual panel (Price, Narrative, Oracle, Multi-Horizon Stopmap Walls, MT5 Blotter) directly inside Antigravity.",
+    inputSchema: { type: "object", properties: { sym: { type: "string", description: "Asset symbol (default BTC)" } } },
+    _meta: {
+      ui: { resourceUri: "ui://cg-terminal/dashboard.html" },
+      "com.google.antigravity/ui": {
+        entrypoints: [
+          { type: "aux_pane", title: "CG Order-Flow" },
+          { type: "global", title: "CG Terminal" },
+        ],
+      },
+    },
+    handler: toolOpenLiveVisual,
+  },
 ];
+
+const DASHBOARD_HTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>CG Order-Flow Live Visual</title>
+<style>
+  :root { color-scheme: dark; --bg:#0b0f17; --card:#121826; --bd:#222c40; --tx:#e5edf7; --mut:#8ea0b8; --up:#22c55e; --dn:#ef4444; --ac:#38bdf8; }
+  *{box-sizing:border-box;font-family:Inter,ui-sans-serif,system-ui,sans-serif}
+  body{margin:0;padding:12px;background:var(--bg);color:var(--tx);font-size:12px}
+  .top{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:10px}
+  .pills{display:flex;gap:4px;flex-wrap:wrap}
+  button{background:#192235;color:var(--tx);border:1px solid var(--bd);border-radius:6px;padding:4px 8px;cursor:pointer;font-size:11px}
+  button.on{border-color:var(--ac);background:#102a45;color:#7dd3fc}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px}
+  .card{background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:10px}
+  .h{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--mut);margin-bottom:6px;display:flex;justify-content:space-between}
+  .big{font-size:18px;font-weight:700}
+  .up{color:var(--up)} .dn{color:var(--dn)} .ac{color:var(--ac)}
+  .row{display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid rgba(255,255,255,.04)}
+  .barbg{height:6px;background:#1e293b;border-radius:3px;overflow:hidden;margin:3px 0 6px}
+  .barfg{height:100%;background:linear-gradient(90deg,#38bdf8,#22c55e)}
+  code{font-family:ui-monospace,monospace;font-size:11px}
+</style>
+</head>
+<body>
+<div class="top">
+  <div><strong id="title">CG TERMINAL LIVE</strong> <span id="stamp" style="color:var(--mut)">connecting…</span></div>
+  <div class="pills" id="syms"></div>
+  <div><button id="refresh">Refresh</button> <button id="auto" class="on">Auto 10s</button></div>
+</div>
+<div class="grid" id="cards"></div>
+<script>
+const PRESETS = ["BTC","ETH","SOL","XAU","XAG","CL","NVDA","MSTR","QQQ","ZEC","1000SHIB"];
+let activeSym = "BTC", timer = null, rpcId = 1, hasServerBridge = false;
+const pending = new Map();
+window.addEventListener("message",(ev)=>{
+  const m = ev.data; if (!m || typeof m !== "object") return;
+  if (m.id && pending.has(m.id)) { const p = pending.get(m.id); pending.delete(m.id); m.error ? p.rej(m.error) : p.res(m.result); }
+  if (m.method === "ui/notifications/tool-result" && m.params?.structuredContent) renderData(m.params.structuredContent);
+});
+function rpc(method, params){
+  const id = rpcId++;
+  return new Promise((res, rej)=>{
+    pending.set(id,{res,rej});
+    window.parent.postMessage({jsonrpc:"2.0",id,method,params},"*");
+    setTimeout(()=>{if(pending.has(id)){pending.delete(id);rej(new Error("timeout"));}}, 6000);
+  });
+}
+async function fetchLive(sym){
+  activeSym = sym; renderPills();
+  if (hasServerBridge) {
+    try {
+      const r = await rpc("tools/call",{name:"open_live_visual",arguments:{sym}});
+      if (r?.structuredContent) { renderData(r.structuredContent); return; }
+    } catch {}
+  }
+  try {
+    const [m,n,o,s3,s30,d] = await Promise.all([
+      fetch("http://localhost:3000/api/cg/market?sym="+sym).then(r=>r.json()).catch(()=>null),
+      fetch("http://localhost:3000/api/cg/narrative?sym="+sym).then(r=>r.json()).catch(()=>null),
+      fetch("http://localhost:3000/api/cg/oracle?sym="+sym).then(r=>r.json()).catch(()=>null),
+      fetch("http://localhost:3000/api/cg/stopmap?sym="+sym+"&model=1&mode=coin&range=3d").then(r=>r.json()).catch(()=>null),
+      fetch("http://localhost:3000/api/cg/stopmap?sym="+sym+"&model=1&mode=coin&range=30d").then(r=>r.json()).catch(()=>null),
+      fetch("http://localhost:3000/api/desk/live").then(r=>r.json()).catch(()=>null),
+    ]);
+    renderData({sym,fetchedAt:new Date().toISOString(),market:m,narrative:n,oracle:o,stopmap3d:s3?.model??s3,stopmap30d:s30?.model??s30,desk:d});
+  } catch (e) { document.getElementById("stamp").textContent = "err: "+e.message; }
+}
+const f=(v,d=2)=>(v==null||isNaN(v)?"—":Number(v).toFixed(d));
+const usd=(v)=>(v==null||isNaN(v)?"—":Math.abs(v)>=1e6?"$"+(v/1e6).toFixed(1)+"M":"$"+Math.round(v/1e3)+"K");
+function renderData(d){
+  if (!d) return;
+  if (d.sym) activeSym = d.sym;
+  renderPills();
+  document.getElementById("stamp").textContent = d.sym + " · " + (d.fetchedAt||"").slice(11,19) + "Z";
+  const m = d.market||{}, nar = d.narrative||{}, o = d.oracle||{}, s3 = d.stopmap3d||{}, s30 = d.stopmap30d||{}, desk = d.desk||{};
+  const px = m.price?.last ?? "—", vw = m.vwap?.vwap, sd1 = m.vwap?.bands?.sd1;
+  const vz = (px!=="—"&&vw&&sd1)?((px-vw)/sd1):null;
+  const aucD = m.auction?.day||{}, aucS = m.auction?.session||{};
+  const w3 = s3.walls||{}, w30 = s30.walls||{};
+  const kl3 = s3.keyLevels||{}, kl30 = s30.keyLevels||{};
+  const acc = desk.mt5?.account||{};
+  document.getElementById("cards").innerHTML = [
+    '<div class="card"><div class="h"><span>PRICE &amp; VWAP</span><span>'+(m.source||"live")+'</span></div>' +
+      '<div class="big">'+px+' <span class="'+((m.price?.chgDayPct||0)>=0?"up":"dn")+'" style="font-size:12px">'+f(m.price?.chgDayPct)+'%</span></div>' +
+      '<div class="row"><span>VWAP / Z</span><code>'+f(vw)+' ('+f(vz)+'σ)</code></div>' +
+      '<div class="row"><span>Day VA</span><code>'+f(aucD.val)+' / '+f(aucD.poc)+' / '+f(aucD.vah)+'</code></div>' +
+      '<div class="row"><span>Sess VA</span><code>'+f(aucS.val)+' / '+f(aucS.poc)+' / '+f(aucS.vah)+'</code></div>' +
+      '<div class="row"><span>M15 EMA</span><code>89:'+f(m.ema?.m15?.e89)+' 233:'+f(m.ema?.m15?.e233)+'</code></div></div>',
+    '<div class="card"><div class="h"><span>ATHENA ORACLE</span><span>'+(o.regime||"")+'</span></div>' +
+      '<div class="big ac">'+(o.score??"—")+'/100</div>' +
+      '<div class="barbg"><div class="barfg" style="width:'+(o.score||0)+'%"></div></div>' +
+      (o.factors||[]).map(x=>'<div class="row"><span>'+x.id+'</span><code>'+x.score+'/100</code></div>').join("")+'</div>',
+    '<div class="card"><div class="h"><span>NARRATIVE MODEL</span><span>'+(nar.grade||"—")+'</span></div>' +
+      '<div class="big '+(nar.direction==="LONG"?"up":nar.direction==="SHORT"?"dn":"")+'">'+(nar.activeModel||"WAIT")+' · '+(nar.direction||"—")+'</div>' +
+      '<div class="row"><span>Regime</span><code>'+(nar.regime||"—")+'</code></div>' +
+      '<div class="row"><span>Entry</span><code>'+(nar.plan?.entryZone?nar.plan.entryZone.join("–"):"—")+'</code></div>' +
+      '<div class="row"><span>Stop / BestR</span><code>'+(nar.plan?.stop??"—")+' / '+f(nar.plan?.bestR)+'R</code></div></div>',
+    '<div class="card"><div class="h"><span>STOPMAP 3D &amp; 30D WALLS</span><span>M1 COIN</span></div>' +
+      '<div class="row"><span>3D MaxS / MaxL</span><code>'+(w3.max_short?w3.max_short.price+"("+usd(w3.max_short.mx_usd)+")":"—")+' / '+(w3.max_long?w3.max_long.price+"("+usd(w3.max_long.mx_usd)+")":"—")+'</code></div>' +
+      '<div class="row"><span>30D MaxS / MaxL</span><code>'+(w30.max_short?w30.max_short.price+"("+usd(w30.max_short.mx_usd)+")":"—")+' / '+(w30.max_long?w30.max_long.price+"("+usd(w30.max_long.mx_usd)+")":"—")+'</code></div>' +
+      '<div class="row"><span>3D Above</span><code>'+(kl3.above||[]).slice(0,3).map(k=>k.price).join(", ")+'</code></div>' +
+      '<div class="row"><span>3D Below</span><code>'+(kl3.below||[]).slice(0,3).map(k=>k.price).join(", ")+'</code></div>' +
+      '<div class="row"><span>30D Above</span><code>'+(kl30.above||[]).slice(0,3).map(k=>k.price).join(", ")+'</code></div></div>',
+    '<div class="card"><div class="h"><span>MT5 #5126976 BLOTTER</span><span>pos:'+(desk.mt5?.positions?.length??0)+'</span></div>' +
+      '<div class="row"><span>Balance / Eq</span><code>$'+f(acc.balance)+' / $'+f(acc.equity)+'</code></div>' +
+      (desk.mt5?.positions||[]).map(p=>'<div class="row"><span>'+p.symbol+' '+p.side+'</span><code>'+p.profit+'</code></div>').join("")+'</div>'
+  ].join("");
+}
+function renderPills(){
+  const host = document.getElementById("syms");
+  host.innerHTML = PRESETS.map(s=>'<button data-sym="'+s+'" class="'+(s===activeSym?"on":"")+'">'+s+'</button>').join("");
+  host.querySelectorAll("button[data-sym]").forEach(b=>{b.onclick=()=>fetchLive(b.dataset.sym);});
+}
+document.getElementById("refresh").onclick=()=>fetchLive(activeSym);
+document.getElementById("auto").onclick=(e)=>{
+  if(timer){clearInterval(timer);timer=null;e.target.classList.remove("on");}
+  else{timer=setInterval(()=>fetchLive(activeSym),10000);e.target.classList.add("on");}
+};
+(async()=>{
+  try{
+    const init = await rpc("ui/initialize",{appCapabilities:{},clientInfo:{name:"cg-visual",version:"1.0.0"},protocolVersion:"2025-03-26"});
+    hasServerBridge = Boolean(init?.hostCapabilities?.serverTools);
+    window.parent.postMessage({jsonrpc:"2.0",method:"ui/notifications/initialized",params:{}},"*");
+  }catch{}
+  renderPills();
+  fetchLive(activeSym);
+  timer = setInterval(()=>fetchLive(activeSym),10000);
+})();
+</script>
+</body>
+</html>`;
 
 const rl = readline.createInterface({ input: process.stdin });
 
@@ -1589,8 +1835,8 @@ rl.on("line", (line) => {
       id,
       result: {
         protocolVersion: params?.protocolVersion ?? "2024-11-05",
-        capabilities: { tools: {} },
-        serverInfo: { name: "cg-terminal", version: "1.0.0" },
+        capabilities: { tools: {}, resources: {} },
+        serverInfo: { name: "cg-terminal", version: "2.0.0" },
       },
     });
     return;
@@ -1600,12 +1846,60 @@ rl.on("line", (line) => {
     send({ jsonrpc: "2.0", id, result: {} });
     return;
   }
+  if (method === "resources/list") {
+    send({
+      jsonrpc: "2.0",
+      id,
+      result: {
+        resources: [
+          {
+            uri: "ui://cg-terminal/dashboard.html",
+            name: "CG Order-Flow Live Dashboard",
+            description: "Interactive real-time terminal visual inside Antigravity.",
+            mimeType: "text/html;profile=mcp-app",
+          },
+        ],
+      },
+    });
+    return;
+  }
+  if (method === "resources/read") {
+    if (params?.uri === "ui://cg-terminal/dashboard.html") {
+      send({
+        jsonrpc: "2.0",
+        id,
+        result: {
+          contents: [
+            {
+              uri: "ui://cg-terminal/dashboard.html",
+              mimeType: "text/html;profile=mcp-app",
+              text: DASHBOARD_HTML,
+              _meta: {
+                ui: {
+                  prefersBorder: false,
+                  csp: { connectDomains: ["http://localhost:3000", "http://127.0.0.1:3000"] },
+                },
+              },
+            },
+          ],
+        },
+      });
+    } else {
+      send({ jsonrpc: "2.0", id, error: { code: -32602, message: `unknown resource: ${params?.uri}` } });
+    }
+    return;
+  }
   if (method === "tools/list") {
     send({
       jsonrpc: "2.0",
       id,
       result: {
-        tools: TOOLS.map(({ name, description, inputSchema }) => ({ name, description, inputSchema })),
+        tools: TOOLS.map(({ name, description, inputSchema, _meta }) => ({
+          name,
+          description,
+          inputSchema,
+          ...(_meta ? { _meta } : {}),
+        })),
       },
     });
     return;
@@ -1627,6 +1921,7 @@ rl.on("line", (line) => {
               { type: "text", text: out.text },
               ...(out.data ? [{ type: "text", text: "```json\n" + JSON.stringify(out.data).slice(0, 60_000) + "\n```" }] : []),
             ],
+            ...(out.structuredContent ? { structuredContent: out.structuredContent } : {}),
           },
         });
       })
@@ -1642,4 +1937,4 @@ rl.on("line", (line) => {
   if (id != null) send({ jsonrpc: "2.0", id, error: { code: -32601, message: `method not found: ${method}` } });
 });
 
-process.stderr.write(`[cg-terminal-mcp] ready — terminal at ${TERMINAL_URL}\n`);
+process.stderr.write(`[cg-terminal-mcp] v2.0 ready (${TOOLS.length} tools + live UI resource) — terminal at ${TERMINAL_URL}\n`);
