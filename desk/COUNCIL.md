@@ -3756,3 +3756,13 @@ Empirical audit of today's MT5 deal history reveals the exact root causes of sto
 - **Live MT5 Execution (`#5126976`, `ILK-01 connected=True, trade_allowed=True`, `retcode=10009`):** Punched `#20527955 GAUUSD.pi` (`42010`) `SELL 0.01 @ 112.6763`, `SL 114.8305` (clears `XAU 30d 114.21` & `7d 114.75`), `TP 106.1858` (`$2.15` risk, `3.02R`, `0.24% spr/rd`). Open book: `6` positions, Total SL Risk **`$25.09` (`0.986% <= 1.00%` Cap `$25.45`)**.
 
 **Confidence:** VERIFIED (`retcode=10009`, live MT5 readback, live Delta `/v2/products`, `task-25807` capped/DSR test outputs, line-by-line code inspection).
+
+
+
+### [2026-11-25T18:10:00Z] · Antigravity · R37 INSTITUTIONAL QUANT MANDATE, CACHE CLEAR, DELTA ADAUSD FILL & FULL 252-ASSET AUDIT (23:40 IST)
+**Verdict:** Cleared `__pycache__` across workspace, hydrated persistent `data/agent_memory/`, reconciled all closed 30h MT5 & Delta deals, restarted `telemetry_daemon.py --no-git` (`114/252` assets fresh including all `91/91` MT5 native + `23` Coinglass prime), audited live `:3000` + `16P` + exploratory H4 Hurst/VR/ATR%/Skew/Kurtosis metrics, held all `6` MT5 (`$25.10 / 0.987% <= 1.00% Cap`) and `2` Delta positions (`ADAUSD -3 @ 0.1440` filled maker `+$0.0018`, `XRPUSD -1 @ 0.9031`), and committed Kaizen-verified memory updates.
+- **MT5 `#5126976` (`Bal=$2,551.82`, `Eq=$2,543.48`, `Free=$2,324.08`, `Open=6`, `Pend=0`, `Risk=$25.10 = 0.987%`):** `KEEP UNCHANGED` `#20467916 EURUSD.pi` (`$5.36`, `Z=+2.77σ`, `H=0.394`), `#20499902 GBPNZD.pi` (`$6.03`, `Z=-2.25σ`, `-0.30..-0.41` portfolio hedge), `#20502882 JP225.p` (`$2.63`), `#20515764 GAUUSD.pi` (`$3.44`), `#20527955 GAUUSD.pi` (`$2.15`), `#20516480 ETHUSD.pi` (`$5.48`, `SL 1728.50` clearing live `:3000` `1714.93-1725.65` shelves). New MT5 entries: `NO TRADE` (`$0.33` headroom).
+- **Delta `#26902927` (`Bal=$3.3031`, `Avail=$3.1904`):** `#1714234905 ADAUSD SELL_LIMIT 3 @ 0.1440` FILLED (`17:55:55Z`, maker, `+$0.00177`, `SL 0.1476` `$0.0108=0.33%`, `TP 0.1368` `2.00R`; `fImb=-0.376 / sImb=-0.781 / exh+sdiv @ 0.1438`); `XRPUSD -1 @ 0.9031` (`-$0.0210`, `SL 0.9327` `$0.0296=0.896%` above `0.9261-0.9272` FP exh/sdiv). New Delta entries: `NO TRADE`.
+- **Memory Synced:** Appended `prediction_calibration_log.jsonl`, promoted min-lot `1%` concurrency to `SHADOW_TEST` & added `HYPOTHESIS #3 (H<0.45 & ATR_pct>=78%)` in `adaptive_playbook.md`, updated `regime_signal_weights.json`.
+
+**Confidence:** VERIFIED (`MT5` live readback + `Delta` live wallet/positions/orders/fills + `252`-asset telemetry & H4 Hurst/ATR/Kurtosis audit + `antigravity_selfcheck.py`).

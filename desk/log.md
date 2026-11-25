@@ -20268,3 +20268,10 @@ Synced live MT5 #5126976 execution & `/thinking-red-team` backtest verification 
   * DELTA `XAUTUSD` MINIMUM LOT BLOCKED BY `1%` CAP: `contract_value=0.001`, min `1` contract SL `$67` = `$0.0670` (`2.03%` > `$0.0330` 1% cap on `$3.30` Delta balance). Requires equity `>= $6.70` or explicit `risk_max_pct >= 2.05%` approval.
   * MT5 TOTAL SL RISK: `$25.09 USD (0.986% <= 1.00% Cap $25.45)` across `6` open positions (`EURUSD.pi`, `GBPNZD.pi`, `JP225.p`, `GAUUSD.pi x2`, `ETHUSD.pi`).
   * RED-TEAM AUDIT SUMMARY: Research backtests have zero intra-bar/future-bar lookahead; 4 biases flagged (`--selftest orb_nas e4[-1]`, `max_conc=30` vs `<=1%` cap showing min-lot `10x $2.50` outperforms `4x $5.50`, `N=1800` DSR isolating `S9 0.878` & `VC 0.737`, and `28d 15M` tail).
+
+
+### [2026-11-25T18:10:00Z] · R37 · MANDATE AUDIT & MEMORY COMMIT
+- Cache cleared (`__pycache__`), `telemetry_daemon.py --no-git` restarted (`114/252` fresh).
+- MT5 `#5126976`: `KEEP UNCHANGED` all `6` open positions (`#20467916 EURUSD.pi`, `#20499902 GBPNZD.pi`, `#20502882 JP225.p`, `#20515764 GAUUSD.pi`, `#20527955 GAUUSD.pi`, `#20516480 ETHUSD.pi`), Total SL Risk `$25.10 (0.987% <= $25.43 Cap)`. New MT5: `NO TRADE`.
+- Delta `#26902927`: `#1714234905 ADAUSD SELL_LIMIT 3 @ 0.1440` FILLED (`17:55:55Z`, `+$0.00177`, `SL 0.1476`, `TP 0.1368`, `$0.0108 = 0.33%`); `XRPUSD -1 @ 0.9031` held (`SL 0.9327`, `$0.0296 = 0.896%`). New Delta: `NO TRADE`.
+- Committed `data/agent_memory/{prediction_calibration_log.jsonl, adaptive_playbook.md, regime_signal_weights.json}`.
