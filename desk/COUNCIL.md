@@ -3766,3 +3766,14 @@ Empirical audit of today's MT5 deal history reveals the exact root causes of sto
 - **Memory Synced:** Appended `prediction_calibration_log.jsonl`, promoted min-lot `1%` concurrency to `SHADOW_TEST` & added `HYPOTHESIS #3 (H<0.45 & ATR_pct>=78%)` in `adaptive_playbook.md`, updated `regime_signal_weights.json`.
 
 **Confidence:** VERIFIED (`MT5` live readback + `Delta` live wallet/positions/orders/fills + `252`-asset telemetry & H4 Hurst/ATR/Kurtosis audit + `antigravity_selfcheck.py`).
+
+### [2026-11-25T18:20:00Z] · Antigravity · R38 LIVE MODEL 1 STOPMAP AUDIT, ETHUSD.pi COLD-ZONE RESIZE & CG_SL_TP FIX (23:50 IST)
+**Verdict:** Answered user's question honestly (`NO` — R35-R37 did NOT ingest live Model 1 `1,729.60 $42.25M` / `1,735.93 $28.43M` / `1,743.32 $28.1M` levels because `stopmap` uses `model.keyLevels` rather than `stats.keyLevels` and `engine/cg_sl_tp.py` skipped `/api/cg/stopmap`), immediately resized `ETHUSD.pi #20516480` cleanly into the cold zone (`1,748.00`), and permanently patched `engine/cg_sl_tp.py` (`fetch_cg_context`) + `tests/test_cg_sl_tp_and_baskets.py`.
+- **MT5 `#5126976` (`Bal=$2,548.49`, `Eq=$2,536.77`, `Free=$2,358.78`, `Open=5`, `Risk=$22.27 = 0.878%`):**
+  - `JP225.p #20502882`: Stopped cleanly at bounded SL (`Deal #18617439 @ 57050.39`, `-$2.64`).
+  - `ETHUSD.pi #20516480`: Partial-trimmed `0.02` (`0.08 -> 0.06`, `Deal #18617569 @ 1694.63`, `-$0.69`, `ATG_R38_MODEL1_TRIM`) + `retcode=10009` bracket widen `SL 1728.50 -> 1748.00`, `TP 1523.00 -> 1484.00` (`$5.28` risk, `2.00R`), clearing live `:3000` Model 1 `3d` `1,729.60 ($42.25M)`, `1,735.93 ($28.43M)`, `1,736.22 (ETH.json)`, and `1,743.32 ($28.1M)` chart wall.
+  - Held unchanged: `#20467916 EURUSD.pi` (`$5.36`), `#20499902 GBPNZD.pi` (`$6.04`), `#20515764 GAUUSD.pi` (`$3.44`), `#20527955 GAUUSD.pi` (`$2.15`).
+- **Delta `#26902927` (`Bal=$3.3031 USD`, `Avail=$3.1904 USD`):** Held unchanged `ADAUSD -3 @ 0.1440` and `XRPUSD -1 @ 0.9031`.
+- **Code Fix (`engine/cg_sl_tp.py`):** `fetch_cg_context` now calls `/api/cg/stopmap?sym=<CG>&range=3d&mode=coin` and maps `model.keyLevels.{above,below}` onto `0..100` strength using `overview.largestLevel`.
+
+**Confidence:** VERIFIED (`MT5` `retcode=10009` & deal/position readback + live `:3000` `http_stopmap` + `Delta` MCP readback + unit test).

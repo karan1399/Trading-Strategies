@@ -20275,3 +20275,9 @@ Synced live MT5 #5126976 execution & `/thinking-red-team` backtest verification 
 - MT5 `#5126976`: `KEEP UNCHANGED` all `6` open positions (`#20467916 EURUSD.pi`, `#20499902 GBPNZD.pi`, `#20502882 JP225.p`, `#20515764 GAUUSD.pi`, `#20527955 GAUUSD.pi`, `#20516480 ETHUSD.pi`), Total SL Risk `$25.10 (0.987% <= $25.43 Cap)`. New MT5: `NO TRADE`.
 - Delta `#26902927`: `#1714234905 ADAUSD SELL_LIMIT 3 @ 0.1440` FILLED (`17:55:55Z`, `+$0.00177`, `SL 0.1476`, `TP 0.1368`, `$0.0108 = 0.33%`); `XRPUSD -1 @ 0.9031` held (`SL 0.9327`, `$0.0296 = 0.896%`). New Delta: `NO TRADE`.
 - Committed `data/agent_memory/{prediction_calibration_log.jsonl, adaptive_playbook.md, regime_signal_weights.json}`.
+
+### [2026-11-25T18:20:00Z] · R38 · MODEL 1 STOPMAP COLD-ZONE FIX (`ETHUSD.pi`) & `cg_sl_tp.py` PATCH
+- Answered candidly: R37 missed `:3000` ETH Model 1 `1,729.60 ($42.25M)` / `1,735.93 ($28.43M)` (`model.keyLevels` schema + missing `/api/cg/stopmap` call in `engine/cg_sl_tp.py`).
+- Executed MT5 `#20516480 ETHUSD.pi`: Partial close `0.02` (`Deal #18617569 @ 1694.63`, `-$0.69`, `0.08 -> 0.06` lots) + moved `SL 1728.50 -> 1748.00`, `TP 1523.00 -> 1484.00` (`$5.28` risk, `2.00R`, clears `1,743.32` chart band).
+- Logged `JP225.p #20502882` SL close (`Deal #18617439 @ 57050.39`, `-$2.64`). MT5 Book after: `Open=5`, `Eq=$2,536.77`, `Total SL Risk=$22.27 (0.878% <= 1.00% Cap)`.
+- Patched `engine/cg_sl_tp.py` (`fetch_cg_context` `http_stopmap` `model.keyLevels` parser) and added regression test in `tests/test_cg_sl_tp_and_baskets.py`.
