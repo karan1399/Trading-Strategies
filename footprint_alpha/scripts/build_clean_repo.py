@@ -1,0 +1,198 @@
+#!/usr/bin/env python3
+"""Build a sanitized, push-ready git repo (code + docs only) + startup guide + bundle.
+
+Excludes: raw parquet data store (rebuildable via the dump engine), repos/ (third-party
+copies incl. a 125MB tarball that GitHub hard-rejects), download/, upload/, .env
+(secret), caches/logs. History is rebuilt as 3 clean narrative commits.
+"""
+import os
+import shutil
+import subprocess
+import sys
+
+SRC = "/home/z/my-project"
+DST = "/tmp/cleanrepo"
+BUNDLE = f"{SRC}/download/trading-alpha-suite-clean.bundle"
+
+U20 = ("BTCUSDT,ETHUSDT,SOLUSDT,XRPUSDT,BNBUSDT,DOGEUSDT,LINKUSDT,AVAXUSDT,LTCUSDT,"
+       "TRXUSDT,DOTUSDT,BCHUSDT,XLMUSDT,UNIUSDT,ATOMUSDT,FILUSDT,NEARUSDT,XMRUSDT,ALGOUSDT,VETUSDT")
+
+README = f"""# Trading Alpha Suite — Binance footprint/orderflow signals, MT5 execution
+
+Live signals are computed from **Binance USDT-M footprint + orderflow** (Vision monthly
+dumps, incremental API gap-fill); every emitted signal carries the matching **MT5 CFD
+symbol** (`mt5_symbol`) so execution targets the MT5 candle. Three sleeves ship wired:
+
+| sleeve | entry logic | default target |
+| --- | --- | --- |
+| `aec_trend` | pullback/reclaim in EMA-regime with auction-complete (footprint) trigger | per-asset, TP ≥ 2R enforced |
+| `ema_rej` | EMA 89/233 wick-kiss / pierce-fail rejection + AC-event confirm | 2R |
+| `orb` | UTC 60-min opening-range breakout, close-through + delta>2% + volume ≥1.2× | 2R |
+
+12/20 assets have OOS-verified per-asset configs (`engine` auto-loads
+`binance_orderflow/data/research/aec_asset_overrides.json`); assets without a verified
+config are intentionally left on the pooled default — do not force-trade the nulls.
+
+## Universe (Binance ↔ MT5, broker-verified)
+
+BTC↔BTCUSD.pi, ETH↔ETHUSD.pi, SOL↔SOLUSD.p, XRP↔XRPUSD.pi, BNB↔BNBUSD.p, DOGE↔DOGUSD.p,
+LINK↔LNKUSD.p, AVAX↔AVXUSD.p, LTC↔LTCUSD.pi, TRX↔TRXUSD.p, DOT↔DOTUSD.pi, BCH↔BCHUSD.p,
+XLM↔XLMUSD.p, UNI↔UNIUSD.p, ATOM↔ATMUSD.p, FIL↔FILUSD.p, NEAR↔NERUSD.p, XMR↔XMRUSD.p,
+ALGO↔ALGUSD.p, VET↔VETUSD.p (ADA/PEPE/SHIB: liquid on Binance, no CFD at this broker — excluded).
+
+## Start locally (5 steps)
+
+```bash
+# 1) clone + deps (Python 3.10+)
+git clone https://github.com/karan1399/Trading-Strategie.git && cd Trading-Strategie
+pip install -r requirements.txt
+
+# 2) fill the data store (Binance Vision monthly orderflow+footprint; first fill ~15-30 min)
+python3 binance_orderflow/binance_orderflow_dump.py --assets {U20} \\
+    --from 2026-10-01 --to 2026-11-23
+# incremental afterwards (fetches only missing days, repairs gaps):
+python3 binance_orderflow/binance_orderflow_dump.py --assets {U20} --update
+
+# 3) verify offline known-answer tests (no network needed)
+python3 binance_orderflow/binance_orderflow_dump.py --selftest
+python3 engine/unified_alpha_pilot.py --mode selftest
+
+# 4) validation backtest over the filled store
+python3 engine/unified_alpha_pilot.py --mode backtest
+
+# 5) live paper signals (Binance footprint drives; prints + writes desk/signals.json)
+python3 engine/unified_alpha_pilot.py --mode paper --update-data
+```
+
+`--mode signal` prints without persisting; `--status` shows per-asset data coverage.
+
+## Rebuild the research (optional, reproduces every number)
+
+```bash
+python3 scripts/aec_build_dataset.py 15m                # 15m orderflow+footprint dataset
+python3 scripts/aec_per_asset.py research_15m.parquet   # per-asset opt (TP>=2R pool, IS-select)
+python3 scripts/orb_emarej_crypto.py research_15m.parquet  # ORB / EMA-rej sleeves
+```
+Artifacts land in `binance_orderflow/data/research/` (summaries, per-asset JSON, engine-ready
+overrides). Full methodology + results + honest caveats: `desk/UNIVERSE20_ALPHA_REPORT.md`,
+`desk/FOOTPRINT_ALPHA_RESEARCH.md`.
+
+## MT5 attachment
+
+Signals are venue-agnostic dicts with `mt5_symbol`, side, order_type (limit/market),
+entry/stop/tp, volume. `execution.venue` in `engine/config.json`: `paper` (stub fills,
+default), `mt5` (bridge hook for your terminal). Risk: `risk.risk_per_trade_pct` (0.5%),
+`max_concurrent` 4, `daily_loss_cap_pct` 1.5. Paper-validate forward before sizing real
+lots; the 54-day OOS window favored shorts (orderly bear leg) — re-validate monthly.
+
+## Repo layout
+
+- `binance_orderflow/binance_orderflow_dump.py` — the data engine (single file)
+- `engine/` — unified signal engine + config (universe map, sleeves, overrides, risk)
+- `scripts/` — research stack (per-asset optimizer, sleeve research, validation, reporting)
+- `desk/` — research reports
+- `binance_orderflow/data/` — created at runtime by the dump engine (gitignored)
+"""
+
+GITIGNORE = """# data store is rebuilt by the dump engine — never commit raw parquet
+binance_orderflow/data/
+*.parquet
+download/
+upload/
+repos/
+skills/
+node_modules/
+__pycache__/
+*.pyc
+.env
+*.log
+/tmp/
+"""
+
+REQUIREMENTS = "pandas>=2.0\nnumpy>=1.26\npyarrow>=15.0\nrequests>=2.31\n"
+
+PUSH = """#!/bin/bash
+# One-command push of this clean repo to GitHub. Token is NEVER stored on disk.
+#   GITHUB_TOKEN=ghp_xxxxx bash push_to_github.sh [repo_url] [branch]
+REPO_URL="${1:-https://github.com/karan1399/Trading-Strategie.git}"
+BRANCH="${2:-main}"
+: "${GITHUB_TOKEN:?Set GITHUB_TOKEN env var (PAT with Contents: Read&Write on the repo)}"
+AUTH_URL=$(python3 -c "import os,sys;u=sys.argv[1];t=os.environ['GITHUB_TOKEN'];print(u.replace('https://','https://x-access-token:'+t+'@'))" "$REPO_URL")
+git push "$AUTH_URL" "HEAD:refs/heads/$BRANCH" --force-with-lease 2>&1 | sed -E "s/x-access-token:[^@]+@/***@/g"
+rc=$?
+git remote remove autotmp 2>/dev/null
+exit $rc
+"""
+
+
+def sh(cmd, cwd=None, quiet=False):
+    r = subprocess.run(cmd, shell=True, cwd=cwd, capture_output=True, text=True)
+    if r.returncode != 0 and not quiet:
+        print(f"[cmd] {cmd}\n{r.stdout[-800:]}{r.stderr[-800:]}")
+    return r.returncode
+
+
+def main():
+    if os.path.exists(DST):
+        shutil.rmtree(DST)
+    os.makedirs(DST)
+    # ---- whitelist copy
+    def cp(rel):
+        s = os.path.join(SRC, rel)
+        d = os.path.join(DST, rel)
+        if os.path.isdir(s):
+            shutil.copytree(s, d, ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "*.docx", "*.xlsx", "*.parquet"))
+        elif os.path.isfile(s):
+            os.makedirs(os.path.dirname(d) or DST, exist_ok=True)
+            shutil.copy2(s, d)
+
+    cp("binance_orderflow/binance_orderflow_dump.py")
+    for f in os.listdir(f"{SRC}/binance_orderflow"):
+        if f.endswith((".md", ".sh")):
+            cp(f"binance_orderflow/{f}")
+    cp("engine"); cp("scripts"); cp("desk")
+    for f in ("aec_asset_overrides.json", "aec_per_asset_summary.csv", "aec_per_asset.json",
+              "orb_emarej_summary.csv", "orb_emarej_results.json", "aec_scenarios.csv",
+              "aec_validation_scen645.json"):
+        cp(f"binance_orderflow/data/research/{f}")
+    open(f"{DST}/README.md", "w").write(README)
+    open(f"{DST}/.gitignore", "w").write(GITIGNORE)
+    open(f"{DST}/requirements.txt", "w").write(REQUIREMENTS)
+    open(f"{DST}/push_to_github.sh", "w").write(PUSH)
+    os.chmod(f"{DST}/push_to_github.sh", 0o755)
+
+    # ---- standalone verification inside the clean repo
+    r1 = sh("python3 binance_orderflow/binance_orderflow_dump.py --selftest", cwd=DST, quiet=True)
+    r2 = sh("python3 engine/unified_alpha_pilot.py --mode selftest", cwd=DST, quiet=True)
+    print(f"standalone selftests in clean repo: dump={'PASS' if r1 == 0 else 'FAIL'} "
+          f"engine={'PASS' if r2 == 0 else 'FAIL'}")
+    if r1 or r2:
+        sys.exit("clean-repo selftest failed — fix before shipping")
+
+    # ---- 3 narrative commits
+    sh("git init -b main && git config user.email z@container && git config user.name 'Z User'", cwd=DST)
+    sh("git add .gitignore requirements.txt README.md push_to_github.sh && "
+       "git commit -q -m 'chore: repo scaffold — guide, requirements, gitignore, push helper'", cwd=DST)
+    sh("git add binance_orderflow && git commit -q -m "
+       "'feat(data): Binance Vision orderflow dump engine — 1m/5m/1h/4h orderflow + multi-TF "
+       "footprint + metrics, incremental --update, selftest, sanity'", cwd=DST)
+    sh("git add scripts desk && git commit -q -m "
+       "'feat(alpha): research stack — AEC-Trend per-asset optimization (TP>=2R), ORB/EMA-rej "
+       "footprint sleeves, validation, reports'", cwd=DST)
+    sh("git add engine && git commit -q -m "
+       "'feat(engine): unified signal engine — universe-20 MT5 mapping, per-asset overrides, "
+       "3 sleeves, paper/mt5 venues'", cwd=DST)
+    sh(f"git bundle create {BUNDLE} --all", cwd=DST)
+    n = int(subprocess.run("git ls-files | wc -l", shell=True, cwd=DST, capture_output=True, text=True).stdout)
+    sz = os.path.getsize(BUNDLE) / 1e6
+    print(f"clean repo: {n} files, 4 commits; bundle {sz:.1f}MB -> download/trading-alpha-suite-clean.bundle")
+    if sz > 50:
+        sys.exit("bundle too big — something heavy slipped in")
+    # mirror guide + push helper into download/ for immediate access
+    shutil.copy2(f"{DST}/README.md", f"{SRC}/download/LOCAL_SETUP_GUIDE.md")
+    shutil.copy2(f"{DST}/push_to_github.sh", f"{SRC}/download/push_to_github.sh")
+    print("guide -> download/LOCAL_SETUP_GUIDE.md ; push helper -> download/push_to_github.sh")
+
+
+if __name__ == "__main__":
+    main()
