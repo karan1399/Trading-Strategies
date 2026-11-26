@@ -709,7 +709,7 @@ async function toolKline(args) {
 }
 
 async function toolAthenaOracle(args) {
-  const sym = (args?.sym ?? "BTC").toUpperCase();
+  const sym = resolveSymArg(args, "BTC");
   const d = await api(`/api/cg/oracle?sym=${sym}`);
   if (!d?.ok) throw new Error(d?.error || "oracle failed");
   const lines = [
@@ -720,7 +720,7 @@ async function toolAthenaOracle(args) {
 }
 
 async function toolMicrostructure(args) {
-  const sym = (args?.sym ?? "BTC").toUpperCase();
+  const sym = resolveSymArg(args, "BTC");
   const d = await api(`/api/cg/micro?sym=${sym}`);
   if (!d?.ok) throw new Error(d?.error || "microstructure failed");
   const hl = d.hl ?? {};
@@ -734,7 +734,7 @@ async function toolMicrostructure(args) {
 }
 
 async function toolLiveOrderbook(args) {
-  const sym = (args?.sym ?? "BTC").toUpperCase();
+  const sym = resolveSymArg(args, "BTC");
   const band = [0.5, 1, 2, 5].includes(Number(args?.band)) ? Number(args.band) : 5;
   const d = await api(`/api/cg/livebook?sym=${sym}&band=${band}`);
   if (!d?.ok) throw new Error(d?.error || "livebook failed");
@@ -747,7 +747,7 @@ async function toolLiveOrderbook(args) {
 }
 
 async function toolLiveTick(args) {
-  const sym = (args?.sym ?? "BTC").toUpperCase();
+  const sym = resolveSymArg(args, "BTC");
   const d = await api(`/api/cg/live?sym=${sym}`);
   if (!d?.ok) throw new Error(d?.error || "live tick failed");
   return { text: `${sym} LIVE BBO (${d.source}): last ${d.price} · bid ${d.bid} · ask ${d.ask} · age ${d.ageMs}ms`, data: d };
