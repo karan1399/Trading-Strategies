@@ -850,7 +850,12 @@ async function toolPlaybookCards(args) {
   }
   const cards = [];
   for (const row of d.assets ?? []) {
-    for (const card of row.cards ?? []) cards.push(`${row.sym} ${card.engine} ${card.direction} entry=${card.entry} SL=${card.stop} TP=${card.tp} R=${card.rMultiple}`);
+    for (const card of row.cards ?? []) {
+      const dir = String(card.side ?? card.direction ?? "?").toUpperCase();
+      const tps = Array.isArray(card.targets) ? card.targets.join("/") : (card.tp ?? "—");
+      const rVal = card.rPlanned ?? card.rMultiple ?? "—";
+      cards.push(`${row.sym} ${card.engine} ${dir} [${card.kind ?? "?"}/${card.status ?? "?"}] entry=${card.entry} SL=${card.stop} TP=[${tps}] R=${rVal}${card.note ? ` — ${card.note}` : ""}`);
+    }
   }
   const lines = [
     `Playbook Cards (${sym}): ${cards.length} active setups` + (d.suspended ? ` [SUSPENDED: ${d.suspended}]` : ""),
