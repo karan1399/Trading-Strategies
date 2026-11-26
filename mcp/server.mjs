@@ -38,9 +38,13 @@ import path from "node:path";
 const TERMINAL_URL = (process.env.TERMINAL_URL || "http://127.0.0.1:3000").replace(/\/+$/, "");
 const CURSOR_FILE = new URL("../data/mcp-cursor.json", import.meta.url);
 
+const PRESERVED_USD_SYMS = new Set(["EURUSD", "GBPUSD", "AUDUSD", "NZDUSD", "GAUUSD"]);
+
 function resolveSymArg(args, fallback = "BTC") {
   const raw = String(args?.sym ?? args?.symbol ?? fallback).trim();
   if (!raw) return fallback;
+  const upper = raw.toUpperCase();
+  if (PRESERVED_USD_SYMS.has(upper)) return upper;
   const m = raw.match(/^(?:[A-Za-z]+_)?([A-Za-z0-9]+?)(?:USDT|USD|-USDT-SWAP|-USD)?$/i);
   return (m?.[1] ?? raw).toUpperCase();
 }
@@ -344,6 +348,12 @@ async function toolBookWalls(args) {
   if (Number.isFinite(endN) && endN > 0) endQ = `&endTime=${Math.floor(endN)}`;
   const d = await api(`/api/cg/bookwalls?sym=${sym}&market=${market}&interval=${interval}&limit=${limit}&band=${band}${endQ}`);
   if (!d.ok) throw new Error(d.error || "book walls failed");
+  if (d.supported === false || !d.model) {
+    return {
+      text: `${sym} book_walls (${market}, ${interval}, ±${band}%): unsupported — ${d.reason ?? "no book heatmap model available"}`,
+      data: d,
+    };
+  }
   const m = d.model;
   const pct = (v) => (v == null || !Number.isFinite(v) ? "—" : `${(v * 100).toFixed(1)}%`);
   const walls = (m.walls ?? []).slice(0, 10);
@@ -831,9 +841,13 @@ async function toolClassicMacroQuotes(args) {
 }
 
 async function toolPlaybookCards(args) {
-  const sym = args?.sym ? String(args.sym).toUpperCase() : "BTC,ETH,SOL";
+  const rawSym = args?.sym ?? args?.symbol;
+  const sym = rawSym ? String(rawSym).trim().toUpperCase() : "BTC,ETH,SOL";
   const d = await api(`/api/strategy/cards?sym=${encodeURIComponent(sym)}`);
-  if (!d?.ok) throw new Error(d?.error || "playbook cards failed");
+  if (!d?.ok) {
+    const detail = Array.isArray(d?.assets) ? d.assets.map((a) => `${a.sym}: ${a.error ?? "failed"}`).join("; ") : "";
+    throw new Error(d?.error || detail || "playbook cards failed");
+  }
   const cards = [];
   for (const row of d.assets ?? []) {
     for (const card of row.cards ?? []) cards.push(`${row.sym} ${card.engine} ${card.direction} entry=${card.entry} SL=${card.stop} TP=${card.tp} R=${card.rMultiple}`);
