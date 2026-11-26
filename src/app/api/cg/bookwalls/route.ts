@@ -12,6 +12,7 @@ import { aggVenues } from "@/lib/cg/assets";
 import { anyTerminalSym, knownSym } from "@/lib/cg/sym-gate";
 import { BoundedMap } from "@/lib/cg/bounded";
 import { hlCoinOf, resolveBinPair, resolveCgSym } from "@/lib/binance/aliases";
+import { microMapOf } from "@/lib/cg/micro";
 import { binAssetOf, getUniverse } from "@/lib/binance/universe";
 import { isClassic } from "@/lib/cg/classic";
 import { fapiFetch } from "@/lib/live/fapi";
@@ -51,6 +52,8 @@ const STEP_MS: Record<string, number> = {
 const NORMALIZE: Record<string, string> = { m1: "1m", m5: "5m", m15: "15m", h1: "1h", h4: "4h", d1: "1d" };
 
 const cache = new BoundedMap<{ at: number; body: unknown }>(24);
+const lastGood = new BoundedMap<{ at: number; body: Record<string, unknown> }>(24);
+const LAST_GOOD_MAX_MS = 20 * 60_000;
 
 function buildSnapFromBook(
   bids: [number, number][],
@@ -202,6 +205,7 @@ export async function GET(req: NextRequest) {
               updatedAt: Date.now(),
             };
             cache.set(key, { at: Date.now(), body });
+            lastGood.set(key, { at: Date.now(), body });
             return NextResponse.json(body);
           }
         }
@@ -246,8 +250,9 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 3) Fallback: Hyperliquid xyz 20-level L2 book (SPX500, NDX100, JP225)
-    if (market === "futures" && hlCoinOf(sym)) {
+    // 3) Fallback: Hyperliquid 20-level L2 book (TradFi xyz + crypto main-dex)
+    const hlCoin = hlCoinOf(sym) ?? microMapOf(sym)?.hl?.coin;
+    if (market === "futures" && hlCoin) {
       const hl = await fetchHlCtxAndBook(sym).catch(() => null);
       if (hl?.book?.bids.length && hl.book.asks.length) {
         const bids = hl.book.bids.map((l): [number, number] => [l.px, l.sz]);
@@ -259,7 +264,7 @@ export async function GET(req: NextRequest) {
           const body = {
             ok: true,
             supported: true,
-            source: "hl-xyz",
+            source: "hl-l2",
             sym,
             market,
             interval,
@@ -274,6 +279,11 @@ export async function GET(req: NextRequest) {
           return NextResponse.json(body);
         }
       }
+    }
+
+    const staleLg = lastGood.get(key);
+    if (staleLg && Date.now() - staleLg.at <= LAST_GOOD_MAX_MS) {
+      return NextResponse.json({ ...staleLg.body, stale: true });
     }
 
     return NextResponse.json({
