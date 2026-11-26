@@ -80,7 +80,13 @@ const fmtUsd = (v) =>
       : Math.abs(v) >= 1e6
         ? `$${(v / 1e6).toFixed(1)}M`
         : `$${Math.round(v / 1e3)}K`;
-const fmtM = (v) => (v == null || !Number.isFinite(v) ? "—" : `$${(v / 1e6).toFixed(1)}M`);
+// Route /api/cg/cvd returns kpis in $M (via round1e6) — format directly without dividing by 1e6 twice
+const fmtM = (v) => {
+  if (v == null || !Number.isFinite(v)) return "—";
+  const sign = v < 0 ? "-" : "";
+  const a = Math.abs(v);
+  return a >= 1000 ? `${sign}$${(a / 1000).toFixed(2)}B` : `${sign}$${a.toFixed(0)}M`;
+};
 const tsOf = (t) => new Date(t > 1e12 ? t : t * 1000).toISOString().slice(5, 16).replace("T", " ");
 
 // ---- interval vocabularies (keep in lockstep with the routes) ----
@@ -375,7 +381,7 @@ async function toolCvdState(args) {
   if (!d.ok) throw new Error(d.error || "cvd failed");
   const lines = [
     `${sym} CVD (${mode}, ${itv}, ${d.n} bars, anchor ${anchor}) — perp ${fmtM(d.kpis.perpCvd)} · spot ${fmtM(d.kpis.spotCvd)} · buy share ${d.kpis.buyRatio}%`,
-    `24h perp taker: buy ${fmtM(d.kpis.perpBuy)} vs sell ${fmtM(d.kpis.perpSell)}`,
+    `${anchor === "day" ? "24h" : anchor === "week" ? "7d" : "window"} perp taker: buy ${fmtM(d.kpis.perpBuy)} vs sell ${fmtM(d.kpis.perpSell)} · spot taker: buy ${fmtM(d.kpis.spotBuy)} vs sell ${fmtM(d.kpis.spotSell)}`,
     d.divergences.length
       ? `divergences:\n${d.divergences.slice(-6).map((x) => `  ${x.type} @ ${new Date(x.ts).toISOString().slice(5, 16).replace("T", " ")} prices ${x.priceA}→${x.priceB}→${x.priceC} ret12 ${x.ret12}% hit:${x.hit}`).join("\n")}`
       : "no active divergences",
@@ -1966,7 +1972,4 @@ rl.on("line", (line) => {
       });
     return;
   }
-  if (id != null) send({ jsonrpc: "2.0", id, error: { code: -32601, message: `method not found: ${method}` } });
-});
-
-process.stderr.write(`[cg-terminal-mcp] v2.0 ready (${TOOLS.length} tools + live UI resource) — terminal at ${TERMINAL_URL}\n`);
+  if (id != null) send({ jsonrpc: "2.0", id, error: { code: -32601, message: `method not found: ${method}` } })

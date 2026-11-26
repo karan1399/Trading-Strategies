@@ -54,6 +54,8 @@ const ITVS: Record<string, { api: string; ms: number }> = {
 };
 
 const cache = new BoundedMap<{ at: number; body: unknown }>(24);
+const lastGood = new BoundedMap<{ at: number; built: BuiltCvd }>(24);
+const LAST_GOOD_MAX_MS = 15 * 60_000;
 
 interface BuiltCvd {
   inst: CvdInstrument[];
@@ -289,7 +291,12 @@ export async function GET(req: NextRequest) {
   } else {
     try {
       built = await buildCvd(sym, itvKey, limit);
+      lastGood.set(key, { at: Date.now(), built });
     } catch (e) {
+      const lg = lastGood.get(key);
+      if (lg && Date.now() - lg.at <= LAST_GOOD_MAX_MS) {
+        return render(lg.built, mode, anchor, lg.at);
+      }
       const stale = cache.get(key);
       if (stale) {
         const b = (stale.body as { built: BuiltCvd }).built;
