@@ -1450,7 +1450,7 @@ class AsyncTelemetryHarvester:
                     m15_grid = bw_val.get("grid")
 
         if is_prime:
-            lb_ep = f"/api/cg/livebook?sym={sym}&band=5" + (f"&grid={m15_grid}" if m15_grid else "")
+            lb_ep = f"/api/cg/livebook?sym={sym}&band=5&oneshot=1" + (f"&grid={m15_grid}" if m15_grid else "")
             lb = await self.fetch_json(lb_ep, timeout=7, retries=1)
             if lb and lb.get("ok"):
                 lb_compact = build_compact_bookwalls(lb, strip_tail=2, max_ladder=120)

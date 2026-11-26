@@ -63,7 +63,7 @@ async function fallbackLargeTrades(symbolKey: string): Promise<{ source: string;
   if (hlCoin) {
     const trades = await fetchHlRecentTrades(hlCoin).catch(() => []);
     const blocks = trades
-      .filter((t) => t.usd >= 10_000)
+      .filter((t) => t.usd >= 1_000)
       .map((t) => ({
         price: t.px,
         quoteVol: Math.round(t.usd),

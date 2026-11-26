@@ -3,7 +3,8 @@ import { cgGet } from "@/lib/cg/client";
 import { anyTerminalSym, gateReject, knownSym } from "@/lib/cg/sym-gate";
 import { resolveBinPair, resolveCgSym } from "@/lib/binance/aliases";
 import { fapiFetch } from "@/lib/live/fapi";
-import { fetchBinCandles, fetchBinOi } from "@/lib/cg/fallbacks";
+import { fetchBinCandles, fetchBinOi, fetchHlCtxAndBook } from "@/lib/cg/fallbacks";
+import { getLivePrice } from "@/lib/live/server-price";
 import { CURATED_BY_SYM } from "@/lib/universe/curated";
 
 export const dynamic = "force-dynamic";
@@ -450,10 +451,19 @@ export async function GET(req: NextRequest) {
       ls[key] = await (lsPayloads.get(key) as Promise<FetchPayload<LsRow[]> | null>);
     }
 
-    const perpPrice = (() => {
+    let perpPrice = (() => {
       const p = Number(ticker?.data?.lastPrice);
       return Number.isFinite(p) && p > 0 ? p : null;
     })();
+    if (perpPrice == null) {
+      const lp = await getLivePrice(sym).catch(() => null);
+      if (lp?.price && lp.price > 0) perpPrice = lp.price;
+      else {
+        const hl = await fetchHlCtxAndBook(sym).catch(() => null);
+        const mp = Number(hl?.ctx?.markPx ?? 0);
+        if (mp > 0) perpPrice = mp;
+      }
+    }
 
     // (a) Long/short ratios -------------------------------------------------
 

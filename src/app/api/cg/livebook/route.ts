@@ -36,13 +36,12 @@ export const dynamic = "force-dynamic";
  * and aggregate walls land on the same price buckets.
  */
 
-const POLL_MS = Math.max(1_500, Number(process.env.CG_LIVEBOOK_POLL_MS ?? 2_500) || 2_500);
-const IDLE_STOP_MS = 30_000;
+const POLL_MS = Math.max(2_000, Number(process.env.CG_LIVEBOOK_POLL_MS ?? 4_000) || 4_000);
+const IDLE_STOP_MS = 16_000;
 const RING_MS = 6.5 * 60_000; // covers the 5m-ago imbalance comparison
-const RING_MAX = 320;
-/** total poller cap — a looping client must not be able to spin up rings
- *  without bound (each costs recurring fapi weight + CPU + memory). */
-const MAX_RINGS = 24;
+const RING_MAX = 200;
+/** total poller cap — prevents exceeding Binance fapi 2400/min IP weight budget. */
+const MAX_RINGS = 6;
 /** guard against degenerate grids: a snapshot may never need more buckets
  *  than this regardless of grid granularity (top-1000 depth levels). */
 const MAX_BUCKETS = 250_000;
@@ -227,7 +226,7 @@ async function resolveGrid(sym: string, clientGrid: number | null): Promise<numb
   return live?.price && live.price > 0 ? niceGrid(live.price) : 0;
 }
 
-function ensurePoller(sym: string, grid: number, band: number): Ring {
+function getOrCreateRing(sym: string, grid: number, band: number): Ring {
   const key = ringKey(sym, grid, band);
   let ring = rings.get(key);
   if (!ring) {
@@ -250,6 +249,11 @@ function ensurePoller(sym: string, grid: number, band: number): Ring {
     rings.set(key, ring);
   }
   ring.lastRequestAt = Date.now();
+  return ring;
+}
+
+function ensurePoller(sym: string, grid: number, band: number): Ring {
+  const ring = getOrCreateRing(sym, grid, band);
   if (ring.timer) return ring;
   pollOnce(sym, ring).catch(() => undefined);
   ring.timer = setInterval(() => {
@@ -307,10 +311,14 @@ export async function GET(req: NextRequest) {
       { status: 502 }
     );
   }
-  const r = ensurePoller(sym, grid, band);
+  const oneshot = sp.get("oneshot") === "1";
+  const r = oneshot ? getOrCreateRing(sym, grid, band) : ensurePoller(sym, grid, band);
+  if (oneshot && (!r.body || Date.now() - r.at >= POLL_MS * 2)) {
+    await pollOnce(sym, r).catch(() => undefined);
+  }
   // serve what we have; the poller fills/refreshes asynchronously — a cold
   // start waits for the first snapshot (bounded by the fetch timeout)
-  if (!r.body) {
+  if (!r.body && !oneshot) {
     await new Promise<void>((resolve) => {
       const t0 = Date.now();
       const wait = setInterval(() => {
