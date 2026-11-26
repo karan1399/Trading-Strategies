@@ -1495,12 +1495,12 @@ class AsyncTelemetryHarvester:
         elif isinstance(prev_lo.get("resting_and_executed"), dict) and prev_lo["resting_and_executed"].get("24h"):
             profile["large_orders"]["resting_and_executed"]["24h"] = prev_lo["resting_and_executed"]["24h"]
 
+        prev_lto = prev_lo.get("large_taker_orders_100k")
         lto = res_map.get("lto")
         if lto and lto.get("ok"):
             pe = lto.get("perExchange") or {}
             active_exch = [k for k, v in pe.items() if isinstance(v, dict) and v.get("hasData")]
             grps_lto = _compact_groups(lto.get("groups"), 12, 35)
-            prev_lto = prev_lo.get("large_taker_orders_100k")
             if not grps_lto and isinstance(prev_lto, dict) and prev_lto.get("groups"):
                 preserved_lto = dict(prev_lto)
                 if lto.get("hlFallback"):
@@ -1516,6 +1516,10 @@ class AsyncTelemetryHarvester:
                     "hlFallback": lto.get("hlFallback"),
                     "updatedAt": lto.get("updatedAt"),
                 }
+        elif isinstance(prev_lto, dict):
+            preserved_lto = dict(prev_lto)
+            preserved_lto["preserved_on_fallback"] = True
+            profile["large_orders"]["large_taker_orders_100k"] = preserved_lto
         cards = res_map.get("cards")
         if cards and not cards.get("_err"):
             asset_cards = [c for a in cards.get("assets", []) if a.get("sym") == sym for c in a.get("cards", [])]
@@ -1563,18 +1567,25 @@ class AsyncTelemetryHarvester:
                 for item in s_list:
                     if isinstance(item, dict):
                         all_sigs.append(dict(item, bt=bt_key))
-            profile["footprint"]["signals"] = sigs_by_bt
             sym_fp_dir = os.path.join(FOOTPRINT_DIR, sym)
             os.makedirs(sym_fp_dir, exist_ok=True)
-            atomic_write(os.path.join(sym_fp_dir, "signals_7d.json"), {
-                "sym": sym,
-                "updated_at": iso_now,
-                "counts": sg.get("counts"),
-                "thresholds": sg.get("thresholds"),
-                "total_signals": len(all_sigs),
-                "by_bt": {s.get("bt"): {"label": s.get("label"), "count": len(s.get("sigs") or [])} for s in sets if isinstance(s, dict)},
-                "signals": all_sigs,
-            })
+            sig_path = os.path.join(sym_fp_dir, "signals_7d.json")
+            existing_sig_recent = False
+            if len(all_sigs) == 0 and os.path.exists(sig_path) and (time.time() - os.path.getmtime(sig_path)) < 1800:
+                prev_sig = _read_json_if_exists(sig_path)
+                if isinstance(prev_sig, dict) and (prev_sig.get("total_signals") or 0) > 0:
+                    existing_sig_recent = True
+            if not existing_sig_recent:
+                profile["footprint"]["signals"] = sigs_by_bt
+                atomic_write(sig_path, {
+                    "sym": sym,
+                    "updated_at": iso_now,
+                    "counts": sg.get("counts"),
+                    "thresholds": sg.get("thresholds"),
+                    "total_signals": len(all_sigs),
+                    "by_bt": {s.get("bt"): {"label": s.get("label"), "count": len(s.get("sigs") or [])} for s in sets if isinstance(s, dict)},
+                    "signals": all_sigs,
+                })
 
         # Footprint Timeframes (15m 7d incremental splice + 1h 7d incremental splice; extra m5/m30/h4 only if buckets supported!)
         h7_meta, h1_meta = await asyncio.gather(
@@ -1622,10 +1633,15 @@ class AsyncTelemetryHarvester:
         for k in (
             "market_structure", "narrative_engine", "athena_oracle",
             "microstructure_l2_l3", "quant_positioning", "options_deribit",
-            "playbook_cards", "backtest_metrics", "cot_report", "funding_and_oi",
+            "playbook_cards", "backtest_metrics", "cot_report",
         ):
             if not profile.get(k) and existing_keep.get(k):
                 profile[k] = existing_keep[k]
+        prev_foi = existing_keep.get("funding_and_oi") or {}
+        if isinstance(prev_foi, dict):
+            for foi_k in ("funding", "funding_aggregate", "open_interest", "oi_aggregate"):
+                if not profile["funding_and_oi"].get(foi_k) and prev_foi.get(foi_k):
+                    profile["funding_and_oi"][foi_k] = prev_foi[foi_k]
         if not profile["liquidations"]["clusters"] and existing_keep.get("liq_clusters"):
             profile["liquidations"]["clusters"] = existing_keep["liq_clusters"]
         if not profile["liquidations"]["live_prints_tape"] and existing_keep.get("liq_tape"):
