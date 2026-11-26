@@ -79,6 +79,7 @@ export async function fapiFetch(pathAndQuery: string, timeoutMs = 4_000): Promis
   }
   if (res.status !== 200) throw new Error(`fapi HTTP ${res.status}`);
   const body = (await res.json().catch(() => null)) as unknown;
+  if (body == null) throw new Error(`fapi returned empty/invalid JSON for ${pathAndQuery}`);
   // -1003-in-200 gap (verified live 2026-11-11): Binance serves
   // {"code":-1003,"msg":"… IP banned until <epoch-ms> …"} with HTTP 200 —
   // the old code returned that object to parsers as if it were data (klines
@@ -103,6 +104,7 @@ export async function fapiFetch(pathAndQuery: string, timeoutMs = 4_000): Promis
     }
     if (res2.status !== 200) throw new Error(`fapi HTTP ${res2.status}`);
     const body2 = (await res2.json().catch(() => null)) as unknown;
+    if (body2 == null) throw new Error(`fapi returned empty/invalid JSON for ${pathAndQuery}`);
     if (isBanBody(body2)) {
       breaker.until = Date.now() + 60_000;
       breaker.why = "code -1003 in HTTP 200 (flappy IP window)";
