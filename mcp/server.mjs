@@ -1029,7 +1029,7 @@ async function toolAlphaScreener(args) {
 }
 
 async function toolTradeNarrative(args) {
-  const sym = (args?.sym ?? "BTC").toUpperCase();
+  const sym = resolveSymArg(args, "BTC");
   const d = await api(`/api/cg/narrative?sym=${sym}`);
   if (d?.ok === false) throw new Error(d?.error || "narrative failed");
   if (d?.supported === false) {
@@ -1056,7 +1056,7 @@ async function toolTradeNarrative(args) {
 }
 
 async function toolQuantPositioning(args) {
-  const sym = (args?.sym ?? "BTC").toUpperCase();
+  const sym = resolveSymArg(args, "BTC");
   const d = await api(`/api/cg/quant?sym=${sym}`);
   if (d?.ok === false) throw new Error(d?.error || "quant positioning failed");
   if (d?.supported === false) return { text: `${sym}: ${d.reason ?? "no positioning data"}`, data: d };
@@ -1084,7 +1084,7 @@ async function toolQuantPositioning(args) {
 }
 
 async function toolOptionsSurface(args) {
-  const sym = (args?.sym ?? "BTC").toUpperCase();
+  const sym = resolveSymArg(args, "BTC");
   const d = await api(`/api/cg/options?sym=${sym}`);
   if (d?.ok === false) throw new Error(d?.error || "options surface failed");
   if (d?.supported === false) return { text: `${sym}: ${d.reason ?? "no options data"}`, data: d };
@@ -1122,7 +1122,7 @@ async function toolDeskStatus() {
 }
 
 async function toolPaperBook(args) {
-  const sym = (args?.sym ?? "").toUpperCase();
+  const sym = resolveSymArg(args, "");
   const status = args?.status;
   const limit = args?.limit ?? 30;
   const params = new URLSearchParams();
@@ -1239,7 +1239,7 @@ async function toolPortfolioRisk() {
 }
 
 async function toolNarrativeAiBrief(args) {
-  const sym = (args?.sym ?? "BTC").toUpperCase();
+  const sym = resolveSymArg(args, "BTC");
   // DUAL-AGENT ARCHITECTURE — the terminal runtime makes ZERO external
   // AI/LLM calls. This tool assembles the deterministic BRIEF KIT: the
   // verified NarrativeVerdict + quant + options telemetry plus the
@@ -1759,12 +1759,12 @@ async function fetchLive(sym){
   }
   try {
     const [m,n,o,s3,s30,d] = await Promise.all([
-      fetch("http://localhost:3000/api/cg/market?sym="+sym).then(r=>r.json()).catch(()=>null),
-      fetch("http://localhost:3000/api/cg/narrative?sym="+sym).then(r=>r.json()).catch(()=>null),
-      fetch("http://localhost:3000/api/cg/oracle?sym="+sym).then(r=>r.json()).catch(()=>null),
-      fetch("http://localhost:3000/api/cg/stopmap?sym="+sym+"&model=1&mode=coin&range=3d").then(r=>r.json()).catch(()=>null),
-      fetch("http://localhost:3000/api/cg/stopmap?sym="+sym+"&model=1&mode=coin&range=30d").then(r=>r.json()).catch(()=>null),
-      fetch("http://localhost:3000/api/desk/live").then(r=>r.json()).catch(()=>null),
+      fetch("http://127.0.0.1:3000/api/cg/market?sym="+sym).then(r=>r.json()).catch(()=>null),
+      fetch("http://127.0.0.1:3000/api/cg/narrative?sym="+sym).then(r=>r.json()).catch(()=>null),
+      fetch("http://127.0.0.1:3000/api/cg/oracle?sym="+sym).then(r=>r.json()).catch(()=>null),
+      fetch("http://127.0.0.1:3000/api/cg/stopmap?sym="+sym+"&model=1&mode=coin&range=3d").then(r=>r.json()).catch(()=>null),
+      fetch("http://127.0.0.1:3000/api/cg/stopmap?sym="+sym+"&model=1&mode=coin&range=30d").then(r=>r.json()).catch(()=>null),
+      fetch("http://127.0.0.1:3000/api/desk/live").then(r=>r.json()).catch(()=>null),
     ]);
     renderData({sym,fetchedAt:new Date().toISOString(),market:m,narrative:n,oracle:o,stopmap3d:s3?.model??s3,stopmap30d:s30?.model??s30,desk:d});
   } catch (e) { document.getElementById("stamp").textContent = "err: "+e.message; }
