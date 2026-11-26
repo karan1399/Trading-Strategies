@@ -35,8 +35,15 @@ import { readFileSync as fsRead, writeFileSync as fsWrite, mkdirSync } from "nod
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
-const TERMINAL_URL = (process.env.TERMINAL_URL || "http://localhost:3000").replace(/\/+$/, "");
+const TERMINAL_URL = (process.env.TERMINAL_URL || "http://127.0.0.1:3000").replace(/\/+$/, "");
 const CURSOR_FILE = new URL("../data/mcp-cursor.json", import.meta.url);
+
+function resolveSymArg(args, fallback = "BTC") {
+  const raw = String(args?.sym ?? args?.symbol ?? fallback).trim();
+  if (!raw) return fallback;
+  const m = raw.match(/^(?:[A-Za-z]+_)?([A-Za-z0-9]+?)(?:USDT|USD|-USDT-SWAP|-USD)?$/i);
+  return (m?.[1] ?? raw).toUpperCase();
+}
 
 async function api(path) {
   const res = await fetch(`${TERMINAL_URL}${path}`, { signal: AbortSignal.timeout(120_000) });
@@ -136,7 +143,7 @@ async function toolListAssets() {
 }
 
 async function toolMarketSnapshot(args) {
-  const sym = (args?.sym ?? "BTC").toUpperCase();
+  const sym = resolveSymArg(args, "BTC");
   const d = await api(`/api/cg/market?sym=${sym}`);
   if (!d.ok) throw new Error(d.error || "market snapshot failed");
   const a = d.auction;
@@ -156,7 +163,7 @@ async function toolMarketSnapshot(args) {
 }
 
 async function toolSignals(args) {
-  const sym = (args?.sym ?? "BTC").toUpperCase();
+  const sym = resolveSymArg(args, "BTC");
   const bt = args?.bt ?? "all";
   const d = await api(`/api/cg/signals?sym=${sym}&bt=${bt}`);
   if (!d.ok) throw new Error(d.error || "signals failed");
@@ -196,7 +203,7 @@ async function toolNotifications(args) {
 }
 
 async function toolLivePrice(args) {
-  const sym = (args?.sym ?? "BTC").toUpperCase();
+  const sym = resolveSymArg(args, "BTC");
   const d = await api(`/api/cg/ticker?sym=${sym}`);
   if (!d.ok || d.price == null) throw new Error(d.error || "ticker failed");
   const dir = d.dir === "up" ? "▲" : d.dir === "down" ? "▼" : "=";
@@ -208,7 +215,7 @@ async function toolLivePrice(args) {
 }
 
 async function toolLiquidationLevels(args) {
-  const sym = (args?.sym ?? "BTC").toUpperCase();
+  const sym = resolveSymArg(args, "BTC");
   const range = ["3d", "7d", "14d", "30d"].includes(args?.range) ? args.range : "3d";
   const d = await api(`/api/cg/liqlevels?sym=${sym}&range=${range}&lvR=4`);
   if (!d.ok) throw new Error(d.error || "liquidation levels failed");
@@ -229,7 +236,7 @@ async function toolLiquidationLevels(args) {
 }
 
 async function toolLiqLive(args) {
-  const sym = (args?.sym ?? "").toUpperCase();
+  const sym = resolveSymArg(args, "");
   const limit = Math.max(1, Math.min(60, Number(args?.limit ?? 15) || 15));
   const url = sym
     ? `/api/cg/liq-live?sym=${encodeURIComponent(sym)}&limit=${limit}`

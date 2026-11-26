@@ -725,4 +725,52 @@ export async function GET(req: NextRequest) {
     );
     if (basis.coinbasePremiumBps != null) {
       notes.push(
-        `coinbasePremiumBps = (Coinbase ${cgSym}-USD − Binance ${spotPair ?? pair}) / Binance × 10⁴ = ${basis.coinbasePremiumBps > 0 ? "+" : ""}${basis.coinbasePremiumBps} bps 
+        `coinbasePremiumBps = (Coinbase ${cgSym}-USD − Binance ${spotPair ?? pair}) / Binance × 10⁴ = ${basis.coinbasePremiumBps > 0 ? "+" : ""}${basis.coinbasePremiumBps} bps — positive = Coinbase leading higher (US institutional bid)`
+      );
+    }
+
+    // ── freshness telemetry: fast legs (ticker/spot/coinbase — the basis core)
+    //    vs slow legs (bucket-stamped L/S rows + hourly OI chart + funding home) ──
+
+    const fastStamps: number[] = [];
+    if (ticker) fastStamps.push(ticker.dataAt);
+    if (spot) fastStamps.push(spot.dataAt);
+    if (coinbase) fastStamps.push(coinbase.dataAt);
+
+    const slowStamps: number[] = [];
+    for (const p of Object.values(ls)) if (p) slowStamps.push(p.dataAt);
+    if (fundingHome) slowStamps.push(fundingHome.dataAt);
+    if (oiChart) slowStamps.push(oiChart.dataAt);
+
+    const srcParts: string[] = [];
+    if (Object.values(ls).some((x) => x)) srcParts.push("binance-fapi/ls-ratios");
+    if (ticker) srcParts.push("binance-fapi/ticker24h");
+    if (fundingHome) srcParts.push("coinglass/funding-home");
+    if (oiChart) srcParts.push("coinglass/oi-chart");
+    if (spot) srcParts.push("binance-spot");
+    if (coinbase) srcParts.push("coinbase");
+
+    return NextResponse.json({
+      ok: true,
+      supported: true,
+      sym,
+      cgSym,
+      pair,
+      lsRatios,
+      funding,
+      oiQuadrant,
+      basis,
+      notes,
+      ...telemetryOf(
+        fastStamps,
+        slowStamps,
+        srcParts.length > 0 ? srcParts.join("+") : "none"
+      ),
+    });
+  } catch (e) {
+    return NextResponse.json(
+      { ok: false, error: e instanceof Error ? e.message : "quant positioning fetch failed" },
+      { status: 502 }
+    );
+  }
+}
