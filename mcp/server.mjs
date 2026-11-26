@@ -75,7 +75,14 @@ function ensureDataDir() {
   } catch {}
 }
 
-const fmtP = (v, d = 2) => (v == null || !Number.isFinite(v) ? null : +Number(v).toFixed(d));
+const fmtP = (v, d) => {
+  if (v == null || !Number.isFinite(v)) return null;
+  const n = Number(v);
+  if (d != null) return +n.toFixed(d);
+  const a = Math.abs(n);
+  const dec = a === 0 ? 2 : a < 0.01 ? 6 : a < 1 ? 5 : a < 10 ? 4 : 2;
+  return +n.toFixed(dec);
+};
 const fmtUsd = (v) =>
   v == null || !Number.isFinite(v)
     ? "—"
@@ -570,7 +577,7 @@ async function toolStopmap(args) {
     const lines = [
       `${sym} liquidation heatmap — Model ${m.model} ${m.mode} mode, ${m.range} window, ${ov.columnMinutes}m columns (Coinglass estimates, source=${d.source ?? "session"})`,
       `price ${ov.lastPrice}${ov.chgPct24h == null ? "" : ` (${ov.chgPct24h >= 0 ? "+" : ""}${ov.chgPct24h}% 24h)`} · open liq levels ${fmtUsd(ov.total)}: longs below ${fmtUsd(ov.longs)} (${Math.round(pct(ov.longs))}%) · shorts above ${fmtUsd(ov.shorts)} (${Math.round(pct(ov.shorts))}%)`,
-      `largest single level ${fmtUsd(ov.largestLevel)} · price step ${Number(ov.priceStep).toFixed(2)} · instrument ${d.instrument ?? m.symbol}`,
+      `largest single level ${fmtUsd(ov.largestLevel)} · price step ${fmtP(Number(ov.priceStep)) ?? "—"} · instrument ${d.instrument ?? m.symbol}`,
       ...(walls ? [
         `UI active short walls (right-edge untouched): [${walls.active_short_prices.slice(0, 6).join(", ")}]${walls.max_short ? ` · maxShort ${walls.max_short.price} (${fmtUsd(walls.max_short.mx_usd)})` : ""}`,
         `UI active long walls  (right-edge untouched): [${walls.active_long_prices.slice(0, 6).join(", ")}]${walls.max_long ? ` · maxLong ${walls.max_long.price} (${fmtUsd(walls.max_long.mx_usd)})` : ""}`,
