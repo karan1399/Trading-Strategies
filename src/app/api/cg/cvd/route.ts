@@ -168,7 +168,12 @@ async function buildCvd(reqSym: string, itvKey: string, limit: number): Promise<
   }
 
   try {
-    const fetchWithTimeout = <T>(p: Promise<T>, ms = 4000): Promise<T> =>
+    const pickedAll = [...inst];
+    const topPerps = pickedAll.filter((x) => x.kind === "perp").sort((a, b) => b.volUsd - a.volUsd).slice(0, 8);
+    const topSpot = pickedAll.filter((x) => x.kind === "spot").sort((a, b) => b.volUsd - a.volUsd).slice(0, 4);
+    inst = [...topPerps, ...topSpot];
+    if (!inst.some((x) => x.key === priceKey) && inst.length) priceKey = inst[0].key;
+    const fetchWithTimeout = <T>(p: Promise<T>, ms = 3_500): Promise<T> =>
       Promise.race([p, new Promise<never>((_, rej) => setTimeout(() => rej(new Error("cvd timeout")), ms))]);
 
     const kl = (await fetchWithTimeout(
@@ -183,13 +188,13 @@ async function buildCvd(reqSym: string, itvKey: string, limit: number): Promise<
       const grid = new FlowGrid(itv.ms, inst.map((i) => i.key));
       grid.setCandles(candles as unknown as [number, string | number, string | number, string | number, string | number][]);
       const loaded: { key: string; ok: boolean }[] = [];
-      const flows = await mapLimit(inst, 4, async (v: CvdInstrument) => {
+      const flows = await mapLimit(inst, 6, async (v: CvdInstrument) => {
         const r = await fetchWithTimeout(
           cgGet(
             `/api/v2/kline?symbol=${encodeURIComponent(v.key + "#bs_usd")}&interval=${itv.api}&limit=${limit}&minLimit=false`,
             60_000
           ) as Promise<{ data?: [number, string | number, string | number][] } | [number, string | number, string | number][]>,
-          3000
+          3_000
         ).catch(() => []);
         return (Array.isArray(r) ? r : ((r as { data?: unknown })?.data ?? [])) as [number, string | number, string | number][];
       });

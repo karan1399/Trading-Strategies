@@ -1972,4 +1972,7 @@ rl.on("line", (line) => {
       });
     return;
   }
-  if (id != null) send({ jsonrpc: "2.0", id, error: { code: -32601, message: `method not found: ${method}` } })
+  if (id != null) send({ jsonrpc: "2.0", id, error: { code: -32601, message: `method not found: ${method}` } });
+});
+
+process.stderr.write(`[cg-terminal-mcp] v2.0 ready (${TOOLS.length} tools + live UI resource) — terminal at ${TERMINAL_URL}\n`);
