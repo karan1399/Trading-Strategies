@@ -754,7 +754,7 @@ async function toolLiveTick(args) {
 }
 
 async function toolFundingVenues(args) {
-  const sym = (args?.sym ?? "BTC").toUpperCase();
+  const sym = resolveSymArg(args, "BTC");
   const d = await api(`/api/cg/funding?sym=${sym}`);
   if (!d?.ok) throw new Error(d?.error || "funding failed");
   const agg = d.aggregate ?? {};
@@ -766,7 +766,7 @@ async function toolFundingVenues(args) {
 }
 
 async function toolOpenInterest(args) {
-  const sym = (args?.sym ?? "BTC").toUpperCase();
+  const sym = resolveSymArg(args, "BTC");
   const d = await api(`/api/cg/oi?sym=${sym}`);
   if (!d?.ok) throw new Error(d?.error || "oi failed");
   const agg = d.aggregate ?? {};
@@ -778,14 +778,14 @@ async function toolOpenInterest(args) {
 }
 
 async function toolPerpDepth(args) {
-  const sym = (args?.sym ?? "SP500").toUpperCase();
+  const sym = resolveSymArg(args, "SP500");
   const d = await api(`/api/cg/perpdepth?sym=${sym}`);
   if (!d?.ok) throw new Error(d?.error || "perpdepth failed");
   return { text: `${sym} Tier-3 Perp Depth: OI=${d.oi?.last ?? "–"} (1h ${d.oi?.d1h ?? "–"}% / 4h ${d.oi?.d4h ?? "–"}% / 24h ${d.oi?.d24h ?? "–"}%) · flow15m=${fmtUsd(d.netFlow15mUsd)}`, data: d };
 }
 
 async function toolCotReport(args) {
-  const sym = (args?.sym ?? "XAU").toUpperCase();
+  const sym = resolveSymArg(args, "XAU");
   const d = await api(`/api/cg/cot?sym=${sym}&quiet=1`);
   if (!d?.ok) throw new Error(d?.error || "cot failed");
   const lines = [
@@ -796,7 +796,7 @@ async function toolCotReport(args) {
 }
 
 async function toolClassicMacroQuotes(args) {
-  const sym = (args?.sym ?? "SPX500").toUpperCase();
+  const sym = resolveSymArg(args, "SPX500");
   const syms = args?.syms ?? "SP500,NDX100,EURUSD";
   const [c, m] = await Promise.all([
     api(`/api/cg/classic?sym=${encodeURIComponent(sym)}`).catch(() => null),
@@ -851,7 +851,7 @@ async function toolTerminalHealth() {
 
 async function toolBinanceMarketData(args) {
   const action = ["quotes", "market", "klines", "universe", "account"].includes(args?.action) ? args.action : "market";
-  const sym = (args?.sym ?? "BTC").toUpperCase();
+  const sym = resolveSymArg(args, "BTC");
   const interval = args?.interval ?? "15m";
   const limit = Math.min(Math.max(Number(args?.limit ?? 100) || 100, 5), 1000);
   const pathMap = {
@@ -867,7 +867,7 @@ async function toolBinanceMarketData(args) {
 }
 
 async function toolTelemetrySnapshot(args) {
-  const sym = (args?.sym ?? "BTC").toUpperCase();
+  const sym = resolveSymArg(args, "BTC");
   const assetPath = fileURLToPath(new URL(`../data/telemetry/assets/${sym}.json`, import.meta.url));
   const fpPath = fileURLToPath(new URL(`../data/telemetry/footprint/${sym}/summary_7d.json`, import.meta.url));
   let asset = null, fp = null;
@@ -892,7 +892,7 @@ async function toolTelemetrySnapshot(args) {
 }
 
 async function toolOpenLiveVisual(args) {
-  const sym = (args?.sym ?? "BTC").toUpperCase();
+  const sym = resolveSymArg(args, "BTC");
   const [snap, setup, oracle, sm3, sm30, desk] = await Promise.all([
     api(`/api/cg/market?sym=${sym}`).catch(() => null),
     api(`/api/cg/narrative?sym=${sym}`).catch(() => null),
@@ -919,7 +919,7 @@ async function toolOpenLiveVisual(args) {
 }
 
 async function toolAnalyzeSetup(args) {
-  const sym = (args?.sym ?? "BTC").toUpperCase();
+  const sym = resolveSymArg(args, "BTC");
   const [market, signals, liq, whale, book, cvd, notif, narrative, quant, options, oracle, micro, livebook, sm3] = await Promise.all([
     toolMarketSnapshot({ sym }).catch(() => null),
     toolSignals({ sym }).catch(() => null),
