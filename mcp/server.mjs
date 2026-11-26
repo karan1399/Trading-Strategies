@@ -281,7 +281,7 @@ async function toolLiqLive(args) {
 }
 
 async function toolWhaleOrders(args) {
-  const sym = (args?.sym ?? "BTC").toUpperCase();
+  const sym = resolveSymArg(args, "BTC");
   const minUsd = Math.max(0, Number(args?.minUsd ?? 1_000_000));
   const d = await api(`/api/cg/lto?symbol=${sym}&minVolUsd=${minUsd}`);
   if (!d.ok) throw new Error(d.error || "whale orders failed");
@@ -304,16 +304,25 @@ async function toolWhaleOrders(args) {
   rows.sort((a, b) => b.usd - a.usd);
   const imb = bid + ask > 0 ? ((bid - ask) / (bid + ask)) * 100 : 0;
   const lines = [
-    `${sym} whale open orders ≥ ${fmtUsd(minUsd)} across ${Object.keys(d.perExchange ?? {}).length} exchanges — ${rows.length} orders`,
+    `${sym} whale open orders ≥ ${fmtUsd(minUsd)} across ${Object.keys(d.perExchange ?? {}).length} exchanges — ${rows.length} orders${d.stale ? " [STALE CACHED]" : ""}${d.reason ? ` (${d.reason})` : ""}`,
     `aggregate: bids ${fmtUsd(bid)} vs asks ${fmtUsd(ask)} · imbalance ${fmtP(imb, 1)}% ${imb > 0 ? "(bid-heavy)" : "(ask-heavy)"}`,
-    `top walls:`,
-    ...rows.slice(0, 10).map((r) => `  ${r.side.toUpperCase()} ${fmtUsd(r.usd)} @ ${r.price} (${r.ex} ${r.inst})${r.filled ? ` · filled ${fmtUsd(r.filled)}` : ""}`),
+    ...(rows.length
+      ? [`top walls:`, ...rows.slice(0, 10).map((r) => `  ${r.side.toUpperCase()} ${fmtUsd(r.usd)} @ ${r.price} (${r.ex} ${r.inst})${r.filled ? ` · filled ${fmtUsd(r.filled)}` : ""}`)]
+      : ["no resting Coinglass whale walls ≥ threshold"]),
   ];
-  return { text: lines.join("\n"), data: { sym, bidUsd: bid, askUsd: ask, imbalancePct: fmtP(imb, 1), top: rows.slice(0, 25), perExchange: d.perExchange } };
+  if (d.hlFallback) {
+    const h = d.hlFallback;
+    const hBids = h.bids ?? [];
+    const hAsks = h.asks ?? [];
+    lines.push(`Hyperliquid ${h.coin} L2 fallback (${hBids.length} bid walls / ${hAsks.length} ask walls / ${(h.recentTrades ?? []).length} recent trades):`);
+    for (const b of hBids.slice(0, 4)) lines.push(`  HL BID ${fmtUsd(b.usd)} @ ${b.price}`);
+    for (const a of hAsks.slice(0, 4)) lines.push(`  HL ASK ${fmtUsd(a.usd)} @ ${a.price}`);
+  }
+  return { text: lines.join("\n"), data: { sym, stale: Boolean(d.stale), reason: d.reason, bidUsd: bid, askUsd: ask, imbalancePct: fmtP(imb, 1), top: rows.slice(0, 25), perExchange: d.perExchange, hlFallback: d.hlFallback } };
 }
 
 async function toolBookWalls(args) {
-  const sym = (args?.sym ?? "BTC").toUpperCase();
+  const sym = resolveSymArg(args, "BTC");
   const interval = resolveInterval(args?.interval, BOOKWALLS_ITV, M_TO_PAGE, "15m");
   // limit allowlist mirrors the route exactly (bookwalls route clamps 30-300,
   // verified live — the old 10-500 clamp let MCP advertise ranges the route
@@ -355,7 +364,7 @@ async function toolBookWalls(args) {
 }
 
 async function toolCvdState(args) {
-  const sym = (args?.sym ?? "BTC").toUpperCase();
+  const sym = resolveSymArg(args, "BTC");
   const mode = ["perp", "spot", "total"].includes(args?.mode) ? args.mode : "total";
   const itv = resolveInterval(args?.itv, CVD_ITV, M_TO_PAGE, "15m");
   // cvd route clamps limit 300-1500 (verified live) — the old 50-1500 clamp
@@ -494,7 +503,7 @@ function computeStopmapWalls(model, thr = 0) {
 }
 
 async function toolStopmap(args) {
-  const sym = (args?.sym ?? "BTC").toUpperCase();
+  const sym = resolveSymArg(args, "BTC");
   // Multi-horizon sweep mode (`range="all"`): sequentially gather 12h..90d with polite delay
   if (String(args?.range).toLowerCase() === "all") {
     const model = ["1", "2", "3"].includes(String(args?.model)) ? String(args.model) : "1";
@@ -604,7 +613,7 @@ function analyzeFpBarMicro(bar) {
 }
 
 async function toolFootprint(args) {
-  const sym = (args?.sym ?? "BTC").toUpperCase();
+  const sym = resolveSymArg(args, "BTC");
   const interval = resolveInterval(args?.interval, M_INTERVALS, PAGE_TO_M, "m15");
   const limit = Math.min(Math.max(Number(args?.limit ?? 96) || 96, 10), 500);
   const lastN = Math.min(Math.max(Number(args?.last ?? 12) || 12, 1), 48);
@@ -633,13 +642,16 @@ async function toolFootprint(args) {
 }
 
 async function toolLargeOrders(args) {
-  const sym = (args?.sym ?? "BTC").toUpperCase();
+  const sym = resolveSymArg(args, "BTC");
   const hours = Math.min(Math.max(Number(args?.hours ?? 24) || 24, 1), 720);
   const interval = resolveInterval(args?.interval, M_INTERVALS, PAGE_TO_M, "m15");
   let symbol = String(args?.symbol ?? "");
-  if (!/^[A-Za-z0-9_-]{3,48}$/.test(symbol)) symbol = `Binance_${sym}USDT`;
+  if (!/^[A-Za-z0-9_-]{3,48}$/.test(symbol) || !symbol.includes("_")) symbol = `Binance_${sym}USDT`;
   const d = await api(`/api/cg/largeorder?symbol=${encodeURIComponent(symbol)}&interval=${interval}&hours=${hours}`);
   if (!d.ok) throw new Error(d.error || "large orders failed");
+  if (d.supported === false) {
+    return { text: `${symbol} large orders: unavailable (${d.reason ?? "upstream unavailable"})`, data: d };
+  }
   let restingBid = 0;
   let restingAsk = 0;
   let tradedBuy = 0;
@@ -679,12 +691,12 @@ async function toolLargeOrders(args) {
 }
 
 async function toolKline(args) {
-  const sym = (args?.sym ?? "BTC").toUpperCase();
+  const sym = resolveSymArg(args, "BTC");
   const type = args?.type === "oi" ? "oi" : "kline";
   const interval = resolveInterval(args?.interval, M_INTERVALS, PAGE_TO_M, "m15");
   const limit = Math.min(Math.max(Number(args?.limit ?? 300) || 300, 10), 1000);
   let symbol = String(args?.symbol ?? "");
-  if (!/^[A-Za-z0-9_-]{3,48}$/.test(symbol)) symbol = `Binance_${sym}USDT`;
+  if (!/^[A-Za-z0-9_-]{3,48}$/.test(symbol) || !symbol.includes("_")) symbol = `Binance_${sym}USDT`;
   const d = await api(`/api/cg/kline?symbol=${encodeURIComponent(symbol)}&type=${type}&interval=${interval}&limit=${limit}`);
   if (!d.ok) throw new Error(d.error || "kline failed");
   const rows = d.rows ?? [];

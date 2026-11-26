@@ -1482,23 +1482,40 @@ class AsyncTelemetryHarvester:
                 out_g.append(row_g)
             return out_g
 
+        prev_lo = existing_keep.get("large_orders") or {}
         lo = res_map.get("lo")
         if lo and lo.get("ok"):
-            profile["large_orders"]["resting_and_executed"]["24h"] = _compact_groups(lo.get("groups"), 12, 35)
-            if lo.get("supported") is False and lo.get("reason"):
+            grps_lo = _compact_groups(lo.get("groups"), 12, 35)
+            if grps_lo:
+                profile["large_orders"]["resting_and_executed"]["24h"] = grps_lo
+            elif isinstance(prev_lo.get("resting_and_executed"), dict) and prev_lo["resting_and_executed"].get("24h"):
+                profile["large_orders"]["resting_and_executed"]["24h"] = prev_lo["resting_and_executed"]["24h"]
+            if lo.get("reason"):
                 profile["large_orders"]["largeorder_status"] = lo.get("reason")
+        elif isinstance(prev_lo.get("resting_and_executed"), dict) and prev_lo["resting_and_executed"].get("24h"):
+            profile["large_orders"]["resting_and_executed"]["24h"] = prev_lo["resting_and_executed"]["24h"]
+
         lto = res_map.get("lto")
         if lto and lto.get("ok"):
             pe = lto.get("perExchange") or {}
             active_exch = [k for k, v in pe.items() if isinstance(v, dict) and v.get("hasData")]
-            profile["large_orders"]["large_taker_orders_100k"] = {
-                "supported": lto.get("supported"),
-                "minVolUsd": lto.get("minVolUsd"),
-                "groups": _compact_groups(lto.get("groups"), 12, 35),
-                "activeExchanges": active_exch,
-                "hlFallback": lto.get("hlFallback"),
-                "updatedAt": lto.get("updatedAt"),
-            }
+            grps_lto = _compact_groups(lto.get("groups"), 12, 35)
+            prev_lto = prev_lo.get("large_taker_orders_100k")
+            if not grps_lto and isinstance(prev_lto, dict) and prev_lto.get("groups"):
+                preserved_lto = dict(prev_lto)
+                if lto.get("hlFallback"):
+                    preserved_lto["hlFallback"] = lto.get("hlFallback")
+                preserved_lto["preserved_on_fallback"] = True
+                profile["large_orders"]["large_taker_orders_100k"] = preserved_lto
+            else:
+                profile["large_orders"]["large_taker_orders_100k"] = {
+                    "supported": lto.get("supported"),
+                    "minVolUsd": lto.get("minVolUsd"),
+                    "groups": grps_lto,
+                    "activeExchanges": active_exch,
+                    "hlFallback": lto.get("hlFallback"),
+                    "updatedAt": lto.get("updatedAt"),
+                }
         cards = res_map.get("cards")
         if cards and not cards.get("_err"):
             asset_cards = [c for a in cards.get("assets", []) if a.get("sym") == sym for c in a.get("cards", [])]
