@@ -4,6 +4,9 @@ import { binAssetOf } from "@/lib/binance/universe";
 import { CURATED_BY_SYM } from "@/lib/universe/curated";
 import { premOf } from "@/lib/binance/market-batch";
 import { cgGet, FAPI } from "@/lib/cg/client";
+import { hlCoinOf, resolveCgSym } from "@/lib/binance/aliases";
+import { fetchBinCandles, fetchHlCandles } from "@/lib/cg/fallbacks";
+import { microMapOf } from "@/lib/cg/micro";
 import { emaLast, emaSeries, rsiLast } from "@/lib/cg/indicators";
 import {
   detectDivergences,
@@ -143,24 +146,47 @@ function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
 
 type BinKlineRow = [number, number, number, number, number, number, number];
 
-async function fetchKlines(pair: string, interval: "15m" | "1h", limit: number): Promise<BinKlineRow[]> {
-  const raw = (await fapiFetch(
-    `/fapi/v1/klines?symbol=${pair}&interval=${interval}&limit=${limit}`,
-    8_000
-  )) as (string | number)[][];
-  if (!Array.isArray(raw)) throw new Error("klines: bad payload");
-  return raw
-    .map(
-      (r): BinKlineRow => [
-        Number(r[0]),
-        Number(r[1]),
-        Number(r[2]),
-        Number(r[3]),
-        Number(r[4]),
-        Number(r[5]),
-        Number(r[6]),
-      ]
-    )
+async function fetchKlines(sym: string, pair: string, interval: "15m" | "1h", limit: number): Promise<BinKlineRow[]> {
+  try {
+    const raw = (await fapiFetch(
+      `/fapi/v1/klines?symbol=${pair}&interval=${interval}&limit=${limit}`,
+      6_000
+    )) as (string | number)[][];
+    if (Array.isArray(raw) && raw.length >= 20) {
+      return raw
+        .map(
+          (r): BinKlineRow => [
+            Number(r[0]),
+            Number(r[1]),
+            Number(r[2]),
+            Number(r[3]),
+            Number(r[4]),
+            Number(r[5]),
+            Number(r[6]),
+          ]
+        )
+        .filter((r) => Number.isFinite(r[0]) && Number.isFinite(r[4]));
+    }
+  } catch {
+    /* fallback cleanly below */
+  }
+  const hlCoin = hlCoinOf(sym) ?? microMapOf(sym)?.hl?.coin;
+  if (hlCoin) {
+    const hl = await fetchHlCandles(hlCoin, interval === "15m" ? "m15" : "h1", limit).catch(() => []);
+    if (hl.length >= 20) {
+      return hl.map((c) => [c.t, c.o, c.h, c.l, c.c, c.v, c.t]);
+    }
+  }
+  const cgItv = interval === "15m" ? "m15" : "h1";
+  const cgSym = resolveCgSym(sym);
+  const kl = (await cgGet(
+    `/api/v2/kline?symbol=${encodeURIComponent(`Binance_${cgSym}USDT#kline`)}&interval=${cgItv}&limit=${limit}&minLimit=false`,
+    60_000
+  )) as { data?: KlineRow[] } | KlineRow[];
+  const rows = Array.isArray(kl) ? kl : (kl?.data ?? []);
+  if (!rows.length) throw new Error("klines: all sources unavailable");
+  return rows
+    .map((r): BinKlineRow => [Number(r[0]) * 1000, Number(r[1]), Number(r[2]), Number(r[3]), Number(r[4]), Number(r[5] ?? 0), Number(r[0]) * 1000])
     .filter((r) => Number.isFinite(r[0]) && Number.isFinite(r[4]));
 }
 
@@ -168,8 +194,8 @@ async function fetchKlines(pair: string, interval: "15m" | "1h", limit: number):
 // APOLLO — Trend & Momentum (+ the regime read, same klines)
 // ---------------------------------------------------------------------------
 
-async function buildApollo(pair: string): Promise<{ score: number; detail: string; regime: Regime }> {
-  const [k15, k1h] = await Promise.all([fetchKlines(pair, "15m", 200), fetchKlines(pair, "1h", 100)]);
+async function buildApollo(sym: string, pair: string): Promise<{ score: number; detail: string; regime: Regime }> {
+  const [k15, k1h] = await Promise.all([fetchKlines(sym, pair, "15m", 200), fetchKlines(sym, pair, "1h", 100)]);
   if (k15.length < 60) throw new Error("not enough 15m bars");
 
   const c15 = k15.map((r) => r[4]);
@@ -267,54 +293,107 @@ async function mapLimit<T, R>(items: T[], limit: number, fn: (t: T) => Promise<R
 }
 
 async function buildPoseidon(sym: string): Promise<{ score: number; detail: string }> {
-  // instruments — TRADFI: pinned keys; CRYPTO: the route's keyword discovery
-  const pinned = pinCvdInstruments(sym);
-  let inst: CvdInstrument[];
-  let priceKey: string;
+  const cgSym = resolveCgSym(sym);
+  const pinned = pinCvdInstruments(cgSym);
+  let inst: CvdInstrument[] = [];
+  let priceKey = "";
   if (pinned) {
     inst = pinned.map((p) => ({ key: p.key, venue: p.venue, kind: p.kind, instrumentId: p.key, volUsd: 0, price: 0 }));
-    priceKey = pinned[0]?.key ?? `Binance_${sym}USDT`;
+    priceKey = pinned[0]?.key ?? `Binance_${cgSym}USDT`;
   } else {
-    const [fut, spot] = await Promise.all([
-      cgGet(`/api/select/coins/tickers?type=FUTURES&keyword=${encodeURIComponent(sym)}`, 120_000) as Promise<
-        TickerRow[] | { data: TickerRow[] }
-      >,
-      cgGet(`/api/select/coins/tickers?type=SPOT&keyword=${encodeURIComponent(sym)}`, 120_000)
-        .then((d) => d as TickerRow[] | { data: TickerRow[] })
-        .catch(() => [] as TickerRow[]),
-    ]);
-    const futRows = Array.isArray(fut) ? fut : ((fut as { data?: TickerRow[] }).data ?? []);
-    const spotRows = Array.isArray(spot) ? spot : ((spot as { data?: TickerRow[] }).data ?? []);
-    ({ inst, priceKey } = pickInstruments(futRows, spotRows, sym));
-  }
-  if (!inst.length || !priceKey) throw new Error("no CVD instruments");
-
-  const kl = (await cgGet(
-    `/api/v2/kline?symbol=${encodeURIComponent(priceKey + "#kline")}&interval=m15&limit=1500&minLimit=false`,
-    60_000
-  )) as { data?: KlineRow[] } | KlineRow[];
-  const klRows = (Array.isArray(kl) ? kl : (kl.data ?? [])).filter((r) => r && Number.isFinite(+r[4]));
-  if (!klRows.length) throw new Error("no price kline");
-
-  const grid = new FlowGrid(900_000, inst.map((i) => i.key));
-  grid.setCandles(klRows as unknown as [number, string | number, string | number, string | number, string | number][]);
-  const flows = await mapLimit(inst, 6, async (v: CvdInstrument) => {
-    const r = (await cgGet(
-      `/api/v2/kline?symbol=${encodeURIComponent(v.key + "#bs_usd")}&interval=m15&limit=1500&minLimit=false`,
-      60_000
-    )) as { data?: [number, string | number, string | number][] } | [number, string | number, string | number][];
-    return (Array.isArray(r) ? r : (r.data ?? [])) as [number, string | number, string | number][];
-  });
-  let loaded = 0;
-  flows.forEach((rows, i) => {
-    if (Array.isArray(rows) && rows.length > 0) {
-      loaded++;
-      grid.mergeFlow(i, flowRows(rows));
+    try {
+      const [fut, spot] = await Promise.all([
+        withTimeout(
+          cgGet(`/api/select/coins/tickers?type=FUTURES&keyword=${encodeURIComponent(cgSym)}`, 1_800_000) as Promise<TickerRow[] | { data: TickerRow[] }>,
+          3_500,
+          "poseidon-tickers-fut"
+        ),
+        withTimeout(
+          cgGet(`/api/select/coins/tickers?type=SPOT&keyword=${encodeURIComponent(cgSym)}`, 1_800_000)
+            .then((d) => d as TickerRow[] | { data: TickerRow[] })
+            .catch(() => [] as TickerRow[]),
+          3_500,
+          "poseidon-tickers-spot"
+        ),
+      ]);
+      const futRows = Array.isArray(fut) ? fut : ((fut as { data?: TickerRow[] }).data ?? []);
+      const spotRows = Array.isArray(spot) ? spot : ((spot as { data?: TickerRow[] }).data ?? []);
+      ({ inst, priceKey } = pickInstruments(futRows, spotRows, cgSym));
+    } catch {
+      /* fall through to deterministic probe */
     }
-  });
-  if (!loaded) throw new Error("no #bs_usd flows loaded");
+  }
+  if (!inst.length || !priceKey) {
+    inst = [
+      { key: `Binance_${cgSym}USDT`, venue: "Binance", kind: "perp", instrumentId: `${cgSym}USDT`, volUsd: 0, price: 0 },
+      { key: `OKX_${cgSym}-USDT-SWAP`, venue: "OKX", kind: "perp", instrumentId: `${cgSym}-USDT-SWAP`, volUsd: 0, price: 0 },
+      { key: `Bybit_${cgSym}USDT`, venue: "Bybit", kind: "perp", instrumentId: `${cgSym}USDT`, volUsd: 0, price: 0 },
+      { key: `Binance_SPOT_${cgSym}USDT`, venue: "Binance", kind: "spot", instrumentId: `${cgSym}USDT`, volUsd: 0, price: 0 },
+    ];
+    priceKey = inst[0].key;
+  }
+  // Cap to top 6 venues so Poseidon never stalls the shared 6-slot Coinglass gate
+  inst = inst.slice(0, 6);
 
-  const series = recompute(grid, inst);
+  let series: ReturnType<typeof recompute> = null;
+  try {
+    const kl = await withTimeout(
+      cgGet(
+        `/api/v2/kline?symbol=${encodeURIComponent(priceKey + "#kline")}&interval=m15&limit=300&minLimit=false`,
+        60_000
+      ) as Promise<{ data?: KlineRow[] } | KlineRow[]>,
+      4_500,
+      "poseidon-kline"
+    );
+    const klRows = (Array.isArray(kl) ? kl : (kl.data ?? [])).filter((r) => r && Number.isFinite(+r[4]));
+    if (klRows.length) {
+      const grid = new FlowGrid(900_000, inst.map((i) => i.key));
+      grid.setCandles(klRows as unknown as [number, string | number, string | number, string | number, string | number][]);
+      const flows = await mapLimit(inst, 4, async (v: CvdInstrument) => {
+        const r = await withTimeout(
+          cgGet(
+            `/api/v2/kline?symbol=${encodeURIComponent(v.key + "#bs_usd")}&interval=m15&limit=300&minLimit=false`,
+            60_000
+          ) as Promise<{ data?: [number, string | number, string | number][] } | [number, string | number, string | number][]>,
+          3_500,
+          "poseidon-flow"
+        ).catch(() => []);
+        return (Array.isArray(r) ? r : ((r as { data?: unknown })?.data ?? [])) as [number, string | number, string | number][];
+      });
+      let loaded = 0;
+      flows.forEach((rows, i) => {
+        if (Array.isArray(rows) && rows.length > 0) {
+          loaded++;
+          grid.mergeFlow(i, flowRows(rows));
+        }
+      });
+      if (loaded > 0) series = recompute(grid, inst);
+    }
+  } catch {
+    /* fall through to Binance taker flow fallback */
+  }
+
+  // Fallback: direct Binance m15 taker buy/sell USD when Coinglass #bs_usd is rate-limited
+  if (!series || series.n < 40) {
+    const candles = await fetchBinCandles(sym, "m15", 160);
+    if (candles.length < 40) throw new Error("no #bs_usd or Binance taker flows");
+    const bInst: CvdInstrument[] = [
+      { key: `Binance_${cgSym}USDT`, venue: "Binance", kind: "perp", instrumentId: `${cgSym}USDT`, volUsd: 0, price: candles[candles.length - 1].c },
+    ];
+    const bGrid = new FlowGrid(900_000, bInst.map((i) => i.key));
+    bGrid.setCandles(candles.map((c) => [Math.floor(c.t / 1000), c.o, c.h, c.l, c.c]));
+    bGrid.mergeFlow(
+      0,
+      flowRows(
+        candles.map((c) => {
+          const q = c.q ?? c.v * c.c;
+          const tbq = c.tbq ?? q * 0.5;
+          return [Math.floor(c.t / 1000), tbq, Math.max(0, q - tbq)] as [number, number, number];
+        })
+      )
+    );
+    series = recompute(bGrid, bInst);
+  }
   if (!series) throw new Error("recompute failed");
   const n = series.n;
   if (n < 40) throw new Error("CVD series too short");
@@ -492,11 +571,25 @@ async function buildAtlas(sym: string): Promise<{ score: number; detail: string 
 // NEMESIS — Funding Reversion (shared premiumIndex batch — zero extra fan-out)
 // ---------------------------------------------------------------------------
 
-async function buildNemesis(pair: string): Promise<{ score: number; detail: string }> {
-  const prem = await premOf(pair);
-  if (!prem) throw new Error("premiumIndex unavailable");
-  const fPct = (Number(prem.lastFundingRate) || 0) * 100; // % per 8h
-  if (!Number.isFinite(fPct)) throw new Error("bad funding field");
+async function buildNemesis(pair: string, sym: string): Promise<{ score: number; detail: string }> {
+  let fPct: number | null = null;
+  const prem = await premOf(pair).catch(() => null);
+  if (prem && prem.lastFundingRate != null) {
+    const v = Number(prem.lastFundingRate) * 100;
+    if (Number.isFinite(v)) fPct = v;
+  }
+  if (fPct == null) {
+    const home = (await cgGet("/api/fundingRate/v2/home", 30_000).catch(() => null)) as
+      | { symbol?: string; uMarginList?: { rate?: number; fundingIntervalHours?: number }[] }[]
+      | null;
+    const cgSym = resolveCgSym(sym);
+    const item = Array.isArray(home) ? home.find((x) => x.symbol?.toUpperCase() === cgSym) : null;
+    const rates = (item?.uMarginList ?? [])
+      .filter((r) => typeof r.rate === "number" && Number.isFinite(r.rate))
+      .map((r) => (r.rate as number) * (8 / (r.fundingIntervalHours || 8)));
+    if (rates.length) fPct = rates.reduce((a, b) => a + b, 0) / rates.length;
+  }
+  if (fPct == null || !Number.isFinite(fPct)) throw new Error("funding unavailable");
 
   // extreme positive = crowded longs = bearish reversion risk (low score);
   // extreme negative = crowded shorts = squeeze fuel (high score)
@@ -543,12 +636,12 @@ function verdictText(score: number, factors: OracleFactor[]): string {
 
 async function computeOracle(sym: string, pair: string): Promise<OracleBody> {
   const [apolloR, poseidonR, hadesR, zeusR, atlasR, nemesisR] = await Promise.allSettled([
-    withTimeout(buildApollo(pair), 20_000, "apollo"),
-    withTimeout(buildPoseidon(sym), 25_000, "poseidon"),
-    withTimeout(buildHades(sym), 25_000, "hades"),
-    withTimeout(buildZeus(sym), 25_000, "zeus"),
-    withTimeout(buildAtlas(sym), 30_000, "atlas"),
-    withTimeout(buildNemesis(pair), 10_000, "nemesis"),
+    withTimeout(buildApollo(sym, pair), 8_000, "apollo"),
+    withTimeout(buildPoseidon(sym), 9_000, "poseidon"),
+    withTimeout(buildHades(sym), 9_000, "hades"),
+    withTimeout(buildZeus(sym), 9_000, "zeus"),
+    withTimeout(buildAtlas(sym), 10_000, "atlas"),
+    withTimeout(buildNemesis(pair, sym), 6_000, "nemesis"),
   ]);
 
   const partial: string[] = [];

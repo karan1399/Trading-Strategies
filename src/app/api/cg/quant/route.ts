@@ -3,6 +3,7 @@ import { cgGet } from "@/lib/cg/client";
 import { anyTerminalSym, gateReject, knownSym } from "@/lib/cg/sym-gate";
 import { resolveBinPair, resolveCgSym } from "@/lib/binance/aliases";
 import { fapiFetch } from "@/lib/live/fapi";
+import { fetchBinCandles, fetchBinOi } from "@/lib/cg/fallbacks";
 import { CURATED_BY_SYM } from "@/lib/universe/curated";
 
 export const dynamic = "force-dynamic";
@@ -58,6 +59,7 @@ const g = globalThis as unknown as {
 };
 const cache = (g.__quantRouteCache ??= new Map());
 const inflight = (g.__quantRouteInflight ??= new Map());
+const STALE_FALLBACK_MS = 15 * 60_000;
 
 async function cachedUpstream<T>(
   key: string,
@@ -73,14 +75,19 @@ async function cachedUpstream<T>(
   const p = (async (): Promise<FetchPayload<unknown> | null> => {
     try {
       const r = await fetcher();
-      if (cache.size > 128) {
+      if (cache.size > 256) {
         const oldest = cache.keys().next().value;
         if (oldest) cache.delete(oldest);
       }
       cache.set(key, { at: Date.now(), dataAt: r.dataAt, data: r.data });
       return r as FetchPayload<unknown>;
     } catch {
-      return null; // never cache failures — next request retries honestly
+      // On transient 429/timeout, serve bounded last-good entry with its original dataAt
+      const stale = cache.get(key);
+      if (stale && Date.now() - stale.at <= STALE_FALLBACK_MS) {
+        return { data: stale.data, dataAt: stale.dataAt };
+      }
+      return null;
     } finally {
       inflight.delete(key);
     }
@@ -637,7 +644,42 @@ export async function GET(req: NextRequest) {
         oiQuadrant.oiToVolRatio = Number((latestTotalOi / qv).toFixed(3));
       }
     } else {
-      oiQuadrant.reason = "coinglass open-interest chart unavailable";
+      // Fallback: compute OI x price 4-quadrant from real Binance openInterestHist + 1h candles
+      const [bo, bh] = await Promise.all([
+        fetchBinOi(sym).catch(() => null),
+        fetchBinCandles(sym, "h1", 30).catch(() => []),
+      ]);
+      if (bo && bo.series.length >= 2 && bh.length >= 2) {
+        const pxMap = new Map<number, number>();
+        for (const c of bh) pxMap.set(c.t, c.c);
+        const nowPx = perpPrice ?? bh[bh.length - 1].c;
+        const pctPx = (agoHours: number): number | null => {
+          if (bh.length <= agoHours || !(nowPx > 0)) return null;
+          const prev = bh[bh.length - 1 - agoHours]?.c;
+          return prev > 0 ? Number((((nowPx - prev) / prev) * 100).toFixed(2)) : null;
+        };
+        for (const [slot, oiDelta, hrs] of [
+          ["1h", bo.oiDelta1hPct, 1],
+          ["4h", bo.oiDelta4hPct, 4],
+          ["24h", bo.oiDelta24hPct, 24],
+        ] as const) {
+          const pxDelta = pctPx(hrs);
+          if (oiDelta != null && pxDelta != null) {
+            oiQuadrant[slot] = {
+              quadrant: classifyQuadrant(oiDelta > 0, pxDelta > 0),
+              oiDeltaPct: oiDelta,
+              priceDeltaPct: pxDelta,
+            };
+          }
+        }
+        const qv = Number(ticker?.data?.quoteVolume);
+        if (bo.oiUsd > 0 && Number.isFinite(qv) && qv > 0) {
+          oiQuadrant.oiToVolRatio = Number((bo.oiUsd / qv).toFixed(3));
+        }
+        notes.push("oiQuadrant: Coinglass chart unavailable — using live Binance OI history");
+      } else {
+        oiQuadrant.reason = "coinglass open-interest chart unavailable";
+      }
     }
 
     // (d) Spot-perp basis + Coinbase premium ----------------------------------
@@ -683,52 +725,4 @@ export async function GET(req: NextRequest) {
     );
     if (basis.coinbasePremiumBps != null) {
       notes.push(
-        `coinbasePremiumBps = (Coinbase ${cgSym}-USD − Binance ${spotPair ?? pair}) / Binance × 10⁴ = ${basis.coinbasePremiumBps > 0 ? "+" : ""}${basis.coinbasePremiumBps} bps — positive = Coinbase leading higher (US institutional bid)`
-      );
-    }
-
-    // ── freshness telemetry: fast legs (ticker/spot/coinbase — the basis core)
-    //    vs slow legs (bucket-stamped L/S rows + hourly OI chart + funding home) ──
-
-    const fastStamps: number[] = [];
-    if (ticker) fastStamps.push(ticker.dataAt);
-    if (spot) fastStamps.push(spot.dataAt);
-    if (coinbase) fastStamps.push(coinbase.dataAt);
-
-    const slowStamps: number[] = [];
-    for (const p of Object.values(ls)) if (p) slowStamps.push(p.dataAt);
-    if (fundingHome) slowStamps.push(fundingHome.dataAt);
-    if (oiChart) slowStamps.push(oiChart.dataAt);
-
-    const srcParts: string[] = [];
-    if (Object.values(ls).some((x) => x)) srcParts.push("binance-fapi/ls-ratios");
-    if (ticker) srcParts.push("binance-fapi/ticker24h");
-    if (fundingHome) srcParts.push("coinglass/funding-home");
-    if (oiChart) srcParts.push("coinglass/oi-chart");
-    if (spot) srcParts.push("binance-spot");
-    if (coinbase) srcParts.push("coinbase");
-
-    return NextResponse.json({
-      ok: true,
-      supported: true,
-      sym,
-      cgSym,
-      pair,
-      lsRatios,
-      funding,
-      oiQuadrant,
-      basis,
-      notes,
-      ...telemetryOf(
-        fastStamps,
-        slowStamps,
-        srcParts.length > 0 ? srcParts.join("+") : "none"
-      ),
-    });
-  } catch (e) {
-    return NextResponse.json(
-      { ok: false, error: e instanceof Error ? e.message : "quant positioning fetch failed" },
-      { status: 502 }
-    );
-  }
-}
+        `coinbasePremiumBps = (Coinbase ${cgSym}-USD − Binance ${spotPair ?? pair}) / Binance × 10⁴ = ${basis.coinbasePremiumBps > 0 ? "+" : ""}${basis.coinbasePremiumBps} bps 
