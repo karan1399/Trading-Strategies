@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { buildWallsModel, minWallForSym, type BookSnapshot } from "@/lib/cg/book-walls";
 import { knownSym, anyTerminalSym } from "@/lib/cg/sym-gate";
 import { hlCoinOf, resolveBinPair } from "@/lib/binance/aliases";
+import { microMapOf } from "@/lib/cg/micro";
 import { cleanGridStep, fetchHlCtxAndBook } from "@/lib/cg/fallbacks";
+import { getLivePrice } from "@/lib/live/server-price";
 import { fapiFetch, FapiBannedError, fapiBanned } from "@/lib/live/fapi";
 
 export const dynamic = "force-dynamic";
@@ -80,21 +82,38 @@ function niceGrid(mid: number): number {
   return cleanGridStep(mid);
 }
 
-async function fetchDepthSnapshot(sym: string, grid: number): Promise<BookSnapshot | null> {
+async function fetchDepthSnapshot(sym: string, grid: number): Promise<{ snap: BookSnapshot; sourceVenue: string } | null> {
   let bids: [string | number, string | number][] = [];
   let asks: [string | number, string | number][] = [];
-  if (await knownSym(sym)) {
-    const pair = resolveBinPair(sym);
-    const d = (await fapiFetch(`/fapi/v1/depth?symbol=${encodeURIComponent(pair)}&limit=1000`)) as {
-      bids?: [string, string][];
-      asks?: [string, string][];
-    };
-    bids = d.bids ?? [];
-    asks = d.asks ?? [];
-  } else if (hlCoinOf(sym)) {
-    const hl = await fetchHlCtxAndBook(sym).catch(() => null);
-    bids = (hl?.book?.bids ?? []).map((b) => [b.px, b.sz]);
-    asks = (hl?.book?.asks ?? []).map((a) => [a.px, a.sz]);
+  let sourceVenue = "Binance (live top-1000 levels)";
+  const hasPerp = await knownSym(sym);
+  if (hasPerp) {
+    try {
+      const pair = resolveBinPair(sym);
+      const d = (await fapiFetch(`/fapi/v1/depth?symbol=${encodeURIComponent(pair)}&limit=1000`)) as {
+        bids?: [string, string][];
+        asks?: [string, string][];
+      } | null;
+      if (d && Array.isArray(d.bids) && Array.isArray(d.asks)) {
+        bids = d.bids;
+        asks = d.asks;
+      }
+    } catch (e) {
+      if (!(e instanceof FapiBannedError)) {
+        /* try Hyperliquid fallback below before surfacing */
+      }
+    }
+  }
+  if (!bids.length || !asks.length) {
+    const hlCoin = hlCoinOf(sym) ?? microMapOf(sym)?.hl?.coin;
+    if (hlCoin) {
+      const hl = await fetchHlCtxAndBook(sym).catch(() => null);
+      if (hl?.book?.bids?.length && hl?.book?.asks?.length) {
+        bids = hl.book.bids.map((b) => [b.px, b.sz]);
+        asks = hl.book.asks.map((a) => [a.px, a.sz]);
+        sourceVenue = hasPerp ? `Hyperliquid ${hlCoin} (L2 fallback)` : `Hyperliquid ${hlCoin}`;
+      }
+    }
   }
   if (!bids.length || !asks.length) return null;
   let bb = -Infinity;
@@ -127,14 +146,15 @@ async function fetchDepthSnapshot(sym: string, grid: number): Promise<BookSnapsh
   if (kMax - kMin + 1 > MAX_BUCKETS) return null;
   const q = new Float64Array(kMax - kMin + 1);
   for (let i = 0; i < flat.length; i += 2) q[flat[i] - kMin] += flat[i + 1];
-  return { t: Date.now(), g: grid, k0: kMin, q, bb, ba, mid: (bb + ba) / 2 };
+  return { snap: { t: Date.now(), g: grid, k0: kMin, q, bb, ba, mid: (bb + ba) / 2 }, sourceVenue };
 }
 
 async function pollOnce(sym: string, ring: Ring): Promise<void> {
   if (ring.busy) return;
   ring.busy = true;
   try {
-    const snap = await fetchDepthSnapshot(sym, ring.grid);
+    const res = await fetchDepthSnapshot(sym, ring.grid);
+    const snap = res?.snap ?? null;
     const at = Date.now();
     ring.at = at;
     if (snap) {
@@ -154,24 +174,25 @@ async function pollOnce(sym: string, ring: Ring): Promise<void> {
     const pctFrom = (p: number) => +(((p - last.mid) / last.mid) * 100).toFixed(2);
     const coverLo = last.k0 * ring.grid;
     const coverHi = (last.k0 + last.q.length - 1) * ring.grid;
+    const usedHl = res?.sourceVenue.startsWith("Hyperliquid") ?? false;
     ring.body = {
       ok: true,
       sym,
       market: "futures-live",
       band: ring.band,
       grid: ring.grid,
-      venues: [hlCoinOf(sym) && !(await knownSym(sym)) ? `Hyperliquid ${hlCoinOf(sym)}` : "Binance (live top-1000 levels)"],
+      venues: [res?.sourceVenue ?? "Binance (live top-1000 levels)"],
       minWallUsd: minWallForSym(sym),
       covered: {
         lo: coverLo,
         hi: coverHi,
         loPct: pctFrom(coverLo),
         hiPct: pctFrom(coverHi),
-        levels: 1000,
+        levels: usedHl ? 20 : 1000,
       },
       model,
       updatedAt: at,
-      fapiBanned: false,
+      fapiBanned: fapiBanned().banned && usedHl,
     };
   } catch (e) {
     if (e instanceof FapiBannedError) {
@@ -190,13 +211,20 @@ async function resolveGrid(sym: string, clientGrid: number | null): Promise<numb
   if (clientGrid && clientGrid > 0) return clientGrid;
   for (const [k, r] of rings) if (k.startsWith(`${sym}|`) && r.snaps.length) return r.grid;
   if (await knownSym(sym)) {
-    const pair = resolveBinPair(sym);
-    const t = (await fapiFetch(`/fapi/v1/ticker/bookTicker?symbol=${encodeURIComponent(pair)}`)) as { bidPrice?: string };
-    return niceGrid(Number(t.bidPrice) || 0);
+    try {
+      const pair = resolveBinPair(sym);
+      const t = (await fapiFetch(`/fapi/v1/ticker/bookTicker?symbol=${encodeURIComponent(pair)}`)) as { bidPrice?: string } | null;
+      const px = Number(t?.bidPrice) || 0;
+      if (px > 0) return niceGrid(px);
+    } catch {
+      /* fallback to live price / HL */
+    }
   }
   const hl = await fetchHlCtxAndBook(sym).catch(() => null);
-  const px = hl?.book?.bids[0]?.px ?? Number(hl?.ctx?.markPx ?? 0);
-  return px > 0 ? niceGrid(px) : 0;
+  const hlPx = hl?.book?.bids[0]?.px ?? Number(hl?.ctx?.markPx ?? 0);
+  if (hlPx > 0) return niceGrid(hlPx);
+  const live = await getLivePrice(sym).catch(() => null);
+  return live?.price && live.price > 0 ? niceGrid(live.price) : 0;
 }
 
 function ensurePoller(sym: string, grid: number, band: number): Ring {
@@ -249,7 +277,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: false, error: `unknown asset ${sym}` }, { status: 400 });
   }
   const hasPerp = await knownSym(sym);
-  if (!hasPerp && !hlCoinOf(sym)) {
+  if (!hasPerp && !hlCoinOf(sym) && !microMapOf(sym)?.hl?.coin) {
     return NextResponse.json({ ok: true, supported: false, sym, model: null, updatedAt: Date.now() });
   }
   const band = [0.5, 1, 2, 5].includes(Number(sp.get("band"))) ? Number(sp.get("band")) : 5;

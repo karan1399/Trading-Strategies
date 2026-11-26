@@ -10,7 +10,7 @@
 import { fapiFetch } from "../live/fapi";
 import { hlCoinOf, resolveBinPair, resolveCgSym } from "../binance/aliases";
 import { classicOf } from "./classic";
-import { hlBook, hlXyzSnapshot, type HlCtx, type HlLevel } from "./micro";
+import { getHlSnapshot, hlBook, hlDexOf, microMapOf, type HlCtx, type HlLevel } from "./micro";
 
 export interface OHLCVCandle {
   t: number; // ms epoch
@@ -301,11 +301,12 @@ export async function fetchHlCtxAndBook(sym: string): Promise<{
   ctx?: HlCtx;
   book?: { bids: HlLevel[]; asks: HlLevel[] };
 } | null> {
-  const coin = hlCoinOf(sym);
+  const coin = hlCoinOf(sym) ?? microMapOf(sym)?.hl?.coin;
   if (!coin) return null;
   try {
-    const [snap, book] = await Promise.all([hlXyzSnapshot(), hlBook(coin)]);
-    return { coin, ctx: snap[coin], book };
+    const dex = hlDexOf(coin);
+    const [{ snap }, book] = await Promise.all([getHlSnapshot(dex), hlBook(coin)]);
+    return { coin, ctx: snap?.[coin], book };
   } catch {
     return null;
   }

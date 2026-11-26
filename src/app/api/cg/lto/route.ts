@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { cgGet, FAPI } from "@/lib/cg/client";
 import { anyTerminalSym, knownSym } from "@/lib/cg/sym-gate";
 import { hlCoinOf, resolveCgSym } from "@/lib/binance/aliases";
+import { microMapOf } from "@/lib/cg/micro";
 import { fetchHlCtxAndBook, fetchHlRecentTrades } from "@/lib/cg/fallbacks";
 import { BoundedMap } from "@/lib/cg/bounded";
 import type { LtoGroup, LtoSupport } from "@/lib/cg/types";
@@ -9,6 +10,8 @@ import type { LtoGroup, LtoSupport } from "@/lib/cg/types";
 export const dynamic = "force-dynamic";
 
 const cache = new BoundedMap<{ at: number; body: unknown }>(32);
+const lastGood = new BoundedMap<{ at: number; support: LtoSupport | null; perExchange: Record<string, { market: string; instruments: number; openOrders: number; hasData: boolean }>; groups: LtoGroup[] }>(32);
+const LAST_GOOD_MAX_MS = 30 * 60_000;
 
 export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
@@ -29,12 +32,15 @@ export async function GET(req: NextRequest) {
 
   try {
     let support: LtoSupport | null = null;
-    const groups: LtoGroup[] = [];
+    let groups: LtoGroup[] = [];
     const seen = new Set<string>();
-    const perExchange: Record<
+    let perExchange: Record<
       string,
       { market: string; instruments: number; openOrders: number; hasData: boolean }
     > = {};
+    let cgError: string | null = null;
+    let stale = false;
+    let updatedAt = Date.now();
 
     if (hasPerp) {
       try {
@@ -94,19 +100,32 @@ export async function GET(req: NextRequest) {
             groups.push({ instrument: inst, list });
           }
         });
-      } catch {
-        /* fallback gracefully below */
+      } catch (e) {
+        cgError = e instanceof Error ? e.message : "Coinglass LTO unavailable";
+      }
+
+      if (groups.length > 0) {
+        lastGood.set(cacheKey, { at: Date.now(), support, perExchange, groups });
+      } else {
+        const lg = lastGood.get(cacheKey);
+        if (lg && Date.now() - lg.at <= LAST_GOOD_MAX_MS) {
+          support = lg.support;
+          perExchange = lg.perExchange;
+          groups = lg.groups;
+          stale = true;
+          updatedAt = lg.at;
+        }
       }
     }
 
-    // Hyperliquid xyz live L2 resting levels + recent trades when HL maps this symbol
+    // Hyperliquid L2 resting levels + recent trades (main-dex + xyz)
     let hlFallback: {
       coin: string;
       bids: { price: number; usd: number; sz: number }[];
       asks: { price: number; usd: number; sz: number }[];
       recentTrades: { time: number; px: number; sz: number; usd: number; side: "buy" | "sell" }[];
     } | null = null;
-    const hlCoin = hlCoinOf(symbol);
+    const hlCoin = hlCoinOf(symbol) ?? microMapOf(symbol)?.hl?.coin;
     if (hlCoin) {
       const [ctxBook, trades] = await Promise.all([
         fetchHlCtxAndBook(symbol).catch(() => null),
@@ -137,9 +156,13 @@ export async function GET(req: NextRequest) {
       perExchange,
       groups,
       hlFallback,
-      updatedAt: Date.now(),
+      ...(stale ? { stale: true } : {}),
+      ...(cgError ? { reason: cgError } : {}),
+      updatedAt,
     };
-    cache.set(cacheKey, { at: Date.now(), body });
+    if (groups.length > 0 || !cgError) {
+      cache.set(cacheKey, { at: Date.now(), body });
+    }
     return NextResponse.json(body);
   } catch (e) {
     return NextResponse.json(
