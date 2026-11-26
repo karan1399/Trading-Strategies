@@ -629,13 +629,26 @@ async function toolFootprint(args) {
     routeUsed = "cg/orderflow";
   }
   if (!d?.ok) throw new Error(d?.error || "footprint failed");
-  const rows = (d.bars ?? []).slice(-lastN).map(analyzeFpBarMicro);
+  const flowMap = new Map((d.candleFlow ?? []).map((cf) => [cf.ts, cf]));
+  const rows = (d.bars ?? []).slice(-lastN).map((b) => {
+    const r = analyzeFpBarMicro(b);
+    if (r.poc == null && r.buyUsd === 0 && r.sellUsd === 0) {
+      const cf = flowMap.get(b.ts) ?? flowMap.get(b.ts * 1000);
+      if (cf && cf.buyVol != null && cf.sellVol != null) {
+        const tot = cf.buyVol + cf.sellVol;
+        const dlt = cf.buyVol - cf.sellVol;
+        return { ...r, buyUsd: Math.round(cf.buyVol * b.c), sellUsd: Math.round(cf.sellVol * b.c), deltaUsd: Math.round(dlt * b.c), deltaPct: +(tot > 0 ? (100 * dlt) / tot : 0).toFixed(1), poc: +Number(b.c).toPrecision(6), forming: true };
+      }
+      return { ...r, poc: +Number(b.c).toPrecision(6), forming: true };
+    }
+    return r;
+  });
   const lines = [
     `${sym} footprint (${routeUsed}, ${interval}, buckets=${d.bucketsAvailable ?? "?"}, source=${d.source ?? "?"}) — last ${rows.length} bars`,
     ...rows.slice(-12).reverse().map((r) => {
       const diag = r.diagBuy3 != null ? ` 3xB:${r.diagBuy3}/S:${r.diagSell3}` : "";
       const fin = [r.finHigh ? `finH:${r.finHigh}` : "", r.finLow ? `finL:${r.finLow}` : ""].filter(Boolean).join(" ");
-      return `  ${tsOf(r.ts)} Δ ${r.deltaPct > 0 ? "+" : ""}${r.deltaPct}% POC ${r.poc ?? "—"}${diag}${fin ? " " + fin : ""}`;
+      return `  ${tsOf(r.ts)} Δ ${r.deltaPct > 0 ? "+" : ""}${r.deltaPct}% POC ${r.poc ?? "—"}${r.forming ? " (forming)" : ""}${diag}${fin ? " " + fin : ""}`;
     }),
   ];
   return { text: lines.join("\n"), data: { sym, routeUsed, interval, bucketsAvailable: d.bucketsAvailable, bars: rows } };
