@@ -36,6 +36,7 @@ import os
 import sys
 import time
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 import numpy as np
 
@@ -329,6 +330,39 @@ class MT5Bridge:
     def account_equity(self) -> float:
         ai = mt5.account_info()
         return float(ai.equity) if ai else 0.0
+
+    def total_sl_risk_usd(self, positions: list | None = None) -> float:
+        """Sum stop-loss dollar risk across all live MT5 positions and pending orders."""
+        total = 0.0
+        pos_list = positions if positions is not None else self.positions()
+        for item in pos_list:
+            sl = float(getattr(item, "sl", 0.0) or 0.0)
+            entry = float(getattr(item, "price_open", 0.0) or 0.0)
+            vol = float(getattr(item, "volume", 0.0) or 0.0)
+            sym = getattr(item, "symbol", "")
+            if sl <= 0 or vol <= 0 or not sym:
+                continue
+            info = mt5.symbol_info(sym)
+            if info and info.trade_tick_size > 0 and info.trade_tick_value > 0:
+                total += abs(sl - entry) * vol * (info.trade_tick_value / info.trade_tick_size)
+        for ord_item in (mt5.orders_get() or []):
+            sl = float(getattr(ord_item, "sl", 0.0) or 0.0)
+            entry = float(getattr(ord_item, "price_open", 0.0) or 0.0)
+            vol = float(getattr(ord_item, "volume_initial", 0.0) or 0.0)
+            sym = getattr(ord_item, "symbol", "")
+            if sl <= 0 or vol <= 0 or not sym:
+                continue
+            info = mt5.symbol_info(sym)
+            if info and info.trade_tick_size > 0 and info.trade_tick_value > 0:
+                total += abs(sl - entry) * vol * (info.trade_tick_value / info.trade_tick_size)
+        return total
+
+    def daily_realized_usd(self) -> float:
+        """Return net realized profit+swap+commission for the current UTC day."""
+        now = datetime.now(timezone.utc)
+        day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        deals = mt5.history_deals_get(day_start, now) or []
+        return float(sum(d.profit + d.swap + d.commission for d in deals if d.entry in (1, 2)))
 
     def send_bracket(self, spec: SymbolSpec, side: int, lots: float, price: float,
                      sl: float, tp: float, magic: int, comment: str, deviation: int):
