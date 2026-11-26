@@ -45,12 +45,42 @@ process.env.CG_DATA_DIR ??= existsSync(join(baseDir, "data", "cg-series"))
 // unless the caller explicitly overrides PORT.
 process.env.PORT ??= "3000";
 
-const child = spawn(process.execPath, ["--max-old-space-size=2048", server], {
-  cwd: baseDir,
-  stdio: "inherit",
-  env: process.env,
-});
-child.on("exit", (code, signal) => {
-  if (signal) process.kill(process.pid, signal);
-  else process.exit(code ?? 0);
-});
+const maxOldSpaceMb = process.env.CG_MAX_OLD_SPACE_SIZE ?? "3072";
+
+let child = null;
+let shuttingDown = false;
+let quickCrashes = 0;
+
+function launch() {
+  const startedAt = Date.now();
+  child = spawn(process.execPath, [`--max-old-space-size=${maxOldSpaceMb}`, server], {
+    cwd: baseDir,
+    stdio: "inherit",
+    env: process.env,
+  });
+  child.on("exit", (code, signal) => {
+    if (shuttingDown) {
+      if (signal) process.kill(process.pid, signal);
+      else process.exit(code ?? 0);
+      return;
+    }
+    const uptimeMs = Date.now() - startedAt;
+    quickCrashes = uptimeMs < 30_000 ? quickCrashes + 1 : 0;
+    if ((code ?? 0) !== 0 && quickCrashes <= 3) {
+      console.warn(`[supervisor] server exited (code=${code}, signal=${signal}, uptime=${Math.round(uptimeMs / 1000)}s); restarting in 3s...`);
+      setTimeout(launch, 3000);
+      return;
+    }
+    if (signal) process.kill(process.pid, signal);
+    else process.exit(code ?? 0);
+  });
+}
+
+for (const sig of ["SIGINT", "SIGTERM"]) {
+  process.on(sig, () => {
+    shuttingDown = true;
+    if (child && !child.killed) child.kill(sig);
+  });
+}
+
+launch();

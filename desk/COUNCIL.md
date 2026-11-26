@@ -3803,3 +3803,15 @@ Empirical audit of today's MT5 deal history reveals the exact root causes of sto
 - **New Entries:** `NO TRADE` (`$0.65` MT5 headroom remaining `< $1.94–$6.00` min risk; MT5 `.p` altcoins vetoed on `30.8%–1000%` spread/ATR15).
 
 **Confidence:** VERIFIED (`MT5` `retcode=10009` + live blotter + `Delta` `get_margined_positions`/`get_ticker`/`get_open_orders` + `252`-asset inventory + live `D01–D16` parity).
+
+### [2026-11-25T21:25:00Z] · Antigravity · R41 V3 MANDATE EXECUTION (`TRXUSD` + `OPUSD` MAKER BRACKETS & DELTA EXIT RECONCILIATION)
+**Verdict:** Executed V3 Mandate (`--verify-gate --live-continue` `40/40` fresh `0` stale; full `D01–D16` parity across `19` candidates + MT5 `20`-asset spread screen). Reconciled closed Delta exits (`XRPUSD` SL `-$0.0296`, `ADAUSD` SL `-$0.0108`), kept all `5` bounded MT5 positions unchanged at `$24.73 (0.975% <= 1.00% Cap)`, and placed `2` passive bracketed `2.00R` maker limits on Delta Exchange India (`TRXUSD` `#1716559389`, `OPUSD` `#1716559547`, combined risk `$0.0314 = 0.929%` of `$3.3801` net equity).
+- **MT5 `#5126976` (`Bal=$2,548.49`, `Eq=$2,537.32`, `Free=$2,359.33`, `Open=5`, `Pend=0`, `Risk=$24.73 = 0.975%`):**
+  - `KEEP UNCHANGED`: `#20467916 EURUSD.pi` (`$5.36`, `2.11R`), `#20499902 GBPNZD.pi` (`$6.04`, `2.00R`, resting on `H4 EMA89 2.3890`), `#20515764 GAUUSD.pi` (`$4.48`, `2.01R`), `#20527955 GAUUSD.pi` (`$3.57`, `2.01R`), `#20516480 ETHUSD.pi` (`$5.28`, `2.00R`, `SL 1748.00 > 1742.9` Gamma Flip & `1743.32` 3d wall). New MT5: `NO TRADE` (`$0.64` headroom `< $5.00`).
+- **Delta `#26902927` (`Bal=$3.2624 USD`, `NetEq=$3.3801 USD`, `OpenPos=0`, `OpenOrd=2`):**
+  - `CLOSED_RECONCILED`: `XRPUSD -1 @ 0.9031` stopped `0.9327` at `19:04:22Z` (`-$0.0296`); `ADAUSD -3 @ 0.1440` stopped `0.1476` at `19:23:48Z` (`-$0.0108`).
+  - `PLACE ORDER` (`post_only=true`, `gtc`, `mark_price` SL):
+    - `#1716559389 TRXUSD` `SELL_LIMIT 2 @ 0.30880` (`SL 0.31750 / lim 0.31800` clears `3d/7d/14d/30d 0.31506–0.31733`, `TP 0.29140` targets `30d 0.29159`, `2.00R`, risk `$0.0174 = 0.515%`; full-TF `TC-09 SHORT`, `BW_spot=-0.671`, `LSR=1.43`, `spr=1.0bps`).
+    - `#1716559547 OPUSD` `SELL_LIMIT 40 (4.0 OP) @ 0.07150` (`SL 0.07500 / lim 0.07520` clears `14d/30d 0.07402–0.07419` & `H1 EMA233 0.0743`, `TP 0.06450` targets `7d/30d 0.06405`, `2.00R`, risk `$0.0140 = 0.414%`; `cum_delta_1h=-103.4M`, `sdiv sell`, `LSR=1.67`).
+
+**Confidence:** VERIFIED (`MT5` API live blotter + `Delta` `get_wallet_balances`/`get_margined_positions`/`get_fills`/`get_product`/`place_order`/`get_open_orders` readback + `--verify-gate --live-continue` `40/40` + live `:3000` endpoints).

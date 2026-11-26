@@ -165,7 +165,22 @@ def atomic_write(filepath: str, data: Any, indent: bool = False) -> int:
     tmp_path = f"{filepath}.{os.getpid()}.{threading.get_ident()}.tmp"
     with open(tmp_path, "wb") as f:
         f.write(raw)
-    os.replace(tmp_path, filepath)
+    try:
+        for attempt in range(6):
+            try:
+                os.replace(tmp_path, filepath)
+                return len(raw)
+            except PermissionError:
+                if attempt == 5:
+                    raise
+                time.sleep(0.05 * (attempt + 1))
+    except Exception:
+        if os.path.exists(tmp_path):
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
+        raise
     return len(raw)
 
 
@@ -1155,11 +1170,28 @@ class AsyncTelemetryHarvester:
                 }
 
         if qnt and qnt.get("ok"):
+            prev_q = existing_keep.get("quant_positioning") or {}
+            new_ls = dict(qnt.get("lsRatios") or {})
+            prev_ls = prev_q.get("lsRatios") or {}
+            for tf_k, p_val in prev_ls.items():
+                cur_val = new_ls.get(tf_k)
+                if (not isinstance(cur_val, dict) or cur_val.get("global") is None) and isinstance(p_val, dict) and p_val.get("global") is not None:
+                    new_ls[tf_k] = p_val
+            new_oiq = dict(qnt.get("oiQuadrant") or {})
+            prev_oiq = prev_q.get("oiQuadrant") or {}
+            for tf_k in ("1h", "4h", "24h"):
+                if new_oiq.get(tf_k) is None and prev_oiq.get(tf_k) is not None:
+                    new_oiq[tf_k] = prev_oiq[tf_k]
+            new_basis = dict(qnt.get("basis") or {})
+            prev_basis = prev_q.get("basis") or {}
+            for bk in ("perpPrice", "basisPct"):
+                if new_basis.get(bk) is None and prev_basis.get(bk) is not None:
+                    new_basis[bk] = prev_basis[bk]
             profile["quant_positioning"] = {
-                "lsRatios": qnt.get("lsRatios"),
-                "oiQuadrant": qnt.get("oiQuadrant"),
-                "funding": qnt.get("funding"),
-                "basis": qnt.get("basis"),
+                "lsRatios": new_ls,
+                "oiQuadrant": new_oiq,
+                "funding": qnt.get("funding") or prev_q.get("funding"),
+                "basis": new_basis,
                 "notes": qnt.get("notes"),
             }
 
@@ -1886,8 +1918,8 @@ async def async_main() -> None:
     concurrency = int(os.environ.get("TELEMETRY_CONCURRENCY", os.environ.get("TELEMETRY_WORKERS", "4")))
     cg_heavy_concurrency = int(os.environ.get("TELEMETRY_CG_CONCURRENCY", "2"))
     worker_count = int(os.environ.get("TELEMETRY_ASSET_WORKERS", "2"))
-    interval = int(os.environ.get("TELEMETRY_INTERVAL_SECS", "25"))
-    tail_batch = int(os.environ.get("TELEMETRY_TAIL_BATCH", "20"))
+    interval = int(os.environ.get("TELEMETRY_INTERVAL_SECS", "12"))
+    tail_batch = int(os.environ.get("TELEMETRY_TAIL_BATCH", "10"))
     git_sync_secs = 0 if no_git else int(os.environ.get("TELEMETRY_GIT_SYNC_SECS", "600"))
 
     baseline_rss = psutil.Process().memory_info().rss / (1024 * 1024)
