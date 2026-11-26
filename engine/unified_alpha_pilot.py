@@ -414,7 +414,10 @@ class Governor:
         self.state = state
         self.bridge = bridge
 
-    def gates(self, magic: int, positions: list) -> tuple[bool, str]:
+    def gates(self, magic: int, positions: list, planned_risk_usd: float = 0.0,
+              committed_risk_usd: float | None = None,
+              daily_pnl_usd: float | None = None,
+              equity_usd: float | None = None) -> tuple[bool, str]:
         ours = [p for p in positions if getattr(p, "magic", 0) in self.our_magics()]
         max_glob = int(self.gov.get("max_global_positions") or 0)
         if max_glob > 0 and len(ours) >= max_glob:
@@ -428,11 +431,30 @@ class Governor:
             ngold = len([p for p in ours if p.magic in gold])
             if ngold >= gold_max:
                 return False, "gold-cluster cap (42003+42004 share one risk unit)"
-        if self.bridge is not None:
-            eq = self.bridge.account_equity()
-            floor = float(self.cfg.get("account", {}).get("equity_floor_usd", 0))
-            if eq and eq < floor:
-                return False, f"equity {eq:.2f} below floor {floor:.2f} — trading halted"
+        eq = float(equity_usd) if equity_usd is not None else (
+            self.bridge.account_equity() if self.bridge is not None else 0.0
+        )
+        floor = float(self.cfg.get("account", {}).get("equity_floor_usd", 0))
+        if eq and eq < floor:
+            return False, f"equity {eq:.2f} below floor {floor:.2f} — trading halted"
+        max_risk_pct = float(self.gov.get("max_total_open_risk_pct") or 0.0)
+        if max_risk_pct > 0 and eq > 0:
+            committed = float(committed_risk_usd) if committed_risk_usd is not None else (
+                self.bridge.total_sl_risk_usd(positions) if self.bridge is not None else 0.0
+            )
+            cap_usd = eq * max_risk_pct / 100.0
+            if committed + float(planned_risk_usd) > cap_usd + 1e-9:
+                return False, (
+                    f"aggregate SL risk ${committed + float(planned_risk_usd):.2f} > "
+                    f"{max_risk_pct:.2f}% cap (${cap_usd:.2f})"
+                )
+        dd_halt = float(self.gov.get("daily_dd_halt_usd") or 0.0)
+        if dd_halt < 0:
+            day_pnl = float(daily_pnl_usd) if daily_pnl_usd is not None else (
+                self.bridge.daily_realized_usd() if self.bridge is not None else 0.0
+            )
+            if day_pnl <= dd_halt:
+                return False, f"daily realized ${day_pnl:.2f} <= halt ${dd_halt:.2f}"
         return True, ""
 
     def our_magics(self) -> set:
@@ -696,11 +718,7 @@ def run_loop(cfg: dict, mode: str, loop_seconds: int | None = None):
                                         side="BUY" if side == 1 else "SELL", lots=float(d_res.get("size", 0)),
                                         price=entry, sl=sl, tp=tp, note=d_res.get("why") or str(d_res.get("order_id", "")))
                             print(f"[delta] {d_res.get('status')} {sname} {sym}->{d_res.get('symbol')} size={d_res.get('size',0)} {d_res.get('why','')}")
-                    # ---- governor + sizing
-                    ok, why = gov.gates(magic, bridge.positions() if mode == "live" else [])
-                    if not ok:
-                        journal.log("GATE_SKIP", sleeve=sname, magic=magic, symbol=sym, note=why)
-                        continue
+                    # ---- sizing + governor (exact planned SL dollar risk gated vs equity cap)
                     risk_usd = float(cfg["governor"]["risk_usd_target"])
                     s8 = cfg.get("s8_vol_target") or {}
                     if s8.get("enabled"):
@@ -716,6 +734,13 @@ def run_loop(cfg: dict, mode: str, loop_seconds: int | None = None):
                         journal.log("RISK_REJECT", sleeve=sname, magic=magic, symbol=sym,
                                     lots=0.0, price=entry, sl=sl, tp=tp, note=why)
                         continue
+                    actual_risk = float(lots) * float(rd) * spec.value_per_price_unit()
+                    ok, why = gov.gates(magic, bridge.positions() if mode == "live" else [],
+                                        planned_risk_usd=actual_risk)
+                    if not ok:
+                        journal.log("GATE_SKIP", sleeve=sname, magic=magic, symbol=sym, note=why)
+                        continue
+                    risk_usd = actual_risk
                     comment = f"{sname[:8]} {sig['note'][:14]}"
                     if mode == "live":
                         res = bridge.send_bracket(spec, side, lots, entry, sl, tp, magic, comment, dev)
