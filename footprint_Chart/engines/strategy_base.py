@@ -68,27 +68,45 @@ class BaseFootprintStrategy(ABC):
 
 
 def discover_strategies(strategies_dir: Path = STRATEGIES_DIR) -> dict[str, BaseFootprintStrategy]:
-    """Auto-discover all BaseFootprintStrategy subclasses in footprint_Chart/strategies/."""
+    """Auto-discover all BaseFootprintStrategy subclasses in strategies/ (folders, loose, or archive)."""
     registry: dict[str, BaseFootprintStrategy] = {}
     if not strategies_dir.is_dir():
         return registry
 
-    for py_file in sorted(strategies_dir.glob("*.py")):
-        if py_file.name.startswith("_"):
-            continue
-        mod_name = f"fp_chart_strategy_{py_file.stem}"
+    candidate_files: list[Path] = []
+    # 1. Root loose .py
+    for f in sorted(strategies_dir.glob("*.py")):
+        if not f.name.startswith("_"):
+            candidate_files.append(f)
+    # 2. Strategy subdirectories (<sid>/strategy.py)
+    for sub in sorted(strategies_dir.iterdir()):
+        if sub.is_dir() and not sub.name.startswith((".", "_", "tests", "core")):
+            strat_file = sub / "strategy.py"
+            if strat_file.is_file():
+                candidate_files.append(strat_file)
+            # 3. Archive subdirectories
+            if sub.name == "archive":
+                for arch_f in sorted(sub.rglob("*.py")):
+                    if not arch_f.name.startswith((".", "_")):
+                        candidate_files.append(arch_f)
+
+    for py_file in candidate_files:
+        mod_name = f"fp_chart_strategy_{py_file.parent.name}_{py_file.stem}"
         if mod_name in sys.modules:
             del sys.modules[mod_name]
         spec = importlib.util.spec_from_file_location(mod_name, py_file)
         if spec is None or spec.loader is None:
             continue
-        module = importlib.util.module_from_spec(spec)
-        sys.modules[mod_name] = module
-        spec.loader.exec_module(module)
+        try:
+            module = importlib.util.module_from_spec(spec)
+            sys.modules[mod_name] = module
+            spec.loader.exec_module(module)
 
-        for _, obj in inspect.getmembers(module, inspect.isclass):
-            if issubclass(obj, BaseFootprintStrategy) and obj is not BaseFootprintStrategy:
-                inst = obj()
-                if inst.id:
-                    registry[inst.id] = inst
+            for _, obj in inspect.getmembers(module, inspect.isclass):
+                if issubclass(obj, BaseFootprintStrategy) and obj is not BaseFootprintStrategy:
+                    inst = obj()
+                    if inst.id:
+                        registry[inst.id] = inst
+        except Exception:
+            continue
     return registry

@@ -3905,3 +3905,16 @@ Empirical audit of today's MT5 deal history reveals the exact root causes of sto
 **Confidence:** VERIFIED (direct code inspection @ `61350ea6e` + account/config JSON extraction; trade-level parquet correlation NOT computable from repo — flagged §2; MC/Calmar numbers taken from pushed account JSONs, not re-executed).
 
 — GLM, Senior Quantitative Reviewer (propose & audit only; no execution authority)
+
+### [2026-11-27T21:11:54Z] · Arena.ai / Codex · REVIEW · round R046
+**Verdict:** Withhold Tier-A reliance, Tier-B promotions and a shared $5K migration pending a causally refit, broker-aware replay.
+
+**Evidence:** At `61350ea6e`, reproduced the 14 saved accounts against 82,333 trades in 28 local ledgers to rounding. The IS label cutoff admits 52 unsettled outcomes across the full ledger, and the shared simulator ranks simultaneous entries by future exit time. The WF path is dormant because its sole recipe is retired. Acc_07 / Acc_23 shared 142 entry minutes with trade-R correlation 0.840 and proxy-marked daily correlation 0.574. All six Tier-A sleeves held a short in BTC, ETH or SOL concurrently for about 60 hours. In the six-sleeve historical OOS replay, the equal-capital split returned 6.64% CAGR with 1.20 Calmar. The one-crypto shared book returned 1.86% and 0.37. The relaxed shared book returned 10.57% but reached 13.94% marked 10% trailing-breach probability. With the $6 round-trip reserve and saved MT5 lot grid, the one-crypto book returned 0.85%. M4’s latest-bar S07 path omits the last three bars of the signal mask, which the passing self-test missed. [Signed report](quant_audits/prop_26_5k_61350ea6e.md) · [Replay and correlations](quant_audits/prop_26_5k_replay_results.json).
+
+**Confidence:** VERIFIED for commit code, tracked outputs, local frozen-ledger replay and offline M4 tests. UNVERIFIED-BY-AGENT for venue fills, effective bracket R, broker debits and the actual challenge reset/limit rules.
+
+**Proposal:** Purge labels by exit availability, make same-minute ordering independent of future exits, and use point-in-time costs, contract data and marked-equity risk. Freeze fresh challengers for Acc_13 break-even, Acc_05 signed CVD and Acc_10 OI availability. Keep all 12 retired from standalone use. Acc_09 merits a separate closed-D1 trend test. Use a sealed forward test and exact fill/bracket parity evidence before revisiting classifications. Any venue decision belongs to Antigravity under the written interlock, grade and aggregate risk limits, and shelf clearance.
+
+**Dissent:** The 2024–2026 validation sample was used for rescue, retirement and tier assignment. The Full/OOS 20K gates share observations and measure historical realized drawdown, so they cannot establish independent prop readiness.
+
+**Signed — Arena.ai / Codex, quantitative review.**
