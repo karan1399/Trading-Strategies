@@ -20296,3 +20296,23 @@ Synced live MT5 #5126976 execution & `/thinking-red-team` backtest verification 
 - Reconciled Delta SL hits (`XRPUSD` `-$0.0296 @ 0.9327`, `ADAUSD` `-$0.0108 @ 0.1476`) into `data/agent_memory/trade_postmortems.jsonl`.
 - MT5 `#5126976`: `KEEP UNCHANGED` `5` open positions (`Bal=$2,548.49`, `Eq=$2,537.32`, `Risk=$24.73 / 0.975% <= 1.00% Cap`). New MT5: `NO TRADE`.
 - Delta `#26902927` (`Bal=$3.2624`, `NetEq=$3.3801`, Interlock GREEN): `EXECUTE` `post_only` maker limits `#1716559389 TRXUSD SELL 2 @ 0.3088` (`SL 0.3175, TP 0.2914, $0.0174, 2.00R`) + `#1716559547 OPUSD SELL 40 @ 0.0715` (`SL 0.0750, TP 0.0645, $0.0140, 2.00R`), readback verified (`Total Delta Risk = $0.0314 / 0.929%`).
+
+### [2026-11-26T19:36:38Z] · R42 · MT5 PENDING ORDER REMEDIATION (`retcode=10009` ×3, `10018` XAU CLOSED)
+- Verified live CoinGlass Legend (`ZECUSDT 1h`: `EMA89 750.61`, `Model 1` `745–751`/`759–763` heatmap bands, `729–733` ask walls, `Cum. delta +218.2K`) + `:3000` `mcp/server.mjs` across `BTC/ETH/XAU/ZEC`.
+- Under Interlock `trade_allowed=True`: `REMOVE` (`retcode=10009`) cancelled `#20567092 BTCUSD.pi` (`$12.00`), `#20567147 ETHUSD.pi` (`$15.00`), `#20567576 ZECUSD.p` (`$10.00`).
+- `#20567499 XAUUSD.pi` (`0.02 @ 3574.03`, `$13.94`) returned `retcode=10018 (Market closed)` — remains queued for immediate cancellation on XAU open.
+- Live MT5 readback: `Bal=$2,535.14`, `Eq=$2,539.33`, `Open=3` (`EURUSD.pi`, `JP225.p`, `XAUUSD.pi`, `OpenRisk=$22.56 / 0.888% <= 1.00% Cap`), `Pending=1` (`#20567499`).
+
+### [2026-11-26T21:38:30Z] · R43 · FINAL `12/12` UNIFIED PORTFOLIO + `1.5y` TIME-DECAY ML BUNDLE & AUTONOMOUS PILOT
+- Completed `12/12` historical Binance footprint dump (`ETHUSDT` `522,672` rows, `187.39R OOS t=3.185`), rebuilt `multi_asset_optimal_report.json` (`#7 CAGR=103.7%, PF=1.60, Calmar=3.62, Sharpe=1.99`), and saved 12-asset `final_live_ml_bundle.pkl` (`Full ExpectancyScale DD 34.9%->22.8%, Calmar 4.23, Sharpe 1.87, t=2.941`).
+- Patched `engine/unified_alpha_pilot.py` & `engine/config.json`: fixed stale `strategies/sleeves/...` `config_file` paths, enabled causal `ml_gate`, restricted crypto sleeves to tight-spread (`<=25bp`) `ETHUSD.pi`/`BCHUSD.p`/`GAUUSD.pi`, set `max_global_positions=4 / max_per_sleeve=1 / gold_cluster=1` under `1.0%` SL risk cap, and armed `prune_pending_tickets=[20567499]`.
+- Cancelled MT5 `#20568027 ZECUSD.p` (`retcode=10009`, `-$14.22` pending risk); `#20567499 XAUUSD.pi` queued for automatic `TRADE_ACTION_REMOVE` on Metals open. Delta `#26902927` (`NetEq=$3.3801`, `0` pos, `2` orders `OPUSD`/`TRXUSD`) unchanged.
+
+### [2026-11-27T06:04:00Z] · R44 · DAEMON RECOVERY (`4/4` LIVE), `40/40` `16P` VERIFICATION & `HK50.p` `#20580949` SYNC
+- Restarted all 4 stopped background daemons (`start-server.mjs :3000`, `telemetry_daemon.py v5.0`, `footprint_Chart.app :8060`, `unified_alpha_pilot.py --live`). Verified HTTP `200` on `:3000` & `:8060`, and `40/40 Effective Fresh` (`10` disk + `30` live continuation) under `telemetry_16p_engine.py --verify-gate --live-continue`.
+- Live MT5 `#5126976`: `Bal=$2,501.57, Eq=$2,501.17, Open=1, Pend=0`. `ig_s2_rsi2_meanrev` (`42009`) executed `#20580949 HK50.p SELL 0.03 @ 22741.7` (`SL 22866.91, TP 22450.44, Risk $4.80, Reward $11.16, 2.33R`, `retcode=10009`).
+- Delta `#26902927` MCP & REST halted (`HTTP 401 ip_not_whitelisted_for_api_key`, new IP `116.50.84.113`).
+
+### [2026-11-27T06:35:00Z] · R45 · PER-ASSET × PER-STRATEGY (`ALL-13` + `MT5`) OPTIMIZER, `CANDIDATE 12` (`CALMAR 5.13`) & `BLEND_TD` ML (`CALMAR 5.80`)
+- Track A (`multi_asset_optimizer.py` + `fast_kernels.py`): Numba-accelerated Per-Asset × All-13 sweep (`IS <= 2023 -> Frozen OOS 2024–2026`) delivered new #1 champion `Candidate 12 (Tight<=25bp Per-Asset All-13 Robust)`: `n=1,455, PF=1.65, SumR=+441.78R, CAGR=131.3%, DD=25.62%, Calmar=5.13, Sharpe=1.93, t_HAC=3.753` (`Frozen OOS +223.10R / Calmar=5.41`). Retrained `final_live_ml_bundle.pkl` (`7,173` trades): `Per-Asset Opt13 + Blend_TD` hit 7d-purged OOS `PF=1.72, SumR=+293.07R, DD=22.9%, Calmar=5.80, Sharpe=2.09, t_HAC=3.299`.
+- Track B (`engine/mt5_per_asset_optimizer.py` + `engine/config.json`): Scanned `151` MT5 symbols with `sim_ohlc_trades_nb`, live MT5 `$6`/spread (`<=25bp`) gates & `55%/23%/22%` Train->Val->Holdout (`n=84, PF=1.64, +25.99R, 7/7 sleeves positive`); promoted verified `symbol_params` (`ig_s5` `GAUUSD.pi/GAUCNH.pi`, `ig_s7`, `ig_s9`, `ig_s10` `+DSHUSD.p`, `ig_s2` `+USWTI.p`) and verified `SELFTEST: PASS`, `12/12 pytest`, `graphify update .`.

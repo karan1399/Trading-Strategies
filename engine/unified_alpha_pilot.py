@@ -64,6 +64,18 @@ from strategies.s08_vol_target_overlay import vol_target_risk_usd  # noqa: E402
 from strategies.s11_or30_london_breakout.strategy import signal_at as _s11_signal_at  # noqa: E402
 
 
+def _resolve_config_file(cf: str) -> str | None:
+    cf_path = cf if os.path.isabs(cf) else os.path.join(ROOT, cf)
+    if os.path.exists(cf_path):
+        return cf_path
+    base = os.path.basename(os.path.dirname(cf_path))
+    for sub in ("trend", "breakout", "mean_reversion"):
+        cand = os.path.join(ROOT, "strategies", "sleeves", sub, base, os.path.basename(cf_path))
+        if os.path.exists(cand):
+            return cand
+    return None
+
+
 def load_resolved_config(path: str = CONFIG_PATH) -> dict:
     """Load engine/config.json and hydrate external strategy folder config_file entries."""
     with open(path, encoding="utf-8") as f:
@@ -71,8 +83,8 @@ def load_resolved_config(path: str = CONFIG_PATH) -> dict:
     for sname, s in (cfg.get("sleeves") or {}).items():
         cf = s.get("config_file")
         if cf:
-            cf_path = cf if os.path.isabs(cf) else os.path.join(ROOT, cf)
-            if os.path.exists(cf_path):
+            cf_path = _resolve_config_file(cf)
+            if cf_path:
                 with open(cf_path, encoding="utf-8") as sf:
                     ext = json.load(sf)
                 for k in ("tf", "max_hold_bars", "params", "symbol_params", "symbols", "cooldown_bars", "max_spread_risk_frac"):
@@ -348,7 +360,7 @@ class MT5Bridge:
         for ord_item in (mt5.orders_get() or []):
             sl = float(getattr(ord_item, "sl", 0.0) or 0.0)
             entry = float(getattr(ord_item, "price_open", 0.0) or 0.0)
-            vol = float(getattr(ord_item, "volume_initial", 0.0) or 0.0)
+            vol = float(getattr(ord_item, "volume_current", 0.0) or getattr(ord_item, "volume_initial", 0.0) or 0.0)
             sym = getattr(ord_item, "symbol", "")
             if sl <= 0 or vol <= 0 or not sym:
                 continue
@@ -558,6 +570,128 @@ def build_signal(sleeve: str, closed, sleeve_cfg: dict, params: dict, htf_c4: np
     return None
 
 
+def _ml_score_pilot_signal(
+    sym: str,
+    sname: str,
+    sym_tf: str,
+    closed,
+    spec: SymbolSpec,
+    side: int,
+    entry: float,
+    live_spread: float,
+    cfg: dict,
+) -> dict | None:
+    """Score matched-domain H4/H2 signals with the persisted Time-Decay Expected-R ML Bundle."""
+    ml_cfg = cfg.get("ml_gate") or {}
+    if not ml_cfg.get("enabled", False) or sym_tf not in ("H4", "H2"):
+        return None
+    dom = set(ml_cfg.get("domain_symbols") or [])
+    if dom and sym not in dom:
+        return None
+    try:
+        from pathlib import Path
+        from datetime import datetime, timezone
+        from footprint_Chart.backtesting.ml_meta_engine import FINAL_BUNDLE_PATH, score_live_signal
+    except Exception:
+        return None
+
+    bpath_raw = ml_cfg.get("bundle_path")
+    bpath = Path(bpath_raw) if (bpath_raw and os.path.isabs(bpath_raw)) else (
+        Path(ROOT) / bpath_raw if bpath_raw else FINAL_BUNDLE_PATH
+    )
+    if not bpath.is_file():
+        return None
+
+    c = closed["close"].astype(float)
+    h = closed["high"].astype(float)
+    l = closed["low"].astype(float)
+    o = closed["open"].astype(float)
+    if len(c) < 240:
+        return None
+
+    atr_arr = wilder_atr(h, l, c, 14)
+    atr_i = float(atr_arr[-1])
+    c_i = float(c[-1])
+    if atr_i <= 1e-12 or c_i <= 1e-12:
+        return None
+
+    e89 = ema_arr(c, 89)
+    e233 = ema_arr(c, 233)
+    adx_series = adx_arr(h, l, c, 14)
+    rng_i = max(float(h[-1] - l[-1]), 1e-12)
+    wick_adv = ((float(h[-1]) - max(float(o[-1]), c_i)) / rng_i) if side > 0 else ((min(float(o[-1]), c_i) - float(l[-1])) / rng_i)
+    sp_bps = (live_spread / max(entry, 1e-9)) * 10000.0
+    natr_bps = max(1.0, atr_i / c_i * 10000.0)
+    ts_bar = int(closed["time"][-1])
+    dt = datetime.fromtimestamp(ts_bar, tz=timezone.utc)
+    hr_rad = 2.0 * math.pi * (dt.hour + dt.minute / 60.0) / 24.0
+    dow_rad = 2.0 * math.pi * dt.weekday() / 7.0
+
+    # Rolling 48-bar VWAP Z-score + Williams %R(14) + RSI(2) + ATR percentile
+    vw48_std = float(np.std(c[-48:])) if len(c) >= 48 else float(np.std(c))
+    vw48_mean = float(np.mean(c[-48:])) if len(c) >= 48 else float(np.mean(c))
+    vwz = (c_i - vw48_mean) / max(vw48_std, 1e-12)
+    hh14 = float(np.max(h[-14:]))
+    ll14 = float(np.min(l[-14:]))
+    wr14 = -100.0 * (hh14 - c_i) / max(hh14 - ll14, 1e-12)
+    diffs = np.diff(c[-10:])
+    up = float(np.mean(np.maximum(diffs[-2:], 0.0)))
+    dn = float(np.mean(np.maximum(-diffs[-2:], 0.0)))
+    rsi2 = 100.0 if dn == 0 and up > 0 else (50.0 if dn == 0 else 100.0 - 100.0 / (1.0 + up / dn))
+    atr_win = atr_arr[-60:] if len(atr_arr) >= 60 else atr_arr
+    atr_rk = float(np.mean(atr_win <= atr_i))
+
+    # Optional fresh disk telemetry enrichment (funding & book wall imbalance)
+    cg_sym = sym.split(".")[0][:3] if sym.endswith(".pi") or sym.endswith(".p") else sym
+    if cg_sym == "GAU":
+        cg_sym = "XAU"
+    fund_bp, imb_diff = 0.0, 0.0
+    tel_p = os.path.join(ROOT, "data", "telemetry", "assets", f"{cg_sym}.json")
+    if os.path.exists(tel_p):
+        try:
+            with open(tel_p, encoding="utf-8") as tf:
+                td = json.load(tf)
+            if (time.time() - float(td.get("fetched_at_ts") or td.get("updated_ts") or 0)) <= 900:
+                fund_bp = float(((td.get("funding_oi") or {}).get("oi_weighted_8h_pct") or 0.0)) * 100.0
+                imb_diff = float((((td.get("book_walls") or {}).get("futures") or {}).get("m15") or {}).get("imbalance_pct") or 0.0) / 100.0
+        except Exception:
+            pass
+
+    s_f = float(side)
+    feat_row = {
+        "signed_clv": s_f * ((2.0 * c_i - float(h[-1]) - float(l[-1])) / rng_i),
+        "signed_imb_diff": s_f * imb_diff,
+        "signed_vwz48": s_f * vwz,
+        "signed_ret1_atr": s_f * (c_i - float(c[-2])) / atr_i,
+        "signed_ret3_atr": s_f * (c_i - float(c[-4])) / atr_i,
+        "signed_ret12_atr": s_f * (c_i - float(c[-13])) / atr_i if len(c) >= 13 else 0.0,
+        "atr_pct_rk": atr_rk,
+        "atr_exp_ratio": atr_i / max(float(np.mean(atr_win)), 1e-12),
+        "bar_range_atr": rng_i / atr_i,
+        "wick_adv_pct": wick_adv,
+        "signed_dist_e89": s_f * (c_i - float(e89[-1])) / atr_i,
+        "signed_dist_e233": s_f * (c_i - float(e233[-1])) / atr_i,
+        "signed_ema_spread": s_f * (float(e89[-1]) - float(e233[-1])) / atr_i,
+        "signed_e89_slope3": s_f * (float(e89[-1]) - float(e89[-4])) / atr_i,
+        "signed_rsi2": (50.0 - rsi2) * s_f,
+        "signed_wr14": s_f * (wr14 + 50.0),
+        "adx14": float(adx_series[-1]) if np.isfinite(adx_series[-1]) else 20.0,
+        "signed_fund_bp": s_f * fund_bp,
+        "sp_bps": sp_bps,
+        "sp_to_atr_bps": sp_bps / natr_bps,
+        "hr_sin": math.sin(hr_rad),
+        "hr_cos": math.cos(hr_rad),
+        "dow_sin": math.sin(dow_rad),
+        "dow_cos": math.cos(dow_rad),
+        "side": s_f,
+        "is_2h": 1.0 if sym_tf == "H2" else 0.0,
+        "is_mr_sleeve": 1.0 if ("rsi2" in sname or "htf" in sname) else 0.0,
+        "is_metal": 1.0 if ("XAU" in sym or "XAG" in sym or "GAU" in sym) else 0.0,
+    }
+    return score_live_signal(feat_row, seq_arr=None, bundle_path=bpath,
+                             min_expected_r=float(ml_cfg.get("min_expected_r", -0.10)))
+
+
 def run_loop(cfg: dict, mode: str, loop_seconds: int | None = None):
     bridge = MT5Bridge(cfg)
     if mode == "live" or MT5_OK:
@@ -729,6 +863,18 @@ def run_loop(cfg: dict, mode: str, loop_seconds: int | None = None):
                             target_ann_vol=float(s8.get("target_ann_vol", 0.22)),
                             lookback=int(s8.get("lookback", 20)),
                         )
+                    ml_res = _ml_score_pilot_signal(sym, sname, sym_tf, closed, spec, side, entry, live_spread, cfg)
+                    ml_tag = ""
+                    if ml_res and ml_res.get("ok"):
+                        if not ml_res.get("approve_regime", True):
+                            journal.log("ML_VETO", sleeve=sname, magic=magic, symbol=sym,
+                                        side="BUY" if side == 1 else "SELL", price=entry, sl=sl, tp=tp,
+                                        note=f"E[R]={ml_res['expected_r']:+.3f} ({ml_res['tier']})")
+                            continue
+                        r_min = float(cfg["governor"].get("risk_usd_min", 5.0))
+                        r_max = float(cfg["governor"].get("risk_usd_max", 6.0))
+                        risk_usd = round(min(r_max, max(r_min, risk_usd * float(ml_res.get("risk_mult", 1.0)))), 2)
+                        ml_tag = f" ML_ER={ml_res['expected_r']:+.3f}({ml_res['tier']})"
                     lots, why = lots_for_risk(spec, rd, risk_usd, float(cfg["governor"]["risk_usd_max"]))
                     if lots is None:
                         journal.log("RISK_REJECT", sleeve=sname, magic=magic, symbol=sym,
@@ -742,6 +888,8 @@ def run_loop(cfg: dict, mode: str, loop_seconds: int | None = None):
                         continue
                     risk_usd = actual_risk
                     comment = f"{sname[:8]} {sig['note'][:14]}"
+                    if ml_tag:
+                        sig = {**sig, "note": f"{sig['note']}{ml_tag}"}
                     if mode == "live":
                         res = bridge.send_bracket(spec, side, lots, entry, sl, tp, magic, comment, dev)
                         ret = getattr(res, "retcode", None)
@@ -766,8 +914,18 @@ def run_loop(cfg: dict, mode: str, loop_seconds: int | None = None):
                                     sl=sl, tp=tp, risk_usd=risk_usd, r_multiple=round(tp_r, 2),
                                     retcode="dry", note=sig["note"])
                         print(f"[dry] {sname} {sym} {'BUY' if side==1 else 'SELL'} {lots} @ {entry} sl={sl} tp={tp} ({tp_r:.1f}R)")
-            # ------- position management (every poll): BE lock + time stops
+            # ------- position management (every poll): BE lock + pending pruner + time stops
             if mode == "live":
+                prune_ids = set(int(x) for x in (cfg.get("governor", {}).get("prune_pending_tickets") or []))
+                if prune_ids:
+                    for ord_item in (mt5.orders_get() or []):
+                        if int(ord_item.ticket) in prune_ids:
+                            res_rm = mt5.order_send({"action": mt5.TRADE_ACTION_REMOVE, "order": int(ord_item.ticket)})
+                            rc_rm = getattr(res_rm, "retcode", None)
+                            if rc_rm == 10009:
+                                journal.log("PRUNE_PENDING", symbol=ord_item.symbol, retcode="10009",
+                                            note=f"auto-cancelled queued stale limit #{ord_item.ticket}")
+                                print(f"[pilot] PRUNED stale limit #{ord_item.ticket} {ord_item.symbol}")
                 positions = bridge.positions()
                 gov.be_lock(positions, lambda sym: bridge.tick(sym))
                 for p in positions:
@@ -790,7 +948,8 @@ def run_loop(cfg: dict, mode: str, loop_seconds: int | None = None):
                     if meta_p and meta_p.get("open_ts"):
                         slv_name = meta_p.get("sleeve", "")
                         slv_cfg = cfg["sleeves"].get(slv_name, {})
-                        mh_bars = int(slv_cfg.get("max_hold_bars") or 0)
+                        sym_ovr_p = (slv_cfg.get("symbol_params") or {}).get(p.symbol) or {}
+                        mh_bars = int(sym_ovr_p.get("max_hold_bars") or slv_cfg.get("max_hold_bars") or 0)
                         if mh_bars > 0:
                             eff_tf = meta_p.get("tf") or slv_cfg.get("tf", "H4")
                             max_sec = mh_bars * TF_MAP.get(eff_tf, 240) * 60
@@ -1045,6 +1204,9 @@ def selftest() -> bool:
 
     gov = Governor(cfg, Journal(os.path.join(DATA_DIR, "selftest_journal.csv")),
                    StateStore(os.path.join(DATA_DIR, "selftest_state.json")), None)
+    unlim_cfg = {**cfg, "governor": {**cfg["governor"], "max_global_positions": 0,
+                                       "max_per_sleeve": 0, "gold_cluster_max_positions": 0}}
+    gov_unlim = Governor(unlim_cfg, gov.journal, gov.state, None)
     cases_unlim = [
         ("empty book, any entry", [], 42003, True),
         ("unlimited global allows 3rd+", [FakePos(42002), FakePos(42005)], 42003, True),
@@ -1052,8 +1214,8 @@ def selftest() -> bool:
         ("unlimited gold cluster passes", [FakePos(42004)], 42003, True),
     ]
     for label, pos, magic, expect in cases_unlim:
-        ok, why = gov.gates(magic, pos)
-        print(f"  [live cfg] {label:<34} -> {'PASS' if ok else 'REJECT'} ({why})"[:100])
+        ok, why = gov_unlim.gates(magic, pos)
+        print(f"  [unlim]    {label:<34} -> {'PASS' if ok else 'REJECT'} ({why})"[:100])
         if ok != expect:
             failures.append(f"governor: {label}")
     capped_cfg = {**cfg, "governor": {**cfg["governor"], "max_global_positions": 2,

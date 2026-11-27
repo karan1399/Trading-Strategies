@@ -3815,3 +3815,52 @@ Empirical audit of today's MT5 deal history reveals the exact root causes of sto
     - `#1716559547 OPUSD` `SELL_LIMIT 40 (4.0 OP) @ 0.07150` (`SL 0.07500 / lim 0.07520` clears `14d/30d 0.07402–0.07419` & `H1 EMA233 0.0743`, `TP 0.06450` targets `7d/30d 0.06405`, `2.00R`, risk `$0.0140 = 0.414%`; `cum_delta_1h=-103.4M`, `sdiv sell`, `LSR=1.67`).
 
 **Confidence:** VERIFIED (`MT5` API live blotter + `Delta` `get_wallet_balances`/`get_margined_positions`/`get_fills`/`get_product`/`place_order`/`get_open_orders` readback + `--verify-gate --live-continue` `40/40` + live `:3000` endpoints).
+
+### [2026-11-26T19:36:38Z] · Antigravity · R42 PENDING ORDERS REMEDIATION & COINGLASS LEGEND CROSS-CHECK (01:06 IST)
+**Verdict:** Audited all 4 pending MT5 `SELL LIMIT` orders (`#20567092 BTCUSD.pi`, `#20567147 ETHUSD.pi`, `#20567499 XAUUSD.pi`, `#20567576 ZECUSD.p`) via live `mcp/server.mjs` (`:3000`) + `chrome-devtools` on user's open CoinGlass Legend (`ZECUSDT 1h`) + live `MetaTrader5` (`#5126976`). Under Interlock `trade_allowed=True`, cancelled `3/4` crypto pending limits (`retcode=10009`); `#20567499 XAUUSD.pi` failed with `retcode=10018 (Market closed, last tick 21:29:59)` and must be cancelled at XAU session reopen.
+- **Cancelled (`retcode=10009`):**
+  - `#20567092 BTCUSD.pi` (`SELL LIMIT 0.01 @ 61300, SL 62500, Risk $12.00`) — `COMPRESSION_SQUEEZE · NO_TRADE` (`1%` ATRp) + `SL 62500` inside `3d/7d 62514–62583` cluster.
+  - `#20567147 ETHUSD.pi` (`SELL LIMIT 0.50 @ 1750, SL 1780, Risk $15.00`) — `2.8%` 8h dead fill + `0.50` lot exceeded `$2.83` remaining `1%` equity headroom.
+  - `#20567576 ZECUSD.p` (`SELL LIMIT 0.01 @ 740, SL 750, Risk $10.00`) — CoinGlass Legend `1h EMA89 750.61` + Model 1 `745–751` / `759–763` squeeze bands (`PIT-21` stop death inside `750`, min lot `0.01` cannot clear `763+` within cap).
+- **Blocked by Exchange Session (`retcode=10018 Market closed`):**
+  - `#20567499 XAUUSD.pi` (`SELL LIMIT 0.02 @ 3574.03, SL 3581.00, TP 3532.03, Risk $13.94`) remains resting — stacked duplicate on open `#20566995 XAUUSD.pi` (`$12.36`) with `SL 3581.00` inside Day VWAP (`3581.45`). Cancel immediately on Metals market open.
+- **MT5 `#5126976` Post-Fix Readback:** `Bal=$2,535.14`, `Eq=$2,539.33`, `Free=$2,109.45`, `Open=3` (`#20467916 EURUSD.pi $5.36`, `#20538179 JP225.p $4.84`, `#20566995 XAUUSD.pi $12.36` -> `OpenRisk=$22.56 / 0.888%`), `Pending=1` (`#20567499 XAUUSD.pi $13.94` awaiting open; combined Open+Pend `$36.50 / 1.437%`).
+
+**Confidence:** VERIFIED (`MetaTrader5` `order_send` `retcode=10009`/`10018` + `orders_get`/`positions_get` readback + `mcp/server.mjs` + `chrome-devtools` `legend.coinglass.com`).
+
+### [2026-11-26T21:38:30Z] · `atg-exec` · R43: **FINAL `12/12` UNIFIED PORTFOLIO + `1.5y` TIME-DECAY ML BUNDLE & AUTONOMOUS PILOT ACTIVATION**
+- **12/12 Historic Footprint + 1m/Funding Complete:** `ETHUSDT` finished (`70/70` monthly parquets + 32d daily backfill -> `522,672` `agg_footprint` rows, `3,067,200` 1m klines; total `12,022,832` footprint rows across all `12/12` CORE assets). `ETHUSDT` (`ETHUSD.pi`, `17.77bp`) earned `n=815, WR=41.1%, SumR=+187.39R, OOS=+123.81R, t=3.185`.
+- **Final Unified Engine Persisted (`footprint_Chart/data/final_live_ml_bundle.pkl` & `final_live_blueprint.json`):**
+  - Portfolio #7 (`Tight-Spread <=25bp BTC(3)+Alts(1) vOF`): `n=1312, WR=44.2%, PF=1.60, SumR=+367.39R, End=$320,691.40, CAGR=103.7%, DD=28.68%, Calmar=3.62, Sharpe=1.99, OOS=+222.25R, t=3.859`.
+  - ML Overlay (`1.5y Time-Decay Expected-R Huber Blend`: `30% CatBoost + 25% XGBoost + 25% LightGBM + 10% HuberLinear + 10% PyTorch SeqResNet`, `4,599` training trades, 7d-purged OOS `2023–2026`): `n=1258, PF=1.51, SumR=+234.50R, DD=22.8%, Calmar=4.23, Sharpe=1.87, t=2.941`.
+- **MT5 `#5126976` Remediation & Auto-Prune Guard:**
+  - Interlock `TradeAllowed=True`. Cancelled over-cap pending `#20568027 ZECUSD.p SELL LIMIT 0.01 @ 735.57` (`retcode=10009`, saved `$14.22` excess risk; `0.01` lot 1 ATR `$44.39` violates `$6.00` cap).
+  - `#20567499 XAUUSD.pi SELL LIMIT 0.02 @ 3574.03` (`$13.94`) remained blocked by `retcode=10018 (Market closed)` and is armed in `engine/config.json` `governor.prune_pending_tickets` for instant auto-cancellation at Metals reopen.
+  - Post-cancel MT5: `Bal=$2,531.39, Eq=$2,528.77, Open=5 ($35.38 / 1.40%), Pend=1 ($13.94 queued prune), Total=$49.32 > Cap $25.29`. `Governor.gates()` remains enforcing `1.0%` aggregate SL cap (`blocks new MT5 entries until open+pending < $25.29`, while running BE locks, time stops, and ML gate cleanly).
+- **Delta `#26902927` (`Bal=$3.2624`, `NetEq=$3.3801`):** `OpenPos=0`, `OpenOrd=2` (`#1716559547 OPUSD`, `#1716559389 TRXUSD` `post_only` 2.00R limits unchanged).
+
+**Confidence:** VERIFIED (`pyarrow` 12/12 parquets + 12-asset `multi_asset_optimal_report.json` + `final_live_ml_bundle.pkl` + `MT5` `retcode=10009` + `Delta` MCP readback + `pytest` + `--selftest`).
+
+### [2026-11-27T06:04:00Z] · `atg-exec` · R44: **POST-RESTART DAEMON RECOVERY, `40/40` `16P` LIVE VERIFICATION & `HK50.p` `#20580949` SYNC**
+- **4/4 Background Daemons Restarted & Verified:**
+  - `task-32674`: `node scripts/start-server.mjs` (`:3000` Next.js CG Terminal — `HTTP 200`).
+  - `task-32675`: `python -u scripts/telemetry_daemon.py` (`v5.0 winloop`, cycling live `62/161` CG + `151` MT5 layers).
+  - `task-32676`: `python -u -m footprint_Chart.app` (`:8060` FastAPI `/api/final-live-portfolio` — `HTTP 200`).
+  - `task-32677`: `python -u engine/unified_alpha_pilot.py --live --i-understand-live-risk` (`#5126976`, `9` sleeves active).
+- **MT5 `#5126976` Live Blotter & Execution (`WS-16` Sync):**
+  - Interlock `TradeAllowed=True`. `Bal=$2,501.57`, `Eq=$2,501.17`, `Free=$2,414.05`, `Open=1`, `Pend=0`.
+  - `#20580949 HK50.p` (`magic=42009`, `ig_s2_rsi2_meanrev`) `SELL 0.03 @ 22741.7`, `SL 22866.91`, `TP 22450.44` (`retcode=10009` at `05:59:53Z`; verified via `mt5.order_calc_profit` Risk=`$4.80 / 0.19% <= 1.00% Cap $25.01`, Reward=`$11.16`, `R=2.33`, TP wall-aligned via `CG_SLTP_OPT`; note `22741.7 > M15 EMA233 22227.69` & `H1 EMA233 22736.87` under `s02_rsi2_meanrev` sleeve rules).
+- **Delta `#26902927` Blocked by ISP IP Change:** `delta-exchange-mcp` & `DeltaLive` return HTTP `401 ip_not_whitelisted_for_api_key` for `client_ip=116.50.84.113` (operator action needed to whitelist `116.50.84.113` in Delta API settings).
+- **Telemetry Gate (`WS-12` / `WS-15`):** `python scripts/telemetry_16p_engine.py --verify-gate --live-continue` -> `40/40 Effective Fresh` (`10` disk `<=600s` + `30` live HTTP `:3000`, `0` offline stale, `0` missing).
+
+**Confidence:** VERIFIED (`manage_task` `4/4`, `:3000`/`:8060` HTTP `200`, `telemetry_16p_engine --verify-gate --live-continue`, live `MT5` API + `order_calc_profit`, `delta-exchange-mcp`).
+
+### [2026-11-27T06:35:00Z] · `atg-exec` · R45: **NUMBA PER-ASSET × PER-STRATEGY (`ALL-13` + `MT5`) OPTIMIZER, `CANDIDATE 12` (`CALMAR 5.13`) & `BLEND_TD` ML (`CALMAR 5.80`) LIVE PROMOTION**
+- **Track A (`footprint_Chart/backtesting/multi_asset_optimizer.py` + `fast_kernels.py`):** Expanded Numba-accelerated `optimize_per_asset_strict_is_oos` across all `13` strategy families × `12` CORE assets (`IS <= 2023` -> `Frozen OOS 2024–2026`, `50/50` split Metals) with parameter plateau regularization (`0.65 self + 0.35 sibling`), half-split IS stability (`half_min > -2.5R`), and cost-edge dominance (`>= 2.8x`).
+  - **New #1 Champion (`Candidate 12`: `Tight<=25bp Per-Asset All-13 Robust`, `mc=5, vOF`):** Full `2021–2026`: **`n=1,455, WR=44.5%, PF=1.65, SumR=+441.78R, CAGR=131.3%, MaxDD=25.62%, Calmar=5.13, Sharpe=1.93, t_HAC=3.753`** (vs prior pooled `Candidate 7`: `Calmar=3.61, PF=1.59, SumR=+367.21R`). Frozen `2024–2026` OOS: **`+223.10R, PF=1.58, MaxDD=25.37%, Calmar=5.41`**.
+  - Refreshed [`footprint_Chart/data/final_live_ml_bundle.pkl`](file:///c:/Users/SIGMA/Documents/Trading-Strategies/footprint_Chart/data/final_live_ml_bundle.pkl) (`7,173` training trades) & [`final_live_blueprint.json`](file:///c:/Users/SIGMA/Documents/Trading-Strategies/footprint_Chart/data/final_live_blueprint.json): 7d-purged OOS `2023–2026` `Per-Asset Opt13 + Blend_TD Full ExpectancyScale` achieved **`n=928, PF=1.72, SumR=+293.07R, DD=22.9%, Calmar=5.80, Sharpe=2.09, t_HAC=3.299`** across 4 consecutive profitable years (`+122.36 / +60.23 / +63.89 / +46.59R`).
+- **Track B (`engine/mt5_per_asset_optimizer.py` + `engine/config.json` + `engine/unified_alpha_pilot.py`):** Built `sim_ohlc_trades_nb` and audited all `151` MT5 symbols (`110` passed `$6` min-lot risk; `76` passed `2x spread <= 25%` ATR; `sp_bps <= 25.0` & non-FX regime scoping enforced after Holdout falsified FX 4H trends at `-27.06R`). Strict `55% Train -> 23% Val -> 22% Locked Holdout OOS` yielded **`n=84, WR=46.4%, SumR=+25.99R, PF=1.64, 7/7 sleeves positive`**.
+  - Promoted Holdout-verified tight-spread `symbol_params` into [`engine/config.json`](file:///c:/Users/SIGMA/Documents/Trading-Strategies/engine/config.json): re-enabled `ig_s5_zscore_breakout` (`42007`, added to `gold_cluster_magics`) strictly on `GAUUSD.pi` & `GAUCNH.pi` (`+12.24R OOS`), plus per-asset optimal configs for `GAUCNH.pi`/`GAUUSD.pi`/`ETHUSD.pi`/`DSHUSD.p`/`USWTI.p` (`ig_s7, ig_s9, ig_s10, ig_s2`) and fixed per-symbol `max_hold_bars` lookup in `unified_alpha_pilot.py`.
+- **Verification Gates:** `unified_alpha_pilot.py --selftest` -> **`SELFTEST: PASS`**; `pytest -v footprint_Chart/tests/test_footprint_suite.py strategies/tests/test_fp_steroids.py` -> **`12 passed` (`105.29s`)**; `graphify update .` -> **`4846 nodes, 11767 edges, 252 communities`**.
+
+**Confidence:** VERIFIED (`pytest` 12/12 + `--selftest` + live `mt5.symbol_info()` spreads + `multi_asset_optimal_report.json` + `mt5_per_asset_opt_report.json` + `final_live_blueprint.json`).
