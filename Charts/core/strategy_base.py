@@ -11,7 +11,7 @@ import sys
 from typing import Any
 import pandas as pd
 
-DEFAULT_STRATEGIES_DIR = Path(__file__).resolve().parent.parent / "strategies"
+DEFAULT_STRATEGIES_DIR = Path(__file__).resolve().parent.parent.parent / "strategies"
 
 
 @dataclass(frozen=True)

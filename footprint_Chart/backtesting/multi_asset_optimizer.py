@@ -28,7 +28,7 @@ from footprint_Chart.data_pipeline.binance_dumper import DATA_DIR
 from footprint_Chart.data_pipeline.mt5_universe import CORE_12_ASSETS, load_mt5_contract_specs
 from strategies.core.fp_features import build_fp_context
 from strategies.core.registry import load_signal_fn
-from strategies.overlays.s08_vol_target_overlay.overlay import vol_of_conviction_risk_usd
+from strategies.s08_vol_target_overlay.overlay import vol_of_conviction_risk_usd
 
 SPLIT_2024_TS = int(datetime(2024, 1, 1, tzinfo=timezone.utc).timestamp())
 METALS_START_TS = int(datetime(2025, 12, 11, tzinfo=timezone.utc).timestamp())
@@ -115,7 +115,7 @@ def _fast_s04_masks(g4: pd.DataFrame, fp4: dict[str, Any], params: dict[str, Any
 def _fast_s07_masks(g4: pd.DataFrame, fp4: dict[str, Any], params: dict[str, Any] | None = None) -> tuple[np.ndarray, np.ndarray]:
     """O(N) causal equivalent of s07_daily_pivot_breakout with fp_mode=True."""
     from strategies.core.indicators import ema_arr
-    from strategies.sleeves.breakout.s07_daily_pivot_breakout.strategy import _d1_bars_from_arrays
+    from strategies.s07_daily_pivot_breakout.strategy import _d1_bars_from_arrays
 
     p = params or {}
     h, l, c = fp4["h"], fp4["l"], fp4["c"]

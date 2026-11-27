@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 import numpy as np
 
 from strategies.core.registry import STRATEGY_CATALOG, load_signal_fn
-from strategies.overlays.s08_vol_target_overlay import vol_target_risk_usd
+from strategies.s08_vol_target_overlay import vol_target_risk_usd
 
 
 @dataclass

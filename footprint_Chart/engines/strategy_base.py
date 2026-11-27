@@ -10,7 +10,7 @@ from pathlib import Path
 import sys
 from typing import Any
 
-STRATEGIES_DIR = Path(__file__).resolve().parent.parent / "strategies"
+STRATEGIES_DIR = Path(__file__).resolve().parent.parent.parent / "strategies"
 
 
 @dataclass(frozen=True)

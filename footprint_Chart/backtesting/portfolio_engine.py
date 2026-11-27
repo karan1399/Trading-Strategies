@@ -26,10 +26,10 @@ from footprint_Chart.data_pipeline.binance_dumper import DATA_DIR
 from footprint_Chart.engines.coinglass_parity import _ladder_round, compute_cg_signals
 from strategies.core.fp_features import build_fp_context
 from strategies.core.indicators import rsi_wilder_arr
-from strategies.sleeves.mean_reversion.s02_rsi2_meanrev.strategy import signal_at as s02_signal_at
-from strategies.overlays.s08_vol_target_overlay.overlay import vol_of_conviction_risk_usd
-from strategies.sleeves.trend.s09_donchian_trend_cta.strategy import signal_at as s09_signal_at
-from strategies.sleeves.trend.s10_ema_pullback.strategy import signal_at as s10_signal_at
+from strategies.s02_rsi2_meanrev.strategy import signal_at as s02_signal_at
+from strategies.s08_vol_target_overlay.overlay import vol_of_conviction_risk_usd
+from strategies.s09_donchian_trend_cta.strategy import signal_at as s09_signal_at
+from strategies.s10_ema_pullback.strategy import signal_at as s10_signal_at
 
 # mtime/size-keyed caches
 _TF_CACHE: dict[str, tuple[tuple[int, ...], pd.DataFrame, pd.DataFrame, pd.DataFrame, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]] = {}

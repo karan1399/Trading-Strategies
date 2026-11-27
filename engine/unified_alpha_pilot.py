@@ -69,6 +69,9 @@ def _resolve_config_file(cf: str) -> str | None:
     if os.path.exists(cf_path):
         return cf_path
     base = os.path.basename(os.path.dirname(cf_path))
+    flat = os.path.join(ROOT, "strategies", base, os.path.basename(cf_path))
+    if os.path.exists(flat):
+        return flat
     for sub in ("trend", "breakout", "mean_reversion"):
         cand = os.path.join(ROOT, "strategies", "sleeves", sub, base, os.path.basename(cf_path))
         if os.path.exists(cand):

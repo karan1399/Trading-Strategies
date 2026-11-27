@@ -7,7 +7,7 @@ import pandas as pd
 
 from strategies.core.fp_features import build_fp_context
 from strategies.core.registry import STRATEGY_CATALOG, load_signal_fn
-from strategies.overlays.s08_vol_target_overlay.overlay import vol_of_conviction_risk_usd
+from strategies.s08_vol_target_overlay.overlay import vol_of_conviction_risk_usd
 
 
 def _make_df(n: int = 320, seed: int = 42) -> pd.DataFrame:

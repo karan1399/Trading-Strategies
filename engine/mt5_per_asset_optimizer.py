@@ -117,7 +117,7 @@ def _extract_arrays(df: pd.DataFrame) -> dict[str, np.ndarray]:
 
 
 def _d1_pivots_signals(h: np.ndarray, l: np.ndarray, c: np.ndarray, tm: np.ndarray, e50: np.ndarray, e200: np.ndarray, sk: int, trend_f: bool = True) -> tuple[np.ndarray, np.ndarray]:
-    from strategies.sleeves.breakout.s07_daily_pivot_breakout.strategy import _d1_bars_from_arrays
+    from strategies.s07_daily_pivot_breakout.strategy import _d1_bars_from_arrays
 
     n = len(c)
     ml = np.zeros(n, dtype=bool)
