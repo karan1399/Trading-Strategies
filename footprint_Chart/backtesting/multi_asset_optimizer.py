@@ -153,7 +153,7 @@ def _fast_s07_masks(g4: pd.DataFrame, fp4: dict[str, Any], params: dict[str, Any
             piv_l.append((conf_b, float(dl[j])))
 
     d_idx = 0
-    for i in range(235, n - 3):
+    for i in range(235, n):
         a_i = float(atr[i])
         if not np.isfinite(a_i) or a_i <= 0.0:
             continue

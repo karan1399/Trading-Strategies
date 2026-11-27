@@ -13,6 +13,17 @@ _LEGACY_PREFIXES: Dict[str, str] = {
     "strategies.fp_features": "strategies.core.fp_features",
     "strategies.registry": "strategies.core.registry",
     "strategies.stack": "strategies.core.stack",
+    # Renamed numbered strategy aliases (s01..s16 clean layout -> legacy unnumbered imports)
+    "strategies.donchian_breakout": "strategies.s02_donchian_breakout",
+    "strategies.ema233_imb_rejection": "strategies.s03_ema233_imb_rejection",
+    "strategies.ema_zero_orderflow": "strategies.s05_ema_zero_orderflow",
+    "strategies.imbalance_stack": "strategies.s06_imbalance_stack",
+    "strategies.of_initiative_breakout": "strategies.s11_of_initiative_breakout",
+    "strategies.oi_2h_liq_break": "strategies.s12_oi_2h_liq_break",
+    "strategies.oi_2h_reclaim_fade": "strategies.s13_oi_2h_reclaim_fade",
+    "strategies.oi_4h_sqz_mom": "strategies.s14_oi_4h_sqz_mom",
+    "strategies.rsi2_mean_reversion": "strategies.s15_rsi2_mean_reversion",
+    "strategies.zero_auction_reversal": "strategies.s16_zero_auction_reversal",
     # Unprofitable archived strategy redirects (preserves full backward compatibility)
     "strategies.bollinger_zscore": "strategies.archive.unprofitable.bollinger_zscore",
     "strategies.cg_signal_strategy": "strategies.archive.unprofitable.cg_signal_strategy",

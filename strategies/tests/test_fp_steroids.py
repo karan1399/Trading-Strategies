@@ -52,7 +52,7 @@ def test_zero_lookahead_causality_invariant():
 
     tm = (df["ts"].to_numpy() // 60).astype(np.int64)
     for sid, meta in STRATEGY_CATALOG.items():
-        if meta["kind"] == "overlay":
+        if meta["kind"] != "signal":
             continue
         fn = load_signal_fn(sid)
         mod = importlib.import_module(meta["module"])
@@ -70,7 +70,7 @@ def test_pure_ohlc_backward_compatibility():
     fp = build_fp_context(df)
     tm = (df["ts"].to_numpy() // 60).astype(np.int64)
     for sid, meta in STRATEGY_CATALOG.items():
-        if meta["kind"] == "overlay":
+        if meta["kind"] != "signal":
             continue
         fn = load_signal_fn(sid)
         mod = importlib.import_module(meta["module"])

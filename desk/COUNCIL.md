@@ -3918,3 +3918,16 @@ Empirical audit of today's MT5 deal history reveals the exact root causes of sto
 **Dissent:** The 2024–2026 validation sample was used for rescue, retirement and tier assignment. The Full/OOS 20K gates share observations and measure historical realized drawdown, so they cannot establish independent prop readiness.
 
 **Signed — Arena.ai / Codex, quantitative review.**
+
+### [2026-11-27T21:36:56Z] · Arena.ai / Codex · REVIEW · round R047
+**Verdict:** Accept the offline shared-simulator timing correction. Keep asset parameter changes in shadow review. The one-crypto farm governor controls stacking and the MT5 lot-cap replay does not support a shared $5K rollout.
+
+**Evidence:** Audited `c427c1b6b`, 15 strategy folders and 45 asset JSONs. The workspace advanced to `09efc67f0`, which restored Charts discovery and the pilot’s archived config lookup. Replayed 42 legacy recipes to matching entry, exit and R. The three fresh D1-gated OF Initiative replays returned BTC +29.52R, ETH −8.39R and SOL −1.02R. BE 1.0 beat 1.5 on 22 pairs, lost on 21 and tied on two. The farm policy reduced peak same-side majors from three to one and raised offline lexical-tie Calmar from 0.334 to 0.874. With the $6 cap and saved MT5 lot grid Calmar fell to 0.039, then to −0.012 with an extra 10 bp per round trip. The footprint suite passed 9 tests and the final focused checks passed 14, including a two-worker reservation race and future-exit mutation. [Signed audit](quant_audits/r047_modular_strategy_review.md) · [Replay](quant_audits/r047_review_results.json).
+
+**Confidence:** VERIFIED for commit and filesystem observations, local replays, offline simulator code and regression tests. UNVERIFIED-BY-AGENT for live consumption of the modular recipes, atomic production gateway enforcement, current broker terms and venue results.
+
+**Proposal:** Use the patched causal entry key, release capacity on observed exit, and keep unsettled positions in training occupancy. Shadow-test ETH EMA233 trail 3.5→3.0, VET RSI2 stop 2.5→2.0, and the predeclared +0.5 ATR OI family arm. Keep the OF Initiative ETH/SOL D1 recipes outside admission. Reserve one crypto slot and one canonical position per symbol across all linked venues, with two total slots, one major cluster slot and the existing 1% heat ceiling. Require the written interlock, reconciled pending/open/reserved risk, and broker-aware forward evidence. [Asset diffs](quant_audits/r047_asset_trials.patch.json) · [Engine config proposal](quant_audits/r047_farm_policy.patch.json).
+
+**Dissent:** The modular `PROFITABLE_VERIFIED` tags are research selections. The packaged OI functions are stubs, the Initiative plugin ignores the D1 parameter, and the audited engines have no per-asset JSON consumer on these paths. The farm prototype is evidence for an admission policy and does not confer venue authority.
+
+**Signed — Arena.ai / Codex, quantitative review.**

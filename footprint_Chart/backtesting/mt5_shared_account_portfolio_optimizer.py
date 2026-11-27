@@ -101,6 +101,29 @@ def prop_mc_20k(daily_r: np.ndarray, risk_pct: float, n_mc: int = 20000, seed: i
     }
 
 
+_NATIVE_BAR_SECONDS = {"1H": 3600, "H1": 3600, "2H": 7200, "H2": 7200, "4H": 14400, "H4": 14400}
+
+
+def _entry_order(trade: dict[str, Any]) -> tuple[int, int, str, str, str, str, int, str, str]:
+    """Rank candidates using only identity and priority published at entry."""
+    return (
+        int(trade["ts_in"]), int(trade.get("entry_priority", 0)),
+        str(trade["sleeve"]), str(trade["symbol"]), str(trade["mt5_symbol"]),
+        str(trade.get("tf", "")), int(trade.get("bar_i", -1)),
+        str(trade["side"]), str(trade.get("entry_id", "")),
+    )
+
+
+def _exit_available_at(trade: dict[str, Any]) -> int:
+    """Convert an exit-bar opening timestamp to the first observable close."""
+    if "exit_available_ts" in trade:
+        return int(trade["exit_available_ts"])
+    duration = (
+        _NATIVE_BAR_SECONDS[str(trade["tf"]).upper()] if str(trade["symbol"]).startswith("MT5_") else 60
+    )
+    return int(trade["ts_out"]) + duration
+
+
 def simulate_shared_account(
     name: str,
     trades_pool: list[dict[str, Any]],
@@ -118,14 +141,24 @@ def simulate_shared_account(
     max_ts: int | None = None,
     mc_runs: int = 0,
 ) -> dict[str, Any]:
+    """Replay timestamped entries with deterministic, point-in-time admission.
+
+    Legacy tapes use bar-open exit timestamps. Tapes with event-level evidence
+    can provide exit_available_ts. max_ts is an exclusive training cutoff.
+    """
     tl = [
         t for t in trades_pool
         if (min_ts is None or int(t["ts_in"]) >= min_ts)
         and (max_ts is None or int(t["ts_in"]) < max_ts)
     ]
-    tl.sort(key=lambda x: (int(x["ts_in"]), int(x["ts_out"])))
+    tl.sort(key=_entry_order)
+    for earlier, later in zip(tl, tl[1:]):
+        if _entry_order(earlier) == _entry_order(later):
+            raise ValueError(f"Duplicate entry identity {_entry_order(later)!r}. Supply distinct entry_id values.")
+    empty = {"name": name, "metrics": {"trades": 0, "total_trades": 0, "end_equity": start_equity,
+                                     "cagr_pct": 0.0, "max_dd_pct": 0.0, "calmar": 0.0, "pf": 0.0}}
     if not tl:
-        return {"name": name, "metrics": {"total_trades": 0, "end_equity": start_equity, "cagr_pct": 0.0, "max_dd_pct": 0.0, "calmar": 0.0, "pf": 0.0}}
+        return empty
 
     eq = float(start_equity)
     pk = float(start_equity)
@@ -147,7 +180,7 @@ def simulate_shared_account(
     max_dd_pct = 0.0
 
     for t in tl:
-        tin, tout = int(t["ts_in"]), int(t["ts_out"])
+        tin, tout = int(t["ts_in"]), _exit_available_at(t)
         sym, cat, side, bkt, sid = str(t["symbol"]), str(t["category"]), str(t["side"]), str(t["bucket"]), str(t["sleeve"])
 
         closing = sorted([a for a in active if int(a["ts_out"]) <= tin], key=lambda a: int(a["ts_out"]))
@@ -188,6 +221,9 @@ def simulate_shared_account(
         pnl_usd = eq * rp * eff_r
 
         active.append({"ts_out": tout, "symbol": sym, "category": cat, "side": side, "bucket": bkt, "pnl_usd": pnl_usd})
+        # An unresolved label reserves capacity but contributes no training P&L.
+        if max_ts is not None and tout >= max_ts:
+            continue
         executed.append(t)
         r_vals.append(eff_r)
         dk = int(tout // 86400)
@@ -207,6 +243,8 @@ def simulate_shared_account(
         bs["pnl_usd"] += pnl_usd
 
     for cl in sorted(active, key=lambda a: int(a["ts_out"])):
+        if max_ts is not None and int(cl["ts_out"]) >= max_ts:
+            continue
         eq += cl["pnl_usd"]
         pk = max(pk, eq)
         dd = ((pk - eq) / pk * 100.0) if pk > 0 else 0.0
@@ -214,8 +252,10 @@ def simulate_shared_account(
         dd_vals.append(dd)
         curve.append((int(cl["ts_out"]), eq))
 
+    if not executed:
+        return empty
     arr = np.array(r_vals, dtype=float)
-    span_ts = max(86400.0, float(executed[-1]["ts_out"] - executed[0]["ts_in"]))
+    span_ts = max(86400.0, float(curve[-1][0] - int(executed[0]["ts_in"])))
     yrs = max(0.25, span_ts / (365.25 * 86400.0))
     cagr = (((eq / start_equity) ** (1.0 / yrs) - 1.0) * 100.0) if eq > 0 else -100.0
     calmar = (cagr / max_dd_pct) if max_dd_pct > 0 else 0.0
@@ -234,7 +274,7 @@ def simulate_shared_account(
         oeq *= max(0.01, 1.0 + float(rv) * rp)
         opk = max(opk, oeq)
         omdd = max(omdd, (opk - oeq) / opk * 100.0)
-    oos_yrs = max(0.25, (executed[-1]["ts_out"] - SPLIT_2024_TS) / (365.25 * 86400.0)) if len(oos_arr) else 1.0
+    oos_yrs = max(0.25, (curve[-1][0] - SPLIT_2024_TS) / (365.25 * 86400.0)) if len(oos_arr) else 1.0
     oos_cagr = (((oeq) ** (1.0 / oos_yrs) - 1.0) * 100.0) if len(oos_arr) else 0.0
 
     d_min, d_max = min(daily_r_map.keys()), max(daily_r_map.keys())

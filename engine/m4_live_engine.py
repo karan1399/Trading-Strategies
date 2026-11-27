@@ -1111,6 +1111,15 @@ def run_selftest(cfg_path: Path) -> None:
         assert np.array_equal(d_full["side"][:-cut], d_pref["side"]), f"Lookahead detected in {k}!"
         assert np.allclose(d_full["atr"][:-cut], d_pref["atr"], equal_nan=True), f"ATR mismatch in {k}"
 
+    # Verify S07 evaluates up to final bar (n - 1) and stays prefix-invariant across short cuts (1, 2, 3)
+    for sc in (1, 2, 3):
+        p_s07 = eval_crypto_signals(
+            g2_btc.tail(600).iloc[:-sc].reset_index(drop=True),
+            g4_btc.tail(400).iloc[:-sc].reset_index(drop=True),
+            chart_map,
+        )
+        assert np.array_equal(full_btc[("s07_daily_pivot_breakout", "4H")]["side"][:-sc], p_s07[("s07_daily_pivot_breakout", "4H")]["side"])
+
     # 1:1 Exact Optimizer Parity Check on last 150 bars of ETHUSDT
     res_eth = eval_crypto_signals(g2_eth, g4_eth, chart_map)
     assert res_eth[("vwap_rejection", "4H")]["side"].shape[0] == len(g4_eth)
