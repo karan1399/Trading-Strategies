@@ -159,7 +159,7 @@ def sim_1m_trades_nb(
                 cur_b = int(m1_ts[k]) // tf_sec
                 if cur_b != prev_b:
                     if dyn_atr:
-                        while cur_bar_idx + 1 < n and (int(ts[cur_bar_idx + 1]) // tf_sec) <= cur_b:
+                        while cur_bar_idx + 1 < n and (int(ts[cur_bar_idx + 1]) // tf_sec) < cur_b:
                             cur_bar_idx += 1
                         ac = atr[cur_bar_idx]
                         tr_a = ac if not math.isnan(ac) else ai
@@ -198,7 +198,7 @@ def sim_1m_trades_nb(
                 cur_b = int(m1_ts[k]) // tf_sec
                 if cur_b != prev_b:
                     if dyn_atr:
-                        while cur_bar_idx + 1 < n and (int(ts[cur_bar_idx + 1]) // tf_sec) <= cur_b:
+                        while cur_bar_idx + 1 < n and (int(ts[cur_bar_idx + 1]) // tf_sec) < cur_b:
                             cur_bar_idx += 1
                         ac = atr[cur_bar_idx]
                         tr_a = ac if not math.isnan(ac) else ai

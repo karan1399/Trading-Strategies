@@ -50,7 +50,7 @@ if os.path.join(ROOT, "scripts") not in sys.path:
     sys.path.insert(0, os.path.join(ROOT, "scripts"))
 from delta_exec import DeltaLive  # noqa: E402
 from engine.cg_sl_tp import optimize_bracket_with_cg  # noqa: E402
-from strategies._indicators import adx_arr  # noqa: E402
+from strategies._indicators import adx_arr, rsi_wilder_arr  # noqa: E402
 from strategies.registry import load_signal_fn  # noqa: E402
 from strategies.s03_htf_ema_rejection.strategy import signal_at as _s03_signal_at  # noqa: E402
 from strategies.s04_vc_squeeze_breakout.strategy import signal_at as _s04_signal_at  # noqa: E402
@@ -172,7 +172,7 @@ class Journal:
 
 
 class StateStore:
-    def __init__(self, path: str):
+    def __init__(self, path: str, strict_live: bool = False):
         self.path = path
         os.makedirs(os.path.dirname(path), exist_ok=True)
         self.state = {"positions": {}, "bars": {}, "cooldown": {}, "counts": {}}
@@ -180,8 +180,9 @@ class StateStore:
             try:
                 with open(path) as f:
                     self.state = json.load(f)
-            except Exception:
-                pass
+            except Exception as exc:
+                if strict_live and os.path.getsize(path) > 0:
+                    raise RuntimeError(f"Corrupt live state file {path}: {exc}") from exc
 
     def save(self):
         tmp = self.path + ".tmp"
@@ -426,10 +427,21 @@ class Governor:
         self.state = state
         self.bridge = bridge
 
+    @staticmethod
+    def _is_gold_symbol(symbol: str) -> bool:
+        s = (symbol or "").upper()
+        return s.startswith("GAU") or s.startswith("XAU")
+
+    @staticmethod
+    def _is_crypto_symbol(symbol: str) -> bool:
+        s = (symbol or "").upper()
+        return any(s.startswith(p) for p in ("BTC", "ETH", "BCH", "DSH", "ZEC", "SOL", "BNB", "XRP", "ADA", "DOGE", "AVX", "UNI", "AVE", "XMR", "LNK", "LTC"))
+
     def gates(self, magic: int, positions: list, planned_risk_usd: float = 0.0,
               committed_risk_usd: float | None = None,
               daily_pnl_usd: float | None = None,
-              equity_usd: float | None = None) -> tuple[bool, str]:
+              equity_usd: float | None = None,
+              symbol: str = "") -> tuple[bool, str]:
         ours = [p for p in positions if getattr(p, "magic", 0) in self.our_magics()]
         max_glob = int(self.gov.get("max_global_positions") or 0)
         if max_glob > 0 and len(ours) >= max_glob:
@@ -439,10 +451,19 @@ class Governor:
             return False, "sleeve already has a position"
         gold = self.gov.get("gold_cluster_magics", [])
         gold_max = int(self.gov.get("gold_cluster_max_positions") or 0)
-        if gold_max > 0 and magic in gold:
-            ngold = len([p for p in ours if p.magic in gold])
+        is_gold_req = self._is_gold_symbol(symbol) if symbol else (magic in gold)
+        if gold_max > 0 and is_gold_req:
+            ngold = len([
+                p for p in ours
+                if (self._is_gold_symbol(getattr(p, "symbol", "")) if getattr(p, "symbol", "") else (p.magic in gold))
+            ])
             if ngold >= gold_max:
                 return False, "gold-cluster cap (42003+42004 share one risk unit)"
+        crypto_max = int(self.gov.get("crypto_cluster_max_positions") or 0)
+        if crypto_max > 0 and symbol and self._is_crypto_symbol(symbol):
+            ncrypto = len([p for p in ours if self._is_crypto_symbol(getattr(p, "symbol", ""))])
+            if ncrypto >= crypto_max:
+                return False, f"crypto-cluster cap ({crypto_max}) reached"
         eq = float(equity_usd) if equity_usd is not None else (
             self.bridge.account_equity() if self.bridge is not None else 0.0
         )
@@ -514,8 +535,8 @@ class Governor:
                     ok = (res is not None and getattr(res, "retcode", 0) == 10009)
                     self.journal.log("BE_LOCK", sleeve=meta.get("sleeve", ""), magic=p.magic,
                                      symbol=p.symbol, lots=p.volume, price=be,
-                                     r_multiple=round(prof_r, 2), retcode=str(getattr(res, 'retcode', 'dry')))
-                    if ok or res is None:
+                                     r_multiple=round(prof_r, 2), retcode=str(getattr(res, 'retcode', 'dry' if self.bridge is None else 'none')))
+                    if ok or self.bridge is None:
                         meta["be_done"] = True
                         n += 1
         return n
@@ -527,7 +548,6 @@ def spread_guard(symbol: str, spread_price: float, atr14: float, sleeve_cfg: dic
         return False, "no live spread"
     if spread_price > float(sleeve_cfg.get("spread_frac_atr_max", 1.0)) * atr14:
         return False, f"spread {spread_price:.5f} > {sleeve_cfg['spread_frac_atr_max']}xATR"
-    pips = spread_price / 10 ** -max(3, 5)  # replaced by caller-provided model check
     return True, ""
 
 
@@ -634,12 +654,11 @@ def _ml_score_pilot_signal(
     hh14 = float(np.max(h[-14:]))
     ll14 = float(np.min(l[-14:]))
     wr14 = -100.0 * (hh14 - c_i) / max(hh14 - ll14, 1e-12)
-    diffs = np.diff(c[-10:])
-    up = float(np.mean(np.maximum(diffs[-2:], 0.0)))
-    dn = float(np.mean(np.maximum(-diffs[-2:], 0.0)))
-    rsi2 = 100.0 if dn == 0 and up > 0 else (50.0 if dn == 0 else 100.0 - 100.0 / (1.0 + up / dn))
-    atr_win = atr_arr[-60:] if len(atr_arr) >= 60 else atr_arr
-    atr_rk = float(np.mean(atr_win <= atr_i))
+    rsi2_arr = rsi_wilder_arr(c, 2)
+    rsi2 = float(rsi2_arr[-1]) if np.isfinite(rsi2_arr[-1]) else 50.0
+    atr_win100 = atr_arr[-100:] if len(atr_arr) >= 100 else atr_arr
+    atr_rk = float(np.mean(atr_win100 <= atr_i))
+    atr_win20 = atr_arr[-20:] if len(atr_arr) >= 20 else atr_arr
 
     # Optional fresh disk telemetry enrichment (funding & book wall imbalance)
     cg_sym = sym.split(".")[0][:3] if sym.endswith(".pi") or sym.endswith(".p") else sym
@@ -658,6 +677,8 @@ def _ml_score_pilot_signal(
             pass
 
     s_f = float(side)
+    slv_l = sname.lower()
+    is_mr = 1.0 if ("rsi2" in slv_l or "ivwall" in slv_l or "fade" in slv_l or "sweep" in slv_l or "imb2" in slv_l) else 0.0
     feat_row = {
         "signed_clv": s_f * ((2.0 * c_i - float(h[-1]) - float(l[-1])) / rng_i),
         "signed_imb_diff": s_f * imb_diff,
@@ -666,9 +687,15 @@ def _ml_score_pilot_signal(
         "signed_ret3_atr": s_f * (c_i - float(c[-4])) / atr_i,
         "signed_ret12_atr": s_f * (c_i - float(c[-13])) / atr_i if len(c) >= 13 else 0.0,
         "atr_pct_rk": atr_rk,
-        "atr_exp_ratio": atr_i / max(float(np.mean(atr_win)), 1e-12),
+        "atr_exp_ratio": atr_i / max(float(np.mean(atr_win20)), 1e-12),
         "bar_range_atr": rng_i / atr_i,
         "wick_adv_pct": wick_adv,
+        "vpin_rank": 0.5,
+        "vpm_rk": 0.5,
+        "avg_sz_rk": 0.5,
+        "btc_vpin": 0.5,
+        "vol_rel20": 1.0,
+        "vr4": 1.0,
         "signed_dist_e89": s_f * (c_i - float(e89[-1])) / atr_i,
         "signed_dist_e233": s_f * (c_i - float(e233[-1])) / atr_i,
         "signed_ema_spread": s_f * (float(e89[-1]) - float(e233[-1])) / atr_i,
@@ -685,7 +712,7 @@ def _ml_score_pilot_signal(
         "dow_cos": math.cos(dow_rad),
         "side": s_f,
         "is_2h": 1.0 if sym_tf == "H2" else 0.0,
-        "is_mr_sleeve": 1.0 if ("rsi2" in sname or "htf" in sname) else 0.0,
+        "is_mr_sleeve": is_mr,
         "is_metal": 1.0 if ("XAU" in sym or "XAG" in sym or "GAU" in sym) else 0.0,
     }
     return score_live_signal(feat_row, seq_arr=None, bundle_path=bpath,
@@ -699,7 +726,7 @@ def run_loop(cfg: dict, mode: str, loop_seconds: int | None = None):
             print("cannot attach MT5 terminal — for no-terminal validation run --selftest")
             return
     journal = Journal(os.path.join(ROOT, cfg["runtime"]["journal_csv"]))
-    state = StateStore(os.path.join(ROOT, cfg["runtime"]["state_json"]))
+    state = StateStore(os.path.join(ROOT, cfg["runtime"]["state_json"]), strict_live=(mode == "live"))
     gov = Governor(cfg, journal, state, bridge if mode == "live" else None)
     d_cfg = cfg.get("delta") or {}
     delta_bridge = DeltaLive(d_cfg.get("symbol_map")) if (mode == "live" and d_cfg.get("enabled", False)) else None
@@ -715,6 +742,11 @@ def run_loop(cfg: dict, mode: str, loop_seconds: int | None = None):
           ",".join(n for n, s in cfg["sleeves"].items() if s.get("enabled")))
     try:
         while True:
+            if mode == "live" and MT5_OK and mt5.terminal_info() is None:
+                gov.journal.log("BRIDGE_DOWN", note="mt5.terminal_info() is None; attempting reconnect")
+                bridge.connect()
+                time.sleep(poll)
+                continue
             now = time.time()
             utc_today = time.strftime("%Y-%m-%d", time.gmtime(now))
             # ------- entries (new closed bar per sleeve/symbol)
@@ -737,9 +769,9 @@ def run_loop(cfg: dict, mode: str, loop_seconds: int | None = None):
                     t0 = int(closed["time"][-1])
                     if state.get("bars", {}).get(key) == t0:
                         continue
-                    state.set("bars", {**state.get("bars", {}), key: t0})
                     spec = spec_from_mt5(sym) or spec_from_fallback(cfg, sym)
                     if spec is None:
+                        state.set("bars", {**state.get("bars", {}), key: t0})
                         continue
                     # ---- signal
                     htf_c4 = None
@@ -749,23 +781,29 @@ def run_loop(cfg: dict, mode: str, loop_seconds: int | None = None):
                             htf_c4 = r4["close"].astype(float)[:-1]
                     sig = build_signal(sname, closed, s, base_params, htf_c4, sym=sym)
                     if sig is None:
+                        state.set("bars", {**state.get("bars", {}), key: t0})
                         continue
                     # ---- rate limiting
                     if sname == "ivwall":
                         sess_today = time.strftime("%Y-%m-%d", time.gmtime(now + offset * 3600))
                         if count_today(state, key, sess_today) >= int(s.get("max_trades_session", 2)):
+                            state.set("bars", {**state.get("bars", {}), key: t0})
                             continue
                     if sname == "orb_nas" and count_today(state, key, utc_today) >= int(s.get("max_trades_day", 1)):
+                        state.set("bars", {**state.get("bars", {}), key: t0})
                         continue
                     cd_key = f"cooldown|{key}"
                     until = float(state.get("cooldown", {}).get(cd_key, 0))
                     tf_min = TF_MAP[sym_tf]
                     if t0 / 60 + tf_min < until:
+                        state.set("bars", {**state.get("bars", {}), key: t0})
                         continue
-                    # ---- spread guard (live spread)
+                    # ---- spread guard (live spread; retry on transient tick=None before consuming bar)
                     ask, bid = bridge.tick(sym)
                     if ask is None or bid is None:
+                        journal.log("TICK_RETRY", sleeve=sname, magic=magic, symbol=sym, note="tick None; will retry bar")
                         continue
+                    state.set("bars", {**state.get("bars", {}), key: t0})
                     live_spread = ask - bid
                     if sname == "ivwall":
                         closed_c = closed["close"].astype(float)
@@ -793,6 +831,17 @@ def run_loop(cfg: dict, mode: str, loop_seconds: int | None = None):
                     rd = abs(entry - sl)
                     if rd <= 0:
                         continue
+                    closed_atr14 = float(wilder_atr(
+                        closed["high"].astype(float),
+                        closed["low"].astype(float),
+                        closed["close"].astype(float), 14)[-1])
+                    min_sl_atr = float(cfg["governor"].get("min_sl_atr_mult", 1.0))
+                    if sname not in ("ivwall", "orb_nas") and closed_atr14 > 0:
+                        noise_floor = max(min_sl_atr * closed_atr14, 3.0 * live_spread)
+                        if rd + 1e-12 < noise_floor:
+                            journal.log("SL_NOISE_REJECT", sleeve=sname, magic=magic, symbol=sym,
+                                        note=f"rd {rd:.5f} < noise_floor {noise_floor:.5f}")
+                            continue
                     max_sf = float(s.get("max_spread_risk_frac") or 0.0)
                     if max_sf > 0.0 and (live_spread * 2.0) / rd > max_sf:
                         journal.log("SPREAD_SKIP", sleeve=sname, magic=magic, symbol=sym,
@@ -833,26 +882,7 @@ def run_loop(cfg: dict, mode: str, loop_seconds: int | None = None):
                                         price=entry, sl=sl, tp=tp, r_multiple=round(tp_r, 2),
                                         note=f"{cg_res.source}: {cg_res.note}")
                             print(f"[cg-opt] {sname} {sym} {cg_res.note} ({cg_res.source})")
-                    # ---- Parallel Delta Exchange India routing (mapped symbols) ----
-                    if delta_bridge is not None and delta_bridge.map_symbol(sym):
-                        d_bars = state.get("delta_bars", {})
-                        if d_bars.get(key) != t0:
-                            d_res = delta_bridge.send_bracket(
-                                sym, "BUY" if side == 1 else "SELL", entry, sl, tp,
-                                risk_pct=float(d_cfg.get("risk_per_trade_pct", 1.0)),
-                                risk_max_pct=float(d_cfg.get("risk_max_pct", 1.0)),
-                                max_portfolio_risk_pct=float(d_cfg.get("max_portfolio_risk_pct", 2.0)),
-                                max_concurrent=int(d_cfg.get("max_concurrent", 2)),
-                                client_order_id=f"{sname[:6]}_{t0}",
-                                order_type="market",
-                            )
-                            if d_res.get("status") in ("OK", "SKIP"):
-                                state.set("delta_bars", {**d_bars, key: t0})
-                            journal.log(f"DELTA_{d_res.get('status')}", sleeve=sname, magic=magic, symbol=sym,
-                                        side="BUY" if side == 1 else "SELL", lots=float(d_res.get("size", 0)),
-                                        price=entry, sl=sl, tp=tp, note=d_res.get("why") or str(d_res.get("order_id", "")))
-                            print(f"[delta] {d_res.get('status')} {sname} {sym}->{d_res.get('symbol')} size={d_res.get('size',0)} {d_res.get('why','')}")
-                    # ---- sizing + governor (exact planned SL dollar risk gated vs equity cap)
+                    # ---- sizing + governor (exact planned SL dollar risk gated BEFORE any venue routing)
                     risk_usd = float(cfg["governor"]["risk_usd_target"])
                     s8 = cfg.get("s8_vol_target") or {}
                     if s8.get("enabled"):
@@ -882,10 +912,29 @@ def run_loop(cfg: dict, mode: str, loop_seconds: int | None = None):
                         continue
                     actual_risk = float(lots) * float(rd) * spec.value_per_price_unit()
                     ok, why = gov.gates(magic, bridge.positions() if mode == "live" else [],
-                                        planned_risk_usd=actual_risk)
+                                        planned_risk_usd=actual_risk, symbol=sym)
                     if not ok:
                         journal.log("GATE_SKIP", sleeve=sname, magic=magic, symbol=sym, note=why)
                         continue
+                    # ---- Parallel Delta Exchange India routing (gated strictly after Governor checks) ----
+                    if delta_bridge is not None and delta_bridge.map_symbol(sym):
+                        d_bars = state.get("delta_bars", {})
+                        if d_bars.get(key) != t0:
+                            d_res = delta_bridge.send_bracket(
+                                sym, "BUY" if side == 1 else "SELL", entry, sl, tp,
+                                risk_pct=float(d_cfg.get("risk_per_trade_pct", 1.0)),
+                                risk_max_pct=float(d_cfg.get("risk_max_pct", 1.0)),
+                                max_portfolio_risk_pct=float(d_cfg.get("max_portfolio_risk_pct", 2.0)),
+                                max_concurrent=int(d_cfg.get("max_concurrent", 2)),
+                                client_order_id=f"{sname[:6]}_{t0}",
+                                order_type="market",
+                            )
+                            if d_res.get("status") in ("OK", "SKIP"):
+                                state.set("delta_bars", {**d_bars, key: t0})
+                            journal.log(f"DELTA_{d_res.get('status')}", sleeve=sname, magic=magic, symbol=sym,
+                                        side="BUY" if side == 1 else "SELL", lots=float(d_res.get("size", 0)),
+                                        price=entry, sl=sl, tp=tp, note=d_res.get("why") or str(d_res.get("order_id", "")))
+                            print(f"[delta] {d_res.get('status')} {sname} {sym}->{d_res.get('symbol')} size={d_res.get('size',0)} {d_res.get('why','')}")
                     risk_usd = actual_risk
                     comment = f"{sname[:8]} {sig['note'][:14]}"
                     if ml_tag:

@@ -95,14 +95,19 @@ def _http_get_json(url: str, timeout_s: float = 1.2) -> dict | None:
         return None
 
 
-def _load_disk_asset(cg_sym: str) -> dict:
+def _load_disk_asset(cg_sym: str, max_age_s: float = 900.0) -> dict:
     p = os.path.join(TELEMETRY_ASSETS_DIR, f"{cg_sym}.json")
     if not os.path.exists(p):
         return {}
     try:
         with open(p, encoding="utf-8") as f:
             d = json.load(f)
-        return d if isinstance(d, dict) else {}
+        if not isinstance(d, dict):
+            return {}
+        ts_val = float(d.get("fetched_at_ts") or d.get("updated_ts") or os.path.getmtime(p))
+        if max_age_s > 0 and (time.time() - ts_val) > max_age_s:
+            return {}
+        return d
     except Exception:
         return {}
 
@@ -293,7 +298,7 @@ def optimize_bracket_with_cg(
     new_sl = float(sl)
     sl_adjusted = False
     risk_clusters = cg_ctx.get("liq_below", []) if side == 1 else cg_ctx.get("liq_above", [])
-    buf = max(0.15 * atr if atr > 0 else 0.0, 0.06 * rd0)
+    buf = max(0.25 * atr if atr > 0 else 0.0, 0.10 * rd0)
     cand_sl = new_sl
 
     for px, strength in risk_clusters:

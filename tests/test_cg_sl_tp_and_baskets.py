@@ -197,3 +197,72 @@ def test_fetch_cg_context_ingests_http_stopmap_keylevels(monkeypatch):
     assert (1729.60, 100.0) in ctx["liq_above"]
     assert (1735.93, 70.0) in ctx["liq_above"]
     assert (1607.16, 90.0) in ctx["liq_below"]
+
+
+def test_audit_hardening_c1_h1_h2_h3_h5(tmp_path, monkeypatch):
+    import json
+    from types import SimpleNamespace
+    import numpy as np
+    import strategies
+    from engine import cg_sl_tp
+    from engine.unified_alpha_pilot import Governor, Journal, StateStore, load_resolved_config
+    from footprint_Chart.backtesting.fast_kernels import sim_1m_trades_nb
+
+    # C1: strategies.__init__ exposes importlib.util
+    assert hasattr(strategies.importlib, "util")
+
+    # H1 + Crypto cluster: blocks GAU across magics & blocks 2nd Crypto while allowing Oil/Index
+    cfg = load_resolved_config()
+    gov = Governor(cfg, Journal(str(tmp_path / "j.csv")), StateStore(str(tmp_path / "s.json")), None)
+    open_gau = [SimpleNamespace(magic=42003, symbol="GAUUSD.pi")]
+    ok_g2, why_g2 = gov.gates(42008, open_gau, planned_risk_usd=5.0, committed_risk_usd=5.0, equity_usd=2500.0, symbol="GAUCNH.pi")
+    ok_eth, _ = gov.gates(42008, open_gau, planned_risk_usd=5.0, committed_risk_usd=5.0, equity_usd=2500.0, symbol="ETHUSD.pi")
+    assert ok_g2 is False and "gold-cluster" in why_g2
+    assert ok_eth is True
+    open_eth = [SimpleNamespace(magic=42006, symbol="ETHUSD.pi")]
+    ok_bch, why_bch = gov.gates(42010, open_eth, planned_risk_usd=5.0, committed_risk_usd=5.0, equity_usd=2500.0, symbol="BCHUSD.p")
+    ok_oil, _ = gov.gates(42011, open_eth, planned_risk_usd=5.0, committed_risk_usd=5.0, equity_usd=2500.0, symbol="USWTI.p")
+    assert ok_bch is False and "crypto-cluster" in why_bch
+    assert ok_oil is True
+
+    # H3: Failed live BE modify_sl returning None must NOT set be_done=True
+    st = StateStore(str(tmp_path / "s2.json"))
+    st.state["positions"]["999"] = {"sleeve": "htf_gold", "entry": 100.0, "r0": 2.0, "be_done": False, "be_enabled": True}
+    fake_bridge = SimpleNamespace(modify_sl=lambda *_a, **_k: None)
+    gov_live = Governor(cfg, Journal(str(tmp_path / "j2.csv")), st, fake_bridge)
+    cnt = gov_live.be_lock([SimpleNamespace(ticket=999, magic=42003, symbol="GAUUSD.pi", volume=0.01, type=0, price_open=100.0, sl=98.0, tp=106.0)], lambda _s: (102.5, 102.4))
+    assert cnt == 0 and st.state["positions"]["999"]["be_done"] is False
+
+    # H5: Stale disk telemetry (>900s) is rejected by _load_disk_asset
+    stale_dir = tmp_path / "assets"
+    stale_dir.mkdir()
+    (stale_dir / "ETH.json").write_text(json.dumps({"fetched_at_ts": 1000.0, "liquidations": {"clusters": {}}}), encoding="utf-8")
+    monkeypatch.setattr(cg_sl_tp, "TELEMETRY_ASSETS_DIR", str(stale_dir))
+    assert cg_sl_tp._load_disk_asset("ETH", max_age_s=900.0) == {}
+
+    # H2: Forming-bar ATR spike must NOT widen completed prior bar trail (i>=235 loop)
+    n_bars = 242
+    tf_sec = 14400
+    ts_tf = np.arange(n_bars, dtype=np.int64) * tf_sec
+    end_tf = ts_tf + tf_sec
+    atr_tf = np.full(n_bars, 1.0, dtype=np.float64)
+    atr_tf[238:] = 50.0  # spike on bar 238 must NOT affect trail evaluated at bar 238 start
+    e89 = np.full(n_bars, 90.0)
+    e233 = np.full(n_bars, 80.0)
+    c_tf = np.full(n_bars, 100.0)
+    side_arr = np.zeros(n_bars, dtype=np.int8)
+    side_arr[236] = 1  # enters at end of 236 = open of bar 237 (237 * tf_sec)
+    m1_ts = np.arange(0, n_bars * tf_sec, 60, dtype=np.int64)
+    m1_o = np.full(len(m1_ts), 100.0)
+    m1_h = np.full(len(m1_ts), 100.0)
+    m1_l = np.full(len(m1_ts), 100.0)
+    m1_c = np.full(len(m1_ts), 100.0)
+    m1_h[237 * (tf_sec // 60) : 238 * (tf_sec // 60)] = 105.0
+    m1_l[238 * (tf_sec // 60) + 2 :] = 97.0
+    res_nb = sim_1m_trades_nb(
+        ts_tf, end_tf, atr_tf, e89, e233, c_tf, side_arr,
+        m1_ts, m1_o, m1_h, m1_l, m1_c,
+        tf_sec, 10.0, 0.0, 2.0, 0.0, 0.05, False, 48, 1, True,
+        False, 0.0, False, 0.0, 0.0, 5, 0.0, 0.0, np.empty(0, np.int64), np.empty(0, np.float64),
+    )
+    assert len(res_nb[0]) == 1 and float(res_nb[6][0]) == 103.0
