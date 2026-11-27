@@ -30,7 +30,11 @@ def test_config_loads_all_10_sleeves():
     assert expected.issubset(sleeves.keys())
     for name in expected:
         assert sleeves[name]["enabled"] is (name not in disabled)
+        assert sleeves[name].get("display_name") and sleeves[name].get("generic_id")
         assert len(sleeves[name]["symbols"]) >= 2
+    from strategies.core.registry import generic_strategy_name
+    assert generic_strategy_name("orb_nas") == "Intraday Breakout — London Open Range"
+    assert generic_strategy_name("Whale_p70") == "Order-Flow — Large Whale Execution"
     assert cfg["governor"]["max_total_open_risk_pct"] == 1.0
     assert cfg["governor"]["daily_dd_halt_usd"] == -80.0
 
