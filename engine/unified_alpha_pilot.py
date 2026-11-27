@@ -496,7 +496,8 @@ class Governor:
     def our_magics(self) -> set:
         out = set()
         for name, s in self.cfg.get("sleeves", {}).items():
-            if s.get("enabled", False):
+            # Include disabled sleeves too so legacy open tickets still count toward caps.
+            if s.get("magic") is not None:
                 out.add(int(s["magic"]))
         return out
 
@@ -979,6 +980,9 @@ def run_loop(cfg: dict, mode: str, loop_seconds: int | None = None):
                                             note=f"auto-cancelled queued stale limit #{ord_item.ticket}")
                                 print(f"[pilot] PRUNED stale limit #{ord_item.ticket} {ord_item.symbol}")
                 positions = bridge.positions()
+                live_tix = {str(p.ticket) for p in positions}
+                for st_k in [k for k in list(state.state.get("positions", {})) if k not in live_tix]:
+                    state.state["positions"].pop(st_k, None)
                 gov.be_lock(positions, lambda sym: bridge.tick(sym))
                 for p in positions:
                     if p.magic not in gov.our_magics():

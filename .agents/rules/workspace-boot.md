@@ -113,10 +113,12 @@ Antigravity operates with strict, visible, physical tool execution on EVERY sing
 3. **Physical Tool-Read Execution (`read_file`)**: Antigravity MUST physically and forcefully call `read_file` on the governing `SKILL.md` files at the very beginning of the turn before running commands, editing code, or formulating market opinions:
    - `C:\Users\SIGMA\.gemini\config\plugins\gravitas-native\skills\gravitas\SKILL.md` (Engineering correctness & invariants)
    - `C:\Users\SIGMA\.gemini\config\skills\quant-analyst\SKILL.md` (Institutional quant mindset & statistical rigor)
+   - `C:\Users\SIGMA\.gemini\config\skills\quant-research\SKILL.md` (QuantSkills point-in-time validation, cost-aware backtesting & reporting contract)
    - `C:\Users\SIGMA\.gemini\config\plugins\trading-skills\skills\pre-trade-check\SKILL.md` (Pre-trade readiness gatekeeper)
    - `C:\Users\SIGMA\.gemini\config\plugins\trading-skills\skills\risk-reward-sanity-check\SKILL.md` (Asymmetric 2.0R structure check)
    - `C:\Users\SIGMA\.gemini\config\plugins\superpowers\skills\verification-before-completion\SKILL.md` (Empirical proof before completion)
    - `C:\Users\SIGMA\.gemini\config\skills\kaizen-agent\SKILL.md` (Autonomous continuous improvement & anti-regression)
+   - **14 Default On-Load Quant, LLMQuant & Thinking Skills**: `quant-research-replication`, `llmquant-commodities`, `llmquant-crypto`, `llmquant-data`, `llmquant-macro`, `llmquant-market-intelligence`, `llmquant-portfolio`, `llmquant-portfolio-lab`, `llmquant-strategies`, `brainstorming`, `thinking-effectuation`, `thinking-probabilistic` (alongside `quant-analyst` & `quant-research` above, plus `quant-backtest`, `quant-factor-evaluate`, `quant-factor-debug`, `llmquant-risk`, `llmquant-options`, `quant-options-vol-analyst`)
 4. **Visibility & Grounding Law**: The physical `read_file` tool call and live checklist MUST appear in the execution trajectory on every turn to guarantee zero hallucination, zero context drift, and total empirical grounding.
 
 ---

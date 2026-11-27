@@ -42,7 +42,7 @@ Every response concludes with the `/kaizen-agent` Self-Optimization block:
 On every turn without exception, Antigravity MUST:
 1. Display a live `update_steps` checklist.
 2. Concurrently update `update_focus`.
-3. Physically execute `read_file` on governing `SKILL.md` files (`gravitas`, `quant-analyst`, `pre-trade-check`, `risk-reward-sanity-check`, `verification-before-completion`, `kaizen-agent`).
+3. Physically execute `read_file` on governing `SKILL.md` files (`gravitas`, `pre-trade-check`, `risk-reward-sanity-check`, `verification-before-completion`, `kaizen-agent`), AND the 14 default on-load Quantitative/LLMQuant/Thinking skills (`quant-analyst`, `quant-research`, `quant-research-replication`, `llmquant-commodities`, `llmquant-crypto`, `llmquant-data`, `llmquant-macro`, `llmquant-market-intelligence`, `llmquant-portfolio`, `llmquant-portfolio-lab`, `llmquant-strategies`, `brainstorming`, `thinking-effectuation`, `thinking-probabilistic`), with `quantskills` (`quant-backtest`, `quant-factor-evaluate`, `quant-factor-debug`) and `llmquant-risk` active by default.
 4. Ground all empirical claims directly from tool outputs.
 5. Execute the full in-memory statistical telemetry scan (VWAP Z-Score, Value Area Imbalance, Footprint Abs/Trap/Exh, and Composite Quant Score) under WS-11 on every wake up and review with zero intermediate files (WS-10). Dropping quality over time is strictly prohibited.
 6. Ingest and analyze all 16 canonical telemetry parameters under WS-12 (Ticker, Market Structure, Narrative Engine, Athena Oracle, Microstructure L2/L3, Quant Positioning, Options Deribit, Liquidations, Book Walls, CVD, Footprint, Large Orders, Playbook Cards, Backtest Metrics, COT Report, Funding & OI) by default on every market formulation.
