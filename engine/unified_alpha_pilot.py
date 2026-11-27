@@ -76,6 +76,9 @@ def _resolve_config_file(cf: str) -> str | None:
         cand = os.path.join(ROOT, "strategies", "sleeves", sub, base, os.path.basename(cf_path))
         if os.path.exists(cand):
             return cand
+    arch = os.path.join(ROOT, "strategies", "archive", "unprofitable", base, os.path.basename(cf_path))
+    if os.path.exists(arch):
+        return arch
     return None
 
 
