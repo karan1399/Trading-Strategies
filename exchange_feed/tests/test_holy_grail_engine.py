@@ -232,13 +232,118 @@ def test_live_mt5_punch_gate_and_trailing_sl_mock(tmp_path: Path, monkeypatch: p
     cand = {"sym": "ETHUSDT", "sleeve": "A_4H_L", "family": "A", "side": 1, "ts_sig": 1795860000, "tf": "4H", "ref_px": 1645.0, "atr": 40.0, "sl_dist": 100.0, "short_ratchet": False, "climax_warn": False, "is_comm": False}
     ok, msg = eng._punch_hg_signal(cand, 2501.80, 0.0, 1.0, 1795860060)
     assert ok is True and len(sent_orders) == 1
-    assert sent_orders[0][0] == "ETHUSD.pi" and sent_orders[0][2] == 0.18  # floor(18.76 / 100.0, 0.01) = 0.18
+    assert sent_orders[0][0] == "ETHUSD.pi" and sent_orders[0][2] == 0.25  # floor(25.02 / 100.0, 0.01) = 0.25
 
     # Verify T4_Convex trailing update fires when position runs > +1.5R BE trigger
     fake_pos = SimpleNamespace(ticket=9911, magic=46002, symbol="ETHUSD.pi", type=0, price_open=1646.0, sl=1546.0, tp=2846.0, time=1795860060)
     monkeypatch.setattr(hg.core.mt5, "symbol_info_tick", lambda sym: SimpleNamespace(ask=1806.0, bid=1805.0))
     eng._manage_hg_open_positions([fake_pos], {}, 1795863660)
     assert len(mod_sls) == 1 and mod_sls[0][1] > 1646.0  # Moved into BE+pad profit lock!
+
+
+def test_hgv4_pods_trsi_tradfi_and_delta_gate(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify HGv4 Pod 2 (KL_MR), Pod 3 (TradFi Friday flatten), non-blocking pod_caps & Pod 4 Delta gate."""
+    from types import SimpleNamespace
+
+    # 1. Non-blocking pod caps & Friday blackout on TRADFI
+    cfg = json.loads(hg.DEFAULT_CONFIG_PATH.read_text(encoding="utf-8"))
+    gov = cfg["governor"]
+    fri_open = int(datetime(2026, 11, 27, 18, 0, tzinfo=timezone.utc).timestamp())
+    fri_close = int(datetime(2026, 11, 27, 20, 35, tzinfo=timezone.utc).timestamp())
+    core_longs = [{"sym": f"SYM{i}", "family": "A", "pod": "CORE", "side": 1} for i in range(6)]
+    ok_tf, r_tf = hg.holy_grail_portfolio_gate(
+        {"sym": "US2000.p", "mt5_symbol": "US2000.p", "family": "TF", "pod": "TRADFI", "side": 1, "is_comm": True},
+        core_longs, gov, [], fri_open,
+    )
+    ok_tf_fri, r_tf_fri = hg.holy_grail_portfolio_gate(
+        {"sym": "US2000.p", "mt5_symbol": "US2000.p", "family": "TF", "pod": "TRADFI", "side": 1, "is_comm": True},
+        core_longs, gov, [], fri_close,
+    )
+    assert ok_tf is True and r_tf == "PASS"
+    assert ok_tf_fri is False and r_tf_fri == "FRIDAY_COMMODITY_BLACKOUT"
+
+    # 2. Pod 2 S17 Triple-RSI causal entry + Daily RSI(5)>50 exit without tight SL trailing
+    n = 240
+    ts0 = 1700000000
+    rng = np.random.default_rng(12)
+    c_vals = np.linspace(100.0, 150.0, n) + rng.normal(0.0, 0.25, n)
+    c_vals[-10:-4] = [151.0, 150.8, 150.2, 149.8, 149.3, 148.9]
+    c_vals[-4:] = [147.8, 146.2, 144.4, 142.1]
+    o_vals = np.roll(c_vals, 1); o_vals[0] = c_vals[0]
+    daily_df = pd.DataFrame({
+        "ts": np.arange(ts0, ts0 + 86400 * n, 86400),
+        "end_ts": np.arange(ts0 + 86400, ts0 + 86400 * (n + 1), 86400),
+        "o": o_vals,
+        "h": np.maximum(o_vals, c_vals) + 0.6,
+        "l": np.minimum(o_vals, c_vals) - 0.6,
+        "c": c_vals,
+        "v": np.full(n, 1000.0),
+    })
+    sig_kl, exit_kl = hg.eval_kl_triple_rsi_latest(daily_df, "BTCUSDT", "D_TRSI_KL", "KL_MR", "D", is_comm=False)
+    assert sig_kl is not None and sig_kl["kl_nosl"] is True and sig_kl["tf"] == "1D" and exit_kl is False
+
+    # Bounce sharply -> Daily RSI(5) > 50 triggers exit signal
+    daily_bounce = daily_df.copy()
+    daily_bounce.iloc[-1, daily_bounce.columns.get_loc("c")] = 195.0
+    _, exit_bounce = hg.eval_kl_triple_rsi_latest(daily_bounce, "BTCUSDT", "D_TRSI_KL", "KL_MR", "D", is_comm=False)
+    assert exit_bounce is True
+
+    # 3. KL open position closes on Daily RSI>50 exit instead of tightening SL
+    eng = hg.HolyGrailEngine(hg.DEFAULT_CONFIG_PATH, tmp_path / "s2.json", tmp_path / "j2.csv", dry=False, live=True)
+    closed_tickets = []
+    mod_sls = []
+    class _FakeMT5KL:
+        def symbol_info(self, sym): return SimpleNamespace(digits=2, point=0.01, trade_stops_level=10)
+        def symbol_info_tick(self, sym): return SimpleNamespace(ask=196.0, bid=195.0)
+    monkeypatch.setattr(hg.core, "mt5", _FakeMT5KL())
+    eng.bridge.close_position = lambda pos, dev: closed_tickets.append(pos.ticket) or SimpleNamespace(retcode=10009)
+    eng.bridge.modify_sl = lambda tid, sl, tp: mod_sls.append(tid) or SimpleNamespace(retcode=10009)
+    eng.state.set("positions", {
+        "8811": {"sleeve": "D_TRSI_KL", "family": "D", "pod": "KL_MR", "magic": 46001, "mt5_symbol": "BTCUSD.pi",
+                 "source_symbol": "BTCUSDT", "side": 1, "entry": 161.0, "orig_sd": 24.0, "best_px": 195.0,
+                 "open_ts": 1795860000, "kl_nosl": True, "max_hold_sec": 12 * 86400}
+    })
+    kl_pos = SimpleNamespace(ticket=8811, magic=46001, symbol="BTCUSD.pi", type=0, price_open=161.0, sl=137.0, tp=305.0, time=1795860000)
+    eng._manage_hg_open_positions([kl_pos], {}, 1795863600, daily_exit_map={"BTCUSDT": True})
+    assert closed_tickets == [8811] and mod_sls == []
+
+    # 4. Pod 4 S19 Delta gate stays SHADOW_WAIT_FUNDING when Delta equity < min_delta_equity_usd ($250)
+    eng2 = hg.HolyGrailEngine(hg.DEFAULT_CONFIG_PATH, tmp_path / "s3.json", tmp_path / "j3.csv", dry=True, live=False)
+    eng2._offline_replay = True
+    monkeypatch.setattr(hg.delta_direct, "request_delta", lambda m, p, q="", b="": {"success": True, "result": [{"asset_symbol": "USD", "balance": "3.37", "available_balance": "3.22"}]})
+    pod4_sm = eng2._step_pod4_cs_delta(1795860000, dd_mult=1.0, feat_4h_map={})
+    assert pod4_sm["mode"] in {"SHADOW_WAIT_FUNDING", "SHADOW_WARMUP"} and pod4_sm["delta_avail_usd"] == pytest.approx(3.22)
+
+
+def test_mt5_server_timezone_offset_alignment(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify MT5 broker UTC+2 server bars normalize cleanly to UTC without 2h drop/lag."""
+    from types import SimpleNamespace
+
+    cur_utc = 1795874405  # 14:00:05 UTC (just 5s after 4H close)
+    # Broker server time is UTC+2 (+7200s): 16:00:05 server; just-closed bar opened 12:00 server (10:00 UTC)
+    class _FakeMT5TZ:
+        def symbol_select(self, sym, vis): return True
+        def symbol_info_tick(self, sym): return SimpleNamespace(time=cur_utc + 7199, ask=100.0, bid=99.9)
+        def copy_rates_from_pos(self, sym, tf, start, cnt):
+            return [
+                {"time": cur_utc - 5 - 14400 + 7200, "open": 99.0, "high": 100.0, "low": 98.5, "close": 99.5, "tick_volume": 100},
+                {"time": cur_utc - 5 - 14400 + 7200 + 14400 - 14400, "open": 99.5, "high": 101.0, "low": 99.0, "close": 100.5, "tick_volume": 120},
+            ]
+
+    # Build clean distinct bar times: t-2 = 08:00 srv (06:00 UTC), t-1 (closed) = 12:00 srv (10:00 UTC)
+    bar_closed_srv = (cur_utc - 5) - 14400 + 7200
+    bar_prev_srv = bar_closed_srv - 14400
+    monkeypatch.setattr(_FakeMT5TZ, "copy_rates_from_pos", lambda self, s, t, st, c: [
+        {"time": bar_prev_srv, "open": 99.0, "high": 100.0, "low": 98.5, "close": 99.5, "tick_volume": 100},
+        {"time": bar_closed_srv, "open": 99.5, "high": 101.0, "low": 99.0, "close": 100.5, "tick_volume": 120},
+    ])
+    monkeypatch.setattr(hg.core, "MT5_OK", True)
+    monkeypatch.setattr(hg.core, "mt5", _FakeMT5TZ())
+
+    df = hg.sync_mt5_bars("US2000.p", 16388, 14400, "4h", live_dir=tmp_path, bars_count=2, now_ts=cur_utc)
+    assert len(df) == 2
+    assert int(df["end_ts"].iloc[-1]) == cur_utc - 5
+    assert (cur_utc - int(df["end_ts"].iloc[-1])) == 5  # Immediately triggers within 30s loop, zero 2h lag!
 
 
 def test_ws_collector_out_dir_splice(tmp_path: Path) -> None:

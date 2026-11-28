@@ -22,6 +22,9 @@ STRATEGY_CATALOG: Dict[str, Dict[str, Any]] = {
     "s14_oi_4h_sqz_mom":          {"module": "strategies.s14_oi_4h_sqz_mom.strategy",          "magic": 42018, "tf": "H4",  "kind": "oi_plugin",        "role": "4H OI Squeeze Momentum"},
     "s15_rsi2_mean_reversion":    {"module": "strategies.s15_rsi2_mean_reversion.strategy",    "magic": 42015, "tf": "H4",  "kind": "chart_plugin",     "role": "RSI(2) Trend Mean Reversion"},
     "s16_zero_auction_reversal":  {"module": "strategies.s16_zero_auction_reversal.strategy",  "magic": 42014, "tf": "H4",  "kind": "footprint_plugin", "role": "Auction Value Area Imbalance Reversal"},
+    "s17_kl_triple_rsi":          {"module": "strategies.s17_kl_triple_rsi.strategy",          "magic": 42022, "tf": "D1",  "kind": "signal",           "role": "Kaminsky-Lo Safe Triple-RSI Mean Reversion"},
+    "s18_kl_flush_reclaim":       {"module": "strategies.s18_kl_flush_reclaim.strategy",       "magic": 42023, "tf": "H4",  "kind": "signal",           "role": "Kaminsky-Lo Safe 4H OI Flush Reclaim"},
+    "s19_cs_carry_momentum":      {"module": "strategies.s19_cs_carry_momentum.strategy",      "magic": 42024, "tf": "H4",  "kind": "cs_portfolio",     "role": "Market-Neutral Cross-Sectional Funding Carry + Momentum"},
     # Archived Unprofitable Strategies (Redirected to archive package)
     "s02_rsi2_meanrev":          {"module": "strategies.archive.unprofitable.s02_rsi2_meanrev.strategy",         "magic": 42009, "tf": "H1",  "kind": "signal",  "role": "[Archived] RSI(2) Trend Mean Reversion"},
     "s03_htf_ema_rejection":     {"module": "strategies.archive.unprofitable.s03_htf_ema_rejection.strategy",    "magic": 42003, "tf": "H4",  "kind": "signal",  "role": "[Archived] EMA233 Cluster Stall Rejection"},

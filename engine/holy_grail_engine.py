@@ -1,25 +1,30 @@
-"""Holy Grail Unified Production Engine (`HGv3_All38_R0.75_M8_Eq_DD10/15`).
+"""Holy Grail Unified Dual-Venue Production Engine (`4_HGv4_Core+TRSI+TF_CS16_R1.00`).
 
-End-to-end live-ready engine inheriting SovereignCoreEngine (24/7 Crypto +
-Friday 20:30 UTC Commodity Flatten + Interlock-First Safety):
-  1. Live Data Feed & Incremental Capture (`fapi.binance.com` 4H/1m klines,
-     5m Open Interest, 8h Funding + optional WebSocket aggTrades capture)
+End-to-end live-ready 4-Pod multi-asset architecture built on SovereignCoreEngine
+(24/7 Crypto + Friday 20:30 UTC Non-Crypto Flatten + Interlock-First Safety):
+  1. Live Data Feed & Incremental Capture (`fapi.binance.com` 4H/1D/1m klines,
+     5m Open Interest, 8h Funding, WebSocket aggTrades, plus MT5 4H/D1 bars)
      atomically persisted to `engine/data/live_cache/`.
-  2. Three Orthogonal Causal Signal Sleeves:
-     - Sleeve A: 4H 5-Pillar Statistical Physics + OrderFlow + Post-Liq Reclaim
-     - Sleeve B: Macro Event Overlay (30m blackout + FOMC t+15m OrderFlow aligned)
-     - Sleeve C: Adaptive Volume-Clock Engine (24-bars/day causal dollar clock)
-  3. Live MT5 Pre-Trade Gate, Sizing & Execution (`BlueberryMarketsSVG-Live #5126976`):
+  2. Four Orthogonal Causal Signal Pods (non-blocking across sleeves/pods):
+     - Pod 1 (CORE): Sleeve A (4H Physics + Post-Liq Reclaim), Sleeve B (FOMC t+15m),
+       Sleeve C (Adaptive Volume-Clock) on 16 Crypto + Commodity CFDs (MT5)
+     - Pod 2 (KL_MR): S17 Kaminsky-Lo Triple-RSI Mean Reversion on Daily Crypto+Comm
+       (`RSI5 > 50` exit, `12d` hold cap, `6x ATR` catastrophe SL scaled safely)
+     - Pod 3 (TRADFI): `TF_TREND_L` (4H Trend Breakout) + `TF_TRSI_KL` (Daily Triple-RSI)
+       across 15 MT5 TradFi Indices, Metals, Energy & G4 FX (auto Friday flatten)
+     - Pod 4 (CS_DELTA): `S19` Market-Neutral Funding Carry + 7d-1d Momentum across 27
+       perps targeting `delta_exchange_india`, gated on `min_delta_equity_usd` ($250)
+       with continuous live shadow signal & MTM tracking below threshold.
+  3. Live Pre-Trade Gate, Sizing & Execution (`BlueberryMarketsSVG-Live #5126976` + Delta):
      - Terminal `trade_allowed`, expected login, & equity floor interlocks
-     - Sleeve priority (`B > A > C`) & non-blocking `max_per_asset_sleeve=1`
+     - Pod-isolated non-blocking caps (`CORE:8 / KL_MR:4 / TRADFI:4`), max 1.0% SL risk
      - Strict `spread <= 20% SL` & non-compressed `lots_for_risk` gate
-     - Atomic server-side bracket order (`send_bracket`) + readback check
-     - Real-time `T4_Convex` trailing SL + Short Climax Ratchet + time exits
+     - Atomic server-side bracket order (`send_bracket`) + `T4_Convex` / KL-RSI exits
 
 Usage:
   python engine/holy_grail_engine.py --selftest
   python engine/holy_grail_engine.py --status
-  python engine/holy_grail_engine.py --dry
+  python engine/holy_grail_engine.py --dry --sync-live
   python engine/holy_grail_engine.py --live --i-understand-live-risk
 """
 from __future__ import annotations
@@ -45,6 +50,11 @@ if str(ROOT) not in sys.path:
 from engine import m4_live_engine as core
 from engine import sovereign_core_engine as sc
 from engine import unified_alpha_pilot as pilot
+from scripts import delta_direct
+from strategies.core.indicators import wilder_atr
+from strategies.s17_kl_triple_rsi.strategy import exit_signal_at as s17_exit_at
+from strategies.s17_kl_triple_rsi.strategy import signal_at as s17_signal_at
+from strategies.s19_cs_carry_momentum.strategy import compute_target_weights as s19_target_weights
 
 DEFAULT_CONFIG_PATH = ROOT / "engine" / "config_holy_grail.json"
 DEFAULT_STATE_PATH = ROOT / "engine" / "data" / "holy_grail_state.json"
@@ -200,7 +210,7 @@ def sync_live_symbol_feeds(
     and atomic disk persistence under `live_dir` for uninterrupted capture.
     """
     cur_ts = int(now_ts if now_ts is not None else time.time())
-    cur_ms = cur_ts * 1000
+    cur_ms = (cur_ts - 3) * 1000  # 3s exchange clock-skew guard: never ingest a still-forming bar
     live_dir.mkdir(parents=True, exist_ok=True)
 
     # 1. Load & update 4H bars + OI + Funding
@@ -686,6 +696,191 @@ def holy_grail_dd_mult(
     return 1.0, False
 
 
+def _safe_cache_name(sym: str) -> str:
+    return "".join(ch if ch.isalnum() or ch in ("_", "-") else "_" for ch in sym)
+
+
+def sync_binance_daily_closed(
+    sym: str,
+    live_dir: Path = DEFAULT_LIVE_CACHE_DIR,
+    now_ts: int | None = None,
+    enable_rest: bool = True,
+) -> pd.DataFrame:
+    """Maintain strictly closed UTC 1D candles (260+ days) for S17 SMA(200) Triple-RSI."""
+    cur_ts = int(now_ts if now_ts is not None else time.time())
+    cur_ms = (cur_ts - 3) * 1000  # 3s exchange clock-skew guard: never ingest a still-forming bar
+    live_dir.mkdir(parents=True, exist_ok=True)
+    live_1d_p = live_dir / f"{sym}_1d_live.parquet"
+    base = pd.read_parquet(live_1d_p) if live_1d_p.is_file() else pd.DataFrame()
+
+    if base.empty:
+        hist_4h_p = CACHE_4H_DIR / f"{sym}_4h.parquet"
+        if hist_4h_p.is_file():
+            h4 = pd.read_parquet(hist_4h_p).sort_values("ts")
+            if not h4.empty:
+                h4 = h4.assign(day_ts=(h4["ts"].astype(np.int64) // 86400) * 86400)
+                base = (
+                    h4.groupby("day_ts", as_index=False)
+                    .agg(o=("o", "first"), h=("h", "max"), l=("l", "min"), c=("c", "last"), v=("v", "sum"))
+                    .rename(columns={"day_ts": "ts"})
+                )
+                base["end_ts"] = base["ts"] + 86400
+                base = base[base["end_ts"] <= cur_ts].tail(400).reset_index(drop=True)
+
+    if enable_rest:
+        try:
+            rest1d = fetch_binance_klines(sym, "1d", limit=260, now_ms=cur_ms)
+            if not rest1d.empty:
+                rest1d = rest1d.rename(columns={"ts_open": "ts", "ts_close": "end_ts"})[
+                    ["ts", "end_ts", "o", "h", "l", "c", "v"]
+                ]
+                base = (
+                    rest1d if base.empty
+                    else pd.concat([base[["ts", "end_ts", "o", "h", "l", "c", "v"]], rest1d], ignore_index=True)
+                    .drop_duplicates("ts", keep="last")
+                )
+                base = base[base["end_ts"] <= cur_ts].sort_values("ts").tail(400).reset_index(drop=True)
+                _atomic_write_parquet(base, live_1d_p)
+        except Exception:
+            pass
+    return base
+
+
+def _mt5_server_offset_sec(cur_ts: int) -> int:
+    """Detect MT5 broker server clock offset vs UTC (rounded to nearest hour, e.g. +7200 EET)."""
+    if not (getattr(core, "MT5_OK", False) and hasattr(core.mt5, "symbol_info_tick")):
+        return 0
+    for probe in ("BTCUSD.pi", "ETHUSD.pi", "XAUUSD.pi"):
+        try:
+            tk = core.mt5.symbol_info_tick(probe)
+            t_val = int(getattr(tk, "time", 0) or 0)
+            if t_val > 0:
+                diff = t_val - int(cur_ts)
+                if abs(diff) <= 43200:
+                    return int(round(diff / 3600.0)) * 3600
+        except Exception:
+            continue
+    return 0
+
+
+def sync_mt5_bars(
+    mt5_symbol: str,
+    timeframe: int,
+    tf_sec: int,
+    cache_tag: str,
+    live_dir: Path = DEFAULT_LIVE_CACHE_DIR,
+    bars_count: int = 350,
+    now_ts: int | None = None,
+) -> pd.DataFrame:
+    """Fetch strictly closed MT5 bars (start_pos=1, normalized from broker clock to UTC)."""
+    cur_ts = int(now_ts if now_ts is not None else time.time())
+    live_dir.mkdir(parents=True, exist_ok=True)
+    cache_p = live_dir / f"mt5_{_safe_cache_name(mt5_symbol)}_{cache_tag}.parquet"
+
+    if getattr(core, "MT5_OK", False) and hasattr(core.mt5, "copy_rates_from_pos"):
+        try:
+            if hasattr(core.mt5, "symbol_select"):
+                core.mt5.symbol_select(mt5_symbol, True)
+            rates = core.mt5.copy_rates_from_pos(mt5_symbol, timeframe, 1, int(bars_count))
+            if rates is not None and len(rates) > 0:
+                srv_off = _mt5_server_offset_sec(cur_ts)
+                df = pd.DataFrame(rates)
+                ts_col = df["time"].astype(np.int64) - int(srv_off)
+                vol_col = df["tick_volume"].astype(float) if "tick_volume" in df.columns else np.ones(len(df), dtype=float)
+                out = pd.DataFrame({
+                    "ts": ts_col,
+                    "end_ts": ts_col + int(tf_sec),
+                    "o": df["open"].astype(float),
+                    "h": df["high"].astype(float),
+                    "l": df["low"].astype(float),
+                    "c": df["close"].astype(float),
+                    "v": vol_col,
+                })
+                out = out[out["end_ts"] <= cur_ts].drop_duplicates("ts", keep="last").sort_values("ts").reset_index(drop=True)
+                if not out.empty:
+                    _atomic_write_parquet(out, cache_p)
+                    return out
+        except Exception:
+            pass
+    return pd.read_parquet(cache_p) if cache_p.is_file() else pd.DataFrame()
+
+
+def eval_tradfi_4h_latest(
+    df4: pd.DataFrame,
+    sym: str,
+    params: dict[str, Any] | None = None,
+    mt5_symbol: str | None = None,
+) -> list[dict[str, Any]]:
+    """Evaluate Pod 3 causal 4H TradFi Trend-Long (`TF_TREND_L`) on closed MT5 H4 bars."""
+    if df4.empty or len(df4) < 240:
+        return []
+    d = df4.sort_values("ts").reset_index(drop=True)
+    c = d["c"].to_numpy(float)
+    h = d["h"].to_numpy(float)
+    l = d["l"].to_numpy(float)
+    pc = pd.Series(c).shift(1).to_numpy(float)
+    tr = np.maximum(h - l, np.maximum(np.abs(h - pc), np.abs(l - pc)))
+    atr20 = pd.Series(tr).ewm(alpha=1.0 / 20.0, adjust=False).mean().to_numpy(float)
+    e89 = pd.Series(c).ewm(span=89, adjust=False).mean().to_numpy(float)
+    e233 = pd.Series(c).ewm(span=233, adjust=False).mean().to_numpy(float)
+    hh20 = pd.Series(h).shift(1).rolling(20).max().to_numpy(float)
+
+    i = len(d) - 1
+    ai = float(atr20[i])
+    rng = float(h[i] - l[i])
+    if not (np.isfinite(ai) and ai > 0 and np.isfinite(hh20[i]) and rng > 1e-12):
+        return []
+    clv = (2.0 * float(c[i]) - float(h[i]) - float(l[i])) / rng
+    tp = params or {}
+    sl_mult = float(tp.get("trend_sl_atr", 2.5))
+    risk_scale = float(tp.get("trend_risk_scale", 0.85))
+    if float(c[i]) > float(e89[i]) > float(e233[i]) and float(h[i]) > float(hh20[i]) and clv > 0.10:
+        return [{
+            "sym": sym, "mt5_symbol": mt5_symbol or sym, "sleeve": "TF_TREND_L", "family": "TF", "pod": "TRADFI",
+            "side": 1, "ts_sig": int(d["end_ts"].iloc[i]), "tf": "4H", "ref_px": float(c[i]),
+            "atr": ai, "sl_dist": sl_mult * ai, "risk_scale": risk_scale, "kl_nosl": False,
+            "short_ratchet": False, "climax_warn": False, "is_comm": True,
+        }]
+    return []
+
+
+def eval_kl_triple_rsi_latest(
+    daily_df: pd.DataFrame,
+    sym: str,
+    sleeve: str,
+    pod: str,
+    family: str,
+    is_comm: bool,
+    kl_params: dict[str, Any] | None = None,
+    mt5_symbol: str | None = None,
+) -> tuple[dict[str, Any] | None, bool]:
+    """Evaluate causal Daily S17 Kaminsky-Lo Triple-RSI entry & RSI(5)>50 exit flag."""
+    if daily_df.empty or len(daily_df) < 210:
+        return None, False
+    d = daily_df.sort_values("ts").reset_index(drop=True)
+    o = d["o"].to_numpy(float)
+    h = d["h"].to_numpy(float)
+    l = d["l"].to_numpy(float)
+    c = d["c"].to_numpy(float)
+    i = len(d) - 1
+    atr14 = wilder_atr(h, l, c, 14)
+
+    exit_now = bool(s17_exit_at(c, i, kl_params))
+    sig = s17_signal_at(o, h, l, c, None, atr14, i, kl_params)
+    if sig is None:
+        return None, exit_now
+
+    r_scale = float((kl_params or {}).get("risk_scale", sig.get("risk_scale", 0.65)))
+    cand = {
+        "sym": sym, "mt5_symbol": mt5_symbol or sym, "sleeve": sleeve, "family": family, "pod": pod,
+        "side": 1, "ts_sig": int(d["end_ts"].iloc[i]), "tf": "1D", "ref_px": float(c[i]),
+        "atr": float(atr14[i]), "sl_dist": float(sig["cat_rd"]), "risk_scale": r_scale,
+        "kl_nosl": True, "max_hold_days": int(sig.get("max_hold", 12)),
+        "short_ratchet": False, "climax_warn": False, "is_comm": is_comm,
+    }
+    return cand, exit_now
+
+
 def holy_grail_portfolio_gate(
     cand: dict[str, Any],
     active: list[dict[str, Any]],
@@ -693,23 +888,32 @@ def holy_grail_portfolio_gate(
     macro_events: list[int],
     now_ts: int,
 ) -> tuple[bool, str]:
-    """Enforce non-blocking sleeve gate, concurrency caps, Friday cutoff & macro blackouts."""
+    """Enforce non-blocking pod/sleeve gate, concurrency caps, Friday cutoff & macro blackouts."""
     sym = cand["sym"]
     fam = cand["family"]
+    pod = cand.get("pod", "CORE")
     side = int(cand["side"])
-    is_comm = bool(cand.get("is_comm", False))
+    is_non_crypto = bool(cand.get("is_comm", False) or pod == "TRADFI")
 
-    if is_comm and is_friday_close_ts(now_ts):
+    if is_non_crypto and is_friday_close_ts(now_ts):
         return False, "FRIDAY_COMMODITY_BLACKOUT"
-    if fam in ("A", "C") and is_in_macro_blackout(now_ts, macro_events):
+    if fam in ("A", "C", "TF") and is_in_macro_blackout(now_ts, macro_events):
         return False, "MACRO_PRE_EVENT_BLACKOUT"
-    if len(active) >= int(governor.get("max_global", 8)):
+    pod_caps = governor.get("pod_caps") or {}
+    if pod in pod_caps and sum(1 for a in active if a.get("pod", "CORE") == pod) >= int(pod_caps[pod]):
+        return False, f"MAX_POD_{pod}"
+    if len(active) >= int(governor.get("max_global", 16)):
         return False, "MAX_GLOBAL_CONCURRENCY"
     if sum(1 for a in active if a["sym"] == sym) >= int(governor.get("max_per_asset", 2)):
         return False, "MAX_PER_ASSET"
     if sum(1 for a in active if a["sym"] == sym and a["family"] == fam) >= int(governor.get("max_per_asset_sleeve", 1)):
         return False, "MAX_PER_ASSET_SLEEVE"
-    if sum(1 for a in active if int(a["side"]) == side) >= int(governor.get("max_same_side", 6)):
+    mt5_sym = cand.get("mt5_symbol")
+    max_same_mt5 = int(governor.get("max_same_mt5_symbol", 0) or 0)
+    if mt5_sym and max_same_mt5 > 0:
+        if sum(1 for a in active if a.get("mt5_symbol") == mt5_sym) >= max_same_mt5:
+            return False, "MAX_SAME_MT5_SYMBOL"
+    if pod == "CORE" and sum(1 for a in active if a.get("pod", "CORE") == "CORE" and int(a["side"]) == side) >= int(governor.get("max_same_side", 6)):
         return False, "MAX_SAME_SIDE"
     return True, "PASS"
 
@@ -733,7 +937,7 @@ def venue_risk_size(
 
 
 class HolyGrailEngine(sc.SovereignCoreEngine):
-    """Unified 3-Sleeve Crypto + Commodity Production Runner built on SovereignCoreEngine."""
+    """Unified 4-Pod Dual-Venue Production Runner (`4_HGv4_Core+TRSI+TF_CS16_R1.00`)."""
 
     def __init__(
         self,
@@ -753,6 +957,11 @@ class HolyGrailEngine(sc.SovereignCoreEngine):
         self.live_cache_dir = ROOT / self.cfg.get("live_feed", {}).get("live_cache_dir", "engine/data/live_cache")
         self._ws_collector: core.BinanceAggTradeCollector | None = None
         self._last_feed_sync_info: dict[str, dict[str, Any]] = {}
+        self._last_daily_exit_map: dict[str, bool] = {}
+        self._last_daily_sync_ts: int = 0
+        self._daily_cache: dict[str, pd.DataFrame] = {}
+        self._last_pod4_sync_ts: int = 0
+        self._last_pod4_summary: dict[str, Any] = {"mode": "INIT", "delta_avail_usd": 0.0, "n_coins": 0}
 
     def _start_ws_collector_if_needed(self) -> None:
         lf = self.cfg.get("live_feed", {})
@@ -760,17 +969,23 @@ class HolyGrailEngine(sc.SovereignCoreEngine):
             return
         if self._ws_collector is not None:
             return
-        ws_syms = [p["source_symbol"] for p in self.pairs if p.get("category") == "CRYPTO"]
+        ws_syms = [
+            p["source_symbol"] for p in self.pairs
+            if p.get("category") == "CRYPTO" and p.get("feed_type") != "mt5_h4"
+        ]
         if ws_syms and hasattr(core, "BinanceAggTradeCollector"):
             self._ws_collector = core.BinanceAggTradeCollector(ws_syms, self.live_cache_dir / "ws")
             self._ws_collector.start()
 
     def _hg_sleeve_signals(self, now_ts: int) -> tuple[list[dict[str, Any]], dict[str, pd.DataFrame]]:
-        """Sync live Binance Futures REST/WS feeds and evaluate Sleeves A, B & C across all assets."""
+        """Sync live Binance & MT5 feeds and evaluate Pod 1 (CORE), Pod 2 (KL_MR) & Pod 3 (TRADFI)."""
         lf = self.cfg.get("live_feed", {})
         use_rest = bool(lf.get("enable_rest_sync", False)) and (self.live or not self.dry or lf.get("dry_use_rest", False))
         gov = self.cfg.get("governor", {})
         max_stale_1m = int(gov.get("max_feed_staleness_sec", 300))
+        kl_params = gov.get("kl_mr_params", {})
+        tf_params = gov.get("tradfi_params", {})
+        refresh_daily_rest = use_rest and ((now_ts - self._last_daily_sync_ts) >= 300)
 
         # 1. Sync & compute BTCUSDT 4H macro trend first
         btc_4h, btc_k1, btc_m5 = sync_live_symbol_feeds("BTCUSDT", self.live_cache_dir, now_ts, enable_rest=use_rest, ws_collector=self._ws_collector)
@@ -781,9 +996,18 @@ class HolyGrailEngine(sc.SovereignCoreEngine):
 
         out: list[dict[str, Any]] = []
         feat_4h_map: dict[str, pd.DataFrame] = {}
+        daily_exit_map: dict[str, bool] = {}
 
-        assets = [p["source_symbol"] for p in self.pairs if p["source_symbol"] not in self._excluded]
-        for sym in assets:
+        # 2. Pod 1 (CORE: Sleeves A/B/C) + Pod 2 (KL_MR: Daily S17) on Crypto Majors & Commodities
+        core_pairs = [
+            p for p in self.pairs
+            if p["source_symbol"] not in self._excluded
+            and p.get("enabled", True)
+            and p.get("feed_type") != "mt5_h4"
+        ]
+        for pair in core_pairs:
+            sym = pair["source_symbol"]
+            msym = pair["mt5_symbol"]
             is_comm = sym in self._comm_set
             df4, k1, m5 = (
                 (btc_4h, btc_k1, btc_m5)
@@ -797,26 +1021,270 @@ class HolyGrailEngine(sc.SovereignCoreEngine):
             if not df4.empty:
                 f4 = compute_4h_physics_features(df4, btc_4h if not btc_4h.empty else None)
                 feat_4h_map[sym] = f4
-                out.extend(eval_4h_physics_latest(f4, sym, is_comm=is_comm))
+                for s in eval_4h_physics_latest(f4, sym, is_comm=is_comm):
+                    s["pod"] = "CORE"
+                    s["mt5_symbol"] = msym
+                    out.append(s)
 
             if not k1.empty:
-                # Freshness guard on 1m tape for non-weekend crypto
                 fresh_ok = True if (is_comm or not use_rest or feed_age_1m <= max_stale_1m) else False
                 if fresh_ok:
                     vc_df = build_causal_volclock_bars(k1, m5 if not m5.empty else None, sym=sym, is_comm=is_comm)
-                    out.extend(eval_volclock_latest(vc_df, btc_bull, sym, is_comm=is_comm))
+                    for s in eval_volclock_latest(vc_df, btc_bull, sym, is_comm=is_comm):
+                        s["pod"] = "CORE"
+                        s["mt5_symbol"] = msym
+                        out.append(s)
                 if sym == "BTCUSDT":
                     for ev_ts in self._fomc_events:
                         sig_b = eval_fomc_15m_aligned(k1, ev_ts, sym, now_ts)
                         if sig_b is not None:
+                            sig_b["pod"] = "CORE"
+                            sig_b["mt5_symbol"] = msym
                             out.append(sig_b)
 
-        prio = gov.get("sleeve_priority", {"B": 0, "A": 1, "C": 2})
+            # Pod 2: Daily Kaminsky-Lo Triple-RSI (`D_TRSI_KL`)
+            if refresh_daily_rest or sym not in self._daily_cache:
+                self._daily_cache[sym] = sync_binance_daily_closed(sym, self.live_cache_dir, now_ts, enable_rest=refresh_daily_rest)
+            daily_df = self._daily_cache.get(sym, pd.DataFrame())
+            cand_kl, exit_kl = eval_kl_triple_rsi_latest(
+                daily_df, sym, sleeve="D_TRSI_KL", pod="KL_MR", family="D",
+                is_comm=is_comm, kl_params=kl_params, mt5_symbol=msym,
+            )
+            daily_exit_map[sym] = exit_kl
+            if cand_kl is not None:
+                out.append(cand_kl)
+
+        # 3. Pod 3 (TRADFI: `TF_TREND_L` 4H + `TF_TRSI_KL` 1D on 15 MT5 TradFi Assets)
+        tradfi_pairs = [p for p in self.pairs if p.get("feed_type") == "mt5_h4" and p.get("enabled", True)]
+        if tradfi_pairs and getattr(core, "MT5_OK", False):
+            tf_h4 = getattr(core.mt5, "TIMEFRAME_H4", 16388)
+            tf_d1 = getattr(core.mt5, "TIMEFRAME_D1", 16408)
+            for pair in tradfi_pairs:
+                sym = pair["source_symbol"]
+                msym = pair["mt5_symbol"]
+                df_tf4 = sync_mt5_bars(msym, tf_h4, 14400, "4h", self.live_cache_dir, bars_count=320, now_ts=now_ts)
+                age_tf4 = (now_ts - int(df_tf4["end_ts"].iloc[-1])) if not df_tf4.empty else -1
+                self._last_feed_sync_info[sym] = {"bars_4h": len(df_tf4), "bars_1m": 0, "age_4h_s": age_tf4, "age_1m_s": -1}
+                for s in eval_tradfi_4h_latest(df_tf4, sym, params=tf_params, mt5_symbol=msym):
+                    out.append(s)
+
+                if pair.get("trsi_eligible", False):
+                    if refresh_daily_rest or sym not in self._daily_cache:
+                        self._daily_cache[sym] = sync_mt5_bars(msym, tf_d1, 86400, "1d", self.live_cache_dir, bars_count=260, now_ts=now_ts)
+                    d_tf = self._daily_cache.get(sym, pd.DataFrame())
+                    trsi_kl_p = {**kl_params, "risk_scale": float(tf_params.get("trsi_risk_scale", 0.50))}
+                    cand_tf_kl, exit_tf_kl = eval_kl_triple_rsi_latest(
+                        d_tf, sym, sleeve="TF_TRSI_KL", pod="TRADFI", family="D",
+                        is_comm=True, kl_params=trsi_kl_p, mt5_symbol=msym,
+                    )
+                    daily_exit_map[sym] = exit_tf_kl
+                    if cand_tf_kl is not None:
+                        out.append(cand_tf_kl)
+
+        if refresh_daily_rest or self._last_daily_sync_ts == 0:
+            self._last_daily_sync_ts = now_ts
+        self._last_daily_exit_map = daily_exit_map
+
+        prio = gov.get("sleeve_priority", {"B": 0, "A": 1, "TF": 2, "D": 2, "C": 3})
         out.sort(key=lambda x: (prio.get(x["family"], 9), x["sym"], x["sleeve"]))
         return out, feat_4h_map
 
+    def _query_delta_balances_usd(self) -> tuple[float, float, str]:
+        """Read Delta Exchange India available & total USD/USDT wallet equity."""
+        try:
+            wb = delta_direct.request_delta("GET", "/v2/wallet/balances")
+            if not isinstance(wb, dict) or not wb.get("success"):
+                return 0.0, 0.0, "DELTA_API_ERR"
+            tot, avail = 0.0, 0.0
+            for b in wb.get("result", []) or []:
+                if str(b.get("asset_symbol", "")).upper() in {"USD", "USDT", "USDC"}:
+                    tot += float(b.get("balance", 0.0) or 0.0)
+                    avail += float(b.get("available_balance", 0.0) or 0.0)
+            return round(avail, 4), round(tot, 4), "OK"
+        except Exception as exc:
+            return 0.0, 0.0, f"DELTA_EXC:{exc}"
+
+    def _rebalance_delta_pod4(
+        self,
+        weights: dict[str, float],
+        delta_eq_usd: float,
+        dd_mult: float,
+        cs_cfg: dict[str, Any],
+    ) -> list[dict[str, Any]]:
+        """Execute market-neutral Delta Exchange rebalance when Delta equity >= min_delta_equity_usd."""
+        if not weights or delta_eq_usd <= 0:
+            return []
+        prods = delta_direct.request_delta("GET", "/v2/products")
+        pos_resp = delta_direct.request_delta("GET", "/v2/positions/margined")
+        if not (isinstance(prods, dict) and prods.get("success")):
+            return []
+        prod_by_sym: dict[str, dict[str, Any]] = {}
+        for p in prods.get("result", []) or []:
+            psym = str(p.get("symbol", "")).upper()
+            if psym.endswith("USD") and p.get("contract_type") in {"perpetual_futures", None}:
+                prod_by_sym[psym.removesuffix("USD") + "USDT"] = p
+                prod_by_sym[psym] = p
+
+        cur_pos: dict[int, int] = {}
+        if isinstance(pos_resp, dict) and pos_resp.get("success"):
+            for cp in pos_resp.get("result", []) or []:
+                cur_pos[int(cp["product_id"])] = int(cp.get("size", 0) or 0)
+
+        gross_scale = min(1.0, max(0.25, float(cs_cfg.get("target_ann_vol", 0.16)) / 0.16) * dd_mult)
+        execs: list[dict[str, Any]] = []
+        orders_to_send: list[tuple[int, dict[str, Any], int, str]] = []
+        for sym, w in weights.items():
+            prod = prod_by_sym.get(sym)
+            if not prod:
+                continue
+            pid = int(prod["id"])
+            cval = float(prod.get("contract_value", 0.001) or 0.001)
+            mark = float(prod.get("mark_price", 0.0) or prod.get("spot_price", 0.0) or 0.0)
+            if mark <= 0 or cval <= 0:
+                continue
+            tgt_sz = int(round((float(w) * delta_eq_usd * gross_scale) / (cval * mark)))
+            cur_sz = cur_pos.get(pid, 0)
+            diff = tgt_sz - cur_sz
+            if diff != 0:
+                side = "buy" if diff > 0 else "sell"
+                reduce_only = (cur_sz > 0 and diff < 0 and abs(diff) <= abs(cur_sz)) or (cur_sz < 0 and diff > 0 and abs(diff) <= abs(cur_sz))
+                orders_to_send.append((0 if reduce_only else 1, {"product_id": pid, "size": abs(diff), "side": side, "order_type": "market_order", "reduce_only": reduce_only}, pid, sym))
+
+        orders_to_send.sort(key=lambda x: x[0])
+        for _, payload, _, sym in orders_to_send:
+            resp = delta_direct.request_delta("POST", "/v2/orders", body=json.dumps(payload))
+            ok = bool(isinstance(resp, dict) and resp.get("success"))
+            execs.append({"sym": sym, "side": payload["side"], "size": payload["size"], "ok": ok})
+            self.journal.log("HG_DELTA_REBAL", sleeve="CS_POD4", symbol=sym, side=payload["side"].upper(),
+                             lots=float(payload["size"]), retcode="OK" if ok else "ERR", note=f"ro={payload['reduce_only']}")
+        return execs
+
+    def _step_pod4_cs_delta(
+        self,
+        cur_ts: int,
+        dd_mult: float = 1.0,
+        feat_4h_map: dict[str, pd.DataFrame] | None = None,
+    ) -> dict[str, Any]:
+        """Evaluate Pod 4 S19 CS Carry+Mom across 27 perps & auto-gate Delta Exchange execution."""
+        cs_cfg = self.cfg.get("cs_pod4", {})
+        if not cs_cfg.get("enabled", False):
+            return {"enabled": False, "mode": "DISABLED", "delta_avail_usd": 0.0, "n_coins": 0}
+
+        sync_int = int(cs_cfg.get("sync_interval_sec", 300))
+        min_eq = float(cs_cfg.get("min_delta_equity_usd", 250.0))
+        st_path = ROOT / cs_cfg.get("state_path", "engine/data/cs_pod4_state.json")
+        if (cur_ts - self._last_pod4_sync_ts) < sync_int and st_path.is_file():
+            return dict(self._last_pod4_summary)
+
+        st = json.loads(st_path.read_text(encoding="utf-8")) if st_path.is_file() else {}
+        lf = self.cfg.get("live_feed", {})
+        use_rest = bool(lf.get("enable_rest_sync", False)) and (self.live or not self.dry or lf.get("dry_use_rest", False))
+        use_rest = use_rest and not getattr(self, "_offline_replay", False)
+
+        avail_usd, tot_usd, delta_msg = self._query_delta_balances_usd()
+
+        rows: list[dict[str, Any]] = []
+        latest_prices: dict[str, float] = {}
+        latest_bar_ts = 0
+        fmap = feat_4h_map or {}
+        for sym in cs_cfg.get("universe", []):
+            df4 = fmap.get(sym)
+            if df4 is None or df4.empty:
+                live_p = self.live_cache_dir / f"{sym}_4h_live.parquet"
+                hist_p = CACHE_4H_DIR / f"{sym}_4h.parquet"
+                df4 = pd.read_parquet(live_p) if live_p.is_file() else (pd.read_parquet(hist_p) if hist_p.is_file() else pd.DataFrame())
+                if use_rest:
+                    try:
+                        rest4 = fetch_binance_klines(sym, "4h", limit=120, now_ms=(cur_ts - 3) * 1000)
+                        _, fund_bp = fetch_binance_oi_and_funding(sym, oi_limit=1)
+                        if not rest4.empty:
+                            rest4 = rest4.rename(columns={"ts_open": "ts", "ts_close": "end_ts"})
+                            rest4["d_pct"] = np.where(rest4["v"] > 0, (rest4["bv"] - rest4["sv"]) / rest4["v"] * 100.0, 0.0)
+                            rest4["fund_bp"] = fund_bp
+                            keep = ["ts", "end_ts", "o", "h", "l", "c", "v", "bv", "sv", "d_pct", "fund_bp"]
+                            if not df4.empty:
+                                for col in keep:
+                                    if col not in df4.columns:
+                                        df4[col] = 0.0
+                                df4 = pd.concat([df4[keep], rest4[keep]], ignore_index=True).drop_duplicates("ts", keep="last").sort_values("ts").tail(200)
+                            else:
+                                df4 = rest4[keep]
+                            _atomic_write_parquet(df4.reset_index(drop=True), live_p)
+                    except Exception:
+                        pass
+            if df4 is None or len(df4) < 48:
+                continue
+            d = df4.sort_values("ts").reset_index(drop=True)
+            c = d["c"].to_numpy(float)
+            dp = d["d_pct"].to_numpy(float) if "d_pct" in d.columns else np.zeros(len(d))
+            fb = d["fund_bp"].to_numpy(float) if "fund_bp" in d.columns else np.zeros(len(d))
+            rets = np.diff(c[-26:]) / np.maximum(c[-26:-1], 1e-12)
+            rows.append({
+                "sym": sym,
+                "fund_72h": float(np.nanmean(fb[-18:])),
+                "ret_42b": float(c[-1] / max(c[-43], 1e-12) - 1.0),
+                "ret_6b": float(c[-1] / max(c[-7], 1e-12) - 1.0),
+                "dp_6b": float(np.nanmean(dp[-6:])),
+                "vol_24": float(np.std(rets[-24:])),
+            })
+            latest_prices[sym] = float(c[-1])
+            latest_bar_ts = max(latest_bar_ts, int(d["end_ts"].iloc[-1]) if "end_ts" in d.columns else int(d["ts"].iloc[-1]) + 14400)
+
+        cs_df = pd.DataFrame(rows)
+        ema_scores = dict(st.get("ema_scores", {}) or {})
+        weights = dict(st.get("target_weights", {}) or {})
+        last_rebal_ts = int(st.get("last_rebal_ts", 0) or 0)
+        shadow_eq = float(st.get("shadow_equity_usd", 1000.0) or 1000.0)
+        prev_px = dict(st.get("last_prices", {}) or {})
+        if weights and prev_px and latest_prices:
+            bar_ret = sum(float(w) * (latest_prices[s] / prev_px[s] - 1.0) for s, w in weights.items() if s in latest_prices and prev_px.get(s, 0) > 0)
+            shadow_eq *= (1.0 + bar_ret)
+
+        rebal_due = len(cs_df) >= 12 and (latest_bar_ts - last_rebal_ts) >= int(cs_cfg.get("rebalance_hours", 72)) * 3600
+        exec_list: list[dict[str, Any]] = []
+        if len(cs_df) >= 12:
+            if rebal_due or not weights:
+                weights, ema_scores = s19_target_weights(cs_df, ema_scores, cs_cfg)
+                last_rebal_ts = latest_bar_ts or cur_ts
+            if delta_msg != "OK" or avail_usd < min_eq:
+                mode = "SHADOW_WAIT_FUNDING"
+            elif self.live and not self.dry and not self.state.get("interlock_rearm_required", False):
+                mode = "LIVE_ACTIVE"
+                if rebal_due:
+                    exec_list = self._rebalance_delta_pod4(weights, tot_usd, dd_mult, cs_cfg)
+            else:
+                mode = "DRY_READY"
+        else:
+            mode = "SHADOW_WARMUP"
+
+        out_state = {
+            "updated_ts": cur_ts,
+            "mode": mode,
+            "delta_status": delta_msg,
+            "delta_total_usd": tot_usd,
+            "delta_avail_usd": avail_usd,
+            "min_delta_equity_usd": min_eq,
+            "n_coins": len(cs_df),
+            "last_rebal_ts": last_rebal_ts,
+            "shadow_equity_usd": round(shadow_eq, 2),
+            "target_weights": weights,
+            "ema_scores": ema_scores,
+            "last_prices": latest_prices,
+            "last_execs": exec_list,
+        }
+        st_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp_st = st_path.with_suffix(".tmp")
+        tmp_st.write_text(json.dumps(out_state, indent=2), encoding="utf-8")
+        tmp_st.replace(st_path)
+        self._last_pod4_sync_ts = cur_ts
+        self._last_pod4_summary = {
+            "enabled": True, "mode": mode, "delta_avail_usd": avail_usd,
+            "min_req_usd": min_eq, "n_coins": len(cs_df), "shadow_eq": round(shadow_eq, 2),
+        }
+        return dict(self._last_pod4_summary)
+
     def _active_book_from_mt5(self, positions: list[Any], orders: list[Any]) -> list[dict[str, Any]]:
-        """Map live MT5 positions & pending orders into gate-compatible active list."""
+        """Map live MT5 positions & pending orders into pod-aware active list."""
         book: list[dict[str, Any]] = []
         pos_meta = self.state.get("positions", {}) or {}
         for p in positions:
@@ -826,7 +1294,9 @@ class HolyGrailEngine(sc.SovereignCoreEngine):
             meta = pos_meta.get(str(p.ticket), {})
             book.append({
                 "sym": pair["source_symbol"],
-                "family": meta.get("family", "A"),
+                "mt5_symbol": p.symbol,
+                "pod": meta.get("pod", pair.get("pod", "CORE")),
+                "family": meta.get("family", "TF" if pair.get("pod") == "TRADFI" else "A"),
                 "side": 1 if int(p.type) == 0 else -1,
                 "ticket": int(p.ticket),
             })
@@ -836,19 +1306,28 @@ class HolyGrailEngine(sc.SovereignCoreEngine):
             pair = self.pair_by_magic[int(o.magic)]
             book.append({
                 "sym": pair["source_symbol"],
-                "family": "A",
+                "mt5_symbol": o.symbol,
+                "pod": pair.get("pod", "CORE"),
+                "family": "TF" if pair.get("pod") == "TRADFI" else "A",
                 "side": 1 if int(o.type) in (0, 2, 4) else -1,
                 "ticket": int(o.ticket),
             })
         return book
 
-    def _manage_hg_open_positions(self, positions: list[Any], feat_4h_map: dict[str, pd.DataFrame], cur_ts: int) -> None:
-        """Apply T4_Convex trailing SL, Short Climax Ratchet, and max_hold_bars on live MT5 positions."""
+    def _manage_hg_open_positions(
+        self,
+        positions: list[Any],
+        feat_4h_map: dict[str, pd.DataFrame],
+        cur_ts: int,
+        daily_exit_map: dict[str, bool] | None = None,
+    ) -> None:
+        """Apply T4_Convex trailing SL (CORE/TF_TREND) and Kaminsky-Lo RSI>50 + 12d exits (KL_MR/TF_TRSI_KL)."""
         if not self.live or self.dry:
             return
         pos_state = self.state.get("positions", {}) or {}
         ours = [p for p in positions if int(p.magic) in self.pair_by_magic]
         live_tickets = {str(p.ticket) for p in ours}
+        d_exits = self._last_daily_exit_map if daily_exit_map is None else daily_exit_map
 
         for tid in list(pos_state.keys()):
             if tid not in live_tickets:
@@ -865,10 +1344,11 @@ class HolyGrailEngine(sc.SovereignCoreEngine):
             pair = self.pair_by_magic[int(p.magic)]
             side = 1 if int(p.type) == 0 else -1
             meta = pos_state.setdefault(tid, {
-                "sleeve": pair["sid"], "family": "A", "magic": int(p.magic), "mt5_symbol": p.symbol,
+                "sleeve": pair["sid"], "family": "TF" if pair.get("pod") == "TRADFI" else "A",
+                "pod": pair.get("pod", "CORE"), "magic": int(p.magic), "mt5_symbol": p.symbol,
                 "source_symbol": pair["source_symbol"], "side": side, "entry": float(p.price_open),
                 "orig_sd": abs(float(p.price_open) - float(p.sl)) if float(p.sl) > 0 else float(p.price_open) * 0.01,
-                "best_px": float(p.price_open), "open_ts": int(p.time),
+                "best_px": float(p.price_open), "open_ts": int(p.time), "kl_nosl": False,
             })
             tick = core.mt5.symbol_info_tick(p.symbol)
             si = core.mt5.symbol_info(p.symbol)
@@ -879,13 +1359,26 @@ class HolyGrailEngine(sc.SovereignCoreEngine):
             if (side == 1 and cur_px > float(meta["best_px"])) or (side == -1 and cur_px < float(meta["best_px"])):
                 meta["best_px"] = cur_px
 
-            # Max hold exit (120 x 4H bars = 20 days; FOMC = 72h)
-            tf_sec = 60 * int(self.cfg.get("macro_overlay", {}).get("fomc_max_hold_min", 4320)) if meta.get("family") == "B" else max_hold_bars * int(pair["tf_sec"])
+            if meta.get("kl_nosl"):
+                tf_sec = int(meta.get("max_hold_sec", 12 * 86400))
+            elif meta.get("family") == "B":
+                tf_sec = 60 * int(self.cfg.get("macro_overlay", {}).get("fomc_max_hold_min", 4320))
+            else:
+                tf_sec = max_hold_bars * int(pair["tf_sec"])
+
             if (cur_ts - int(meta["open_ts"])) >= tf_sec:
                 res = self.bridge.close_position(p, dev)
                 self.journal.log("HG_TIME_EXIT", sleeve=meta.get("sleeve", ""), magic=int(p.magic),
                                  symbol=p.symbol, price=cur_px, retcode=str(getattr(res, "retcode", "NONE")),
                                  note=f"held >= {tf_sec}s")
+                continue
+
+            if meta.get("kl_nosl"):
+                if d_exits.get(str(meta.get("source_symbol", "")), False):
+                    res = self.bridge.close_position(p, dev)
+                    self.journal.log("HG_KL_RSI_EXIT", sleeve=meta.get("sleeve", ""), magic=int(p.magic),
+                                     symbol=p.symbol, price=cur_px, retcode=str(getattr(res, "retcode", "NONE")),
+                                     note="Daily RSI(5)>50 exit")
                 continue
 
             f4 = feat_4h_map.get(pair["source_symbol"])
@@ -946,9 +1439,10 @@ class HolyGrailEngine(sc.SovereignCoreEngine):
         if atr_mt5 > 0 and spr / atr_mt5 > float(gov.get("spread_atr_max", 0.45)):
             return False, "SPREAD_GT_ATR_MAX"
 
-        target_risk = equity * (float(gov.get("risk_pct", 0.75)) / 100.0) * dd_mult
+        risk_scale = float(cand.get("risk_scale", 1.0))
+        target_risk = equity * (float(gov.get("risk_pct", 1.0)) / 100.0) * dd_mult * risk_scale
         max_single = equity * (float(gov.get("max_risk_single_trade_pct", 1.0)) / 100.0)
-        max_total = equity * (float(gov.get("max_total_open_risk_pct", 6.0)) / 100.0)
+        max_total = equity * (float(gov.get("max_total_open_risk_pct", 8.0)) / 100.0)
         if committed_risk + target_risk > max_total:
             return False, "BOOK_RISK_CAP_REACHED"
 
@@ -960,36 +1454,37 @@ class HolyGrailEngine(sc.SovereignCoreEngine):
 
         sl_px = round(entry_px - side * sl_dist, sp.digits)
         safety_tp_r = float(gov.get("safety_tp_r_when_trail_only", 12.0))
-        tp_px = round(entry_px + side * safety_tp_r * sl_dist, sp.digits)
+        tp_mult = max(6.0, safety_tp_r / 2.0) if cand.get("kl_nosl") else safety_tp_r
+        tp_px = round(entry_px + side * tp_mult * sl_dist, sp.digits)
         res = self.bridge.send_bracket(sp, side, lots, entry_px, sl_px, tp_px, int(pair["magic"]),
                                        f"HG_{cand['sleeve']}", int(gov.get("deviation", 30)))
         rc = getattr(res, "retcode", -1)
         if rc != core.mt5.TRADE_RETCODE_DONE:
             return False, f"MT5_SEND_ERR_{rc}:{getattr(res, 'comment', '')}"
 
-        # Readback ticket & persist execution metadata
         pos_state = self.state.get("positions", {}) or {}
         for p in self.bridge.positions():
             if int(p.magic) == int(pair["magic"]) and p.symbol == msym:
                 pos_state[str(p.ticket)] = {
-                    "sleeve": cand["sleeve"], "family": cand["family"], "magic": int(pair["magic"]),
-                    "mt5_symbol": msym, "source_symbol": src_sym, "side": side,
+                    "sleeve": cand["sleeve"], "family": cand["family"], "pod": cand.get("pod", pair.get("pod", "CORE")),
+                    "magic": int(pair["magic"]), "mt5_symbol": msym, "source_symbol": src_sym, "side": side,
                     "entry": float(p.price_open), "orig_sd": abs(float(p.price_open) - float(p.sl)),
                     "best_px": float(p.price_open), "open_ts": cur_ts,
+                    "kl_nosl": bool(cand.get("kl_nosl", False)),
+                    "max_hold_sec": int(cand.get("max_hold_days", 12)) * 86400,
                 }
         self.state.set("positions", pos_state)
         self.journal.log("HG_EXEC_OPEN", sleeve=cand["sleeve"], magic=int(pair["magic"]), symbol=msym,
                          side="BUY" if side == 1 else "SELL", lots=lots, price=entry_px, sl=sl_px, tp=tp_px,
                          risk_usd=round(lots * sl_dist * sp.value_per_price_unit(), 2), retcode=str(rc),
-                         note=f"dd_mult={dd_mult:.2f}")
+                         note=f"pod={cand.get('pod','CORE')} dd_mult={dd_mult:.2f}")
         return True, f"FILLED lots={lots}"
 
     def step_once(self, now_ts: int | None = None) -> dict[str, Any]:
-        """Execute one end-to-end Sovereign-interlocked live or dry Holy Grail cycle."""
+        """Execute one end-to-end Sovereign-interlocked live or dry HGv4 cycle across all 4 pods."""
         cur_ts = int(now_ts if now_ts is not None else time.time())
         paper = getattr(self, "_offline_replay", False)
 
-        # Connect MT5 when running live OR when verifying MT5 specs unless offline mock mode
         mt5_ok = self.bridge.connect() if (self.live or not paper) else False
         ti = core.mt5.terminal_info() if (mt5_ok and core.MT5_OK) else None
         ai = core.mt5.account_info() if (mt5_ok and core.MT5_OK) else None
@@ -1028,6 +1523,8 @@ class HolyGrailEngine(sc.SovereignCoreEngine):
             positions = self.bridge.positions()
             committed_risk = self.bridge.total_sl_risk_usd(positions)
 
+        pod4_sm = self._step_pod4_cs_delta(cur_ts, dd_mult=dd_mult, feat_4h_map=feat_4h_map)
+
         active_book = self._active_book_from_mt5(positions, orders) if mt5_ok else []
         bars_seen = self.state.get("bars", {}) or {}
         gov = self.cfg.get("governor", {})
@@ -1039,7 +1536,13 @@ class HolyGrailEngine(sc.SovereignCoreEngine):
             ts_sig = int(cand.get("ts_sig", cur_ts))
             if int(bars_seen.get(s_key, 0) or 0) >= ts_sig:
                 continue
-            max_lag = int(gov.get("max_signal_lag_vc_sec", 900) if cand.get("tf") == "VC" else gov.get("max_signal_lag_4h_sec", 1800))
+            tf_c = cand.get("tf")
+            if tf_c == "VC":
+                max_lag = int(gov.get("max_signal_lag_vc_sec", 900))
+            elif tf_c == "1D":
+                max_lag = int(gov.get("max_signal_lag_1d_sec", 43200))
+            else:
+                max_lag = int(gov.get("max_signal_lag_4h_sec", 1800))
             if (cur_ts - ts_sig) > max_lag:
                 continue
 
@@ -1056,23 +1559,27 @@ class HolyGrailEngine(sc.SovereignCoreEngine):
                 punched, msg = self._punch_hg_signal(cand, eq, committed_risk, dd_mult, cur_ts)
                 if punched:
                     bars_seen[s_key] = ts_sig
-                    active_book.append({"sym": cand["sym"], "family": cand["family"], "side": int(cand["side"])})
+                    active_book.append({
+                        "sym": cand["sym"], "mt5_symbol": cand.get("mt5_symbol", ""),
+                        "pod": cand.get("pod", "CORE"), "family": cand["family"], "side": int(cand["side"]),
+                    })
                     exec_count += 1
+                    committed_risk = self.bridge.total_sl_risk_usd(self.bridge.positions())
                 else:
                     self.journal.log("HG_SKIP", sleeve=cand["sleeve"], symbol=cand["sym"],
                                      side="LONG" if cand["side"] > 0 else "SHORT", price=float(cand["ref_px"]), note=msg)
             else:
-                # Dry / shadow inspection: log verified gate pass & check MT5 spec if connected
                 bars_seen[s_key] = ts_sig
                 dry_ok_count += 1
                 self.journal.log("HG_DRY_SIGNAL", sleeve=cand["sleeve"], symbol=cand["sym"],
                                  side="LONG" if cand["side"] > 0 else "SHORT", price=float(cand["ref_px"]),
-                                 note=f"PASS (dd_mult={dd_mult:.2f}, live_mt5={mt5_ok})")
+                                 note=f"PASS (pod={cand.get('pod','CORE')}, dd_mult={dd_mult:.2f}, live_mt5={mt5_ok})")
 
         self.state.set("bars", bars_seen)
         self.state.save()
         return {
             "engine": "HolyGrail",
+            "version": self.cfg.get("_meta", {}).get("version", "4.0-LIVE-DUAL"),
             "equity": eq,
             "dd_mult": dd_mult,
             "mt5_connected": mt5_ok,
@@ -1081,23 +1588,26 @@ class HolyGrailEngine(sc.SovereignCoreEngine):
             "signals": len(cands),
             "dry_ok": dry_ok_count,
             "executed": exec_count,
+            "pod4": pod4_sm,
             "feed_sync": self._last_feed_sync_info,
         }
 
     def run_loop(self) -> None:
-        """Continuous live execution daemon with WebSocket tape capture & MT5 interlocks."""
+        """Continuous live execution daemon with WebSocket tape capture, MT5 TradFi & Delta Pod 4."""
         poll_s = int(self.cfg.get("governor", {}).get("poll_seconds", 30))
         self._start_ws_collector_if_needed()
-        print(f"[HolyGrailEngine] Started loop (live={self.live}, dry={self.dry}, poll={poll_s}s, pairs={len(self.pairs)})", flush=True)
+        print(f"[HolyGrailEngine] Started HGv4 loop (live={self.live}, dry={self.dry}, poll={poll_s}s, pairs={len(self.pairs)})", flush=True)
         try:
             while True:
                 t0 = time.time()
                 try:
                     sm = self.step_once()
+                    p4 = sm.get("pod4", {})
                     print(
                         f"[{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')}Z] "
                         f"eq=${sm['equity']:.2f} dd_mult={sm['dd_mult']:.2f} pos={sm['open_pos']} "
-                        f"risk=${sm['committed_risk_usd']:.2f} sigs={sm['signals']} exec={sm['executed']}",
+                        f"risk=${sm['committed_risk_usd']:.2f} sigs={sm['signals']} exec={sm['executed']} "
+                        f"pod4={p4.get('mode','?')}(${p4.get('delta_avail_usd',0):.2f})",
                         flush=True,
                     )
                 except Exception as exc:
@@ -1113,36 +1623,45 @@ def print_status(cfg_path: Path, state_path: Path) -> None:
     cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
     gov = cfg["governor"]
     meta = cfg["_meta"]["oos_summary_10bps"]
+    mt5_only = cfg["_meta"].get("oos_summary_mt5_only_10bps", {})
+    cs = cfg.get("cs_pod4", {})
     st = json.loads(state_path.read_text(encoding="utf-8")) if state_path.is_file() else {}
+    cs_st_p = ROOT / cs.get("state_path", "engine/data/cs_pod4_state.json")
+    cs_st = json.loads(cs_st_p.read_text(encoding="utf-8")) if cs_st_p.is_file() else {}
     print(f"HolyGrailEngine Status | Version={cfg['_meta']['version']} | Locked={cfg['_meta']['locked_config']}")
-    print(f"  Risk={gov['risk_pct']}% | MaxPos={gov['max_global']} | MaxPerAsset={gov['max_per_asset']} (1/sleeve) | DD={gov['dd_throttle']} | MT5Pairs={len(cfg['pairs'])}")
-    print(f"  Walk-Forward OOS (16 Folds): Tr={meta['trades']} PF={meta['pf']} CAGR=+{meta['cagr_pct']}% MaxDD={meta['max_dd_pct']}% Sharpe={meta['sharpe']} DSR={meta['dsr']}")
-    print(f"  50K MC: DD95={meta['mc50k_dd95_pct']}% CrashDD95={meta['mc50k_crash_dd95_pct']}% | 20bps PF={meta['stress_20bps_pf']}")
+    print(f"  Risk={gov['risk_pct']}% | MaxPos={gov['max_global']} | PodCaps={gov.get('pod_caps')} | DD={gov['dd_throttle']} | MT5Pairs={len(cfg['pairs'])}")
+    print(f"  HGv4 Combined OOS (16 Folds): Tr={meta['trades']} PF={meta['pf']} CAGR=+{meta['cagr_pct']}% MaxDD={meta['max_dd_pct']}% Cal={meta.get('calmar')} Sh={meta['sharpe']} DSR={meta['dsr']}")
+    if mt5_only:
+        print(f"  HGv4 MT5-Only (Pods 1-3): EndEq=${mt5_only.get('end_equity_2500'):,.2f} CAGR=+{mt5_only.get('cagr_pct')}% MaxDD={mt5_only.get('max_dd_pct')}% Cal={mt5_only.get('calmar')} Sh={mt5_only.get('sharpe')}")
+    print(f"  Pod 4 Delta CS ({len(cs.get('universe', []))} coins): Mode={cs_st.get('mode','NOT_RUN')} | Avail=${cs_st.get('delta_avail_usd',0):.2f} / Min=${cs.get('min_delta_equity_usd',250):.0f} | ShadowEq=${cs_st.get('shadow_equity_usd',1000):.2f}")
     print(f"  PeakEquity=${st.get('peak_equity', cfg['account']['reference_equity_usd']):,.2f} | InterlockRearm={st.get('interlock_rearm_required', False)}")
 
 
 def run_selftest() -> None:
-    """Fast self-contained verification of causality, T4 trails, blackout, DD hysteresis, Friday flatten & live sync schema."""
+    """Fast self-contained verification of HGv4 causality, 4-Pod gates, KL Triple-RSI, TradFi & Delta readiness."""
     cfg = json.loads(DEFAULT_CONFIG_PATH.read_text(encoding="utf-8"))
 
-    # 1. Friday 20:30 UTC Commodity Flatten invariant
+    # 1. Friday 20:30 UTC Non-Crypto Flatten invariant (Commodities + TradFi)
     fri_2030 = int(datetime(2026, 11, 27, 20, 30, tzinfo=timezone.utc).timestamp())
     fri_1855 = int(datetime(2026, 11, 27, 18, 55, tzinfo=timezone.utc).timestamp())
     assert is_friday_close_ts(fri_2030) is True
     assert is_friday_close_ts(fri_1855) is False
+    ok_tf_fri, r_tf_fri = holy_grail_portfolio_gate({"sym": "US2000.p", "family": "TF", "pod": "TRADFI", "side": 1, "is_comm": True}, [], cfg["governor"], [], fri_2030)
+    assert ok_tf_fri is False and r_tf_fri == "FRIDAY_COMMODITY_BLACKOUT"
 
     # 2. Macro 30m Blackout Gate vs B_FOMC bypass
     ev_ts = et_to_utc_ts("2026-09-16", 14, 0)
-    ok_a, r_a = holy_grail_portfolio_gate({"sym": "BTCUSDT", "family": "A", "side": 1, "is_comm": False}, [], cfg["governor"], [ev_ts], ev_ts - 600)
-    ok_b, _ = holy_grail_portfolio_gate({"sym": "BTCUSDT", "family": "B", "side": 1, "is_comm": False}, [], cfg["governor"], [ev_ts], ev_ts + 900)
+    ok_a, r_a = holy_grail_portfolio_gate({"sym": "BTCUSDT", "family": "A", "pod": "CORE", "side": 1, "is_comm": False}, [], cfg["governor"], [ev_ts], ev_ts - 600)
+    ok_b, _ = holy_grail_portfolio_gate({"sym": "BTCUSDT", "family": "B", "pod": "CORE", "side": 1, "is_comm": False}, [], cfg["governor"], [ev_ts], ev_ts + 900)
     assert ok_a is False and r_a == "MACRO_PRE_EVENT_BLACKOUT"
     assert ok_b is True
 
-    # 3. Sleeve Non-Blocking Gate
-    act = [{"sym": "ETHUSDT", "family": "A", "side": 1}]
-    ok_c, _ = holy_grail_portfolio_gate({"sym": "ETHUSDT", "family": "C", "side": 1, "is_comm": False}, act, cfg["governor"], [ev_ts], fri_1855)
-    ok_a2, r_a2 = holy_grail_portfolio_gate({"sym": "ETHUSDT", "family": "A", "side": 1, "is_comm": False}, act, cfg["governor"], [ev_ts], fri_1855)
-    assert ok_c is True and ok_a2 is False and r_a2 == "MAX_PER_ASSET_SLEEVE"
+    # 3. Non-Blocking Pod & Sleeve Gate
+    act = [{"sym": "ETHUSDT", "family": "A", "pod": "CORE", "side": 1}]
+    ok_c, _ = holy_grail_portfolio_gate({"sym": "ETHUSDT", "family": "C", "pod": "CORE", "side": 1, "is_comm": False}, act, cfg["governor"], [ev_ts], fri_1855)
+    ok_kl, _ = holy_grail_portfolio_gate({"sym": "ETHUSDT", "family": "D", "pod": "KL_MR", "side": 1, "is_comm": False}, act, cfg["governor"], [ev_ts], fri_1855)
+    ok_a2, r_a2 = holy_grail_portfolio_gate({"sym": "ETHUSDT", "family": "A", "pod": "CORE", "side": 1, "is_comm": False}, act, cfg["governor"], [ev_ts], fri_1855)
+    assert ok_c is True and ok_kl is True and ok_a2 is False and r_a2 == "MAX_PER_ASSET_SLEEVE"
 
     # 4. T4 Convex Trail & Short Climax Ratchet
     sl_be = compute_t4_trail_sl(100.0, 95.0, 107.6, 2.0, 5.0, side=1, be_r=1.5, trail_atr=5.0)
@@ -1156,7 +1675,7 @@ def run_selftest() -> None:
     m3, t3 = holy_grail_dd_mult(2400.0, 2500.0, t2)
     assert (m1, t1) == (0.50, True) and (m2, t2) == (0.50, True) and (m3, t3) == (1.0, False)
 
-    # 6. Causal Volume-Clock
+    # 6. Causal Volume-Clock + Daily S17 Triple-RSI
     n = 1700
     ts0 = 1700000000
     k1 = pd.DataFrame({
@@ -1172,14 +1691,14 @@ def run_selftest() -> None:
     vc = build_causal_volclock_bars(k1, None, "TESTUSDT", is_comm=True)
     assert not vc.empty and "vah" in vc.columns and "val" in vc.columns
 
-    # 7. Dual venue sizing + MT5 pairs check
-    qty, _ = venue_risk_size(25.0, 18.75, 25.0, venue="perp")
-    assert qty == 0.75 and len(cfg["pairs"]) >= 15
-    print("HOLY_GRAIL_ENGINE SELFTEST PASS (7/7 invariants verified)")
+    # 7. Dual venue sizing + HGv4 pairs & Pod 4 config schema
+    qty, _ = venue_risk_size(25.0, 25.0, 25.0, venue="perp")
+    assert qty == 1.0 and len(cfg["pairs"]) >= 30 and len(cfg["cs_pod4"]["universe"]) >= 25
+    print("HOLY_GRAIL_ENGINE HGv4 SELFTEST PASS (7/7 invariants verified)")
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description="Holy Grail Unified 3-Sleeve Quantitative Engine")
+    ap = argparse.ArgumentParser(description="Holy Grail Unified 4-Pod Dual-Venue Quantitative Engine (HGv4)")
     ap.add_argument("--config", type=Path, default=DEFAULT_CONFIG_PATH)
     ap.add_argument("--state", type=Path, default=DEFAULT_STATE_PATH)
     ap.add_argument("--journal", type=Path, default=DEFAULT_JOURNAL_PATH)
