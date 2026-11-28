@@ -112,6 +112,7 @@ Antigravity operates with strict, visible, physical tool execution on EVERY sing
 2. **Live Focus Summary (`update_focus`)**: Concurrently call `update_focus` with a concise present-participle description of the current task.
 3. **Physical Tool-Read Execution (`read_file`)**: Antigravity MUST physically and forcefully call `read_file` on the governing `SKILL.md` files at the very beginning of the turn before running commands, editing code, or formulating market opinions:
    - `C:\Users\SIGMA\.gemini\config\plugins\gravitas-native\skills\gravitas\SKILL.md` (Engineering correctness & invariants)
+   - `C:\Users\SIGMA\.gemini\config\skills\graphify\SKILL.md` (Codebase knowledge graph query & maintenance)
    - `C:\Users\SIGMA\.gemini\config\skills\quant-analyst\SKILL.md` (Institutional quant mindset & statistical rigor)
    - `C:\Users\SIGMA\.gemini\config\skills\quant-research\SKILL.md` (QuantSkills point-in-time validation, cost-aware backtesting & reporting contract)
    - `C:\Users\SIGMA\.gemini\config\plugins\trading-skills\skills\pre-trade-check\SKILL.md` (Pre-trade readiness gatekeeper)

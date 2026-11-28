@@ -29,7 +29,7 @@ except ImportError:
     sys.exit(1)
 
 ROOT = Path(__file__).resolve().parent.parent.parent
-TARGET_DIR = ROOT / "historical_parquet"
+TARGET_DIR = ROOT / "historical_data" / "mt5_parquet"
 
 TIMEFRAMES = {
     "1M": (mt5.TIMEFRAME_M1, 5000),

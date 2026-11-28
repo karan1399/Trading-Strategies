@@ -8,12 +8,12 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from Delta_Exchange_Data.delta_pa_live_trader import compute_safe_contracts
-from footprint_Chart.backtesting.mt5_shared_account_portfolio_optimizer import simulate_shared_account
+from historical_data.delta_exchange.delta_pa_live_trader import compute_safe_contracts
+from exchange_feed.backtesting.mt5_shared_account_portfolio_optimizer import simulate_shared_account
 from scripts import delta_pa_trend_optimizer as model
 
 
-DATA = Path("Delta_Exchange_Data")
+DATA = Path("historical_data") / "delta_exchange"
 END = int(pd.Timestamp("2026-11-27", tz="UTC").timestamp())
 SEPT = int(pd.Timestamp("2026-09-01", tz="UTC").timestamp())
 START = int(pd.Timestamp("2024-01-01", tz="UTC").timestamp())

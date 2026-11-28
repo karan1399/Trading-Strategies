@@ -5,8 +5,8 @@ from __future__ import annotations
 from typing import Any
 import numpy as np
 
-from footprint_Chart.engines.coinglass_parity import compute_cg_signals
-from footprint_Chart.engines.strategy_base import BaseFootprintStrategy, FootprintSignal, StrategyParam
+from exchange_feed.engines.coinglass_parity import compute_cg_signals
+from exchange_feed.engines.strategy_base import BaseFootprintStrategy, FootprintSignal, StrategyParam
 from strategies.core.indicators import ema_arr, rsi_wilder_arr
 
 

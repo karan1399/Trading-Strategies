@@ -626,7 +626,7 @@ def _ml_score_pilot_signal(
     try:
         from pathlib import Path
         from datetime import datetime, timezone
-        from footprint_Chart.backtesting.ml_meta_engine import FINAL_BUNDLE_PATH, score_live_signal
+        from exchange_feed.backtesting.ml_meta_engine import FINAL_BUNDLE_PATH, score_live_signal
     except Exception:
         return None
 
@@ -1038,7 +1038,7 @@ def run_loop(cfg: dict, mode: str, loop_seconds: int | None = None):
 def _load_parquet(symbol: str, tf: str):
     import pandas as pd
     tf_dir = {"M1": "1M", "M5": "5M", "M15": "15M", "H1": "1H", "H4": "4H"}.get(tf, tf)
-    p = os.path.join(ROOT, "historical_parquet", tf_dir, symbol + ".parquet")
+    p = os.path.join(ROOT, "historical_data", "mt5_parquet", tf_dir, symbol + ".parquet")
     df = pd.read_parquet(p).sort_values("datetime")
     return df
 

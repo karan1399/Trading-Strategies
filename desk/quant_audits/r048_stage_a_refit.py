@@ -12,7 +12,7 @@ import sys
 import pandas as pd
 
 from desk.quant_audits.r047_review import load_bars, offline_oi
-from footprint_Chart.backtesting import strategy_26_5k_optimizer as optimizer
+from exchange_feed.backtesting import strategy_26_5k_optimizer as optimizer
 
 
 def refit_one(inputs):

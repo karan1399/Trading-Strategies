@@ -1,12 +1,12 @@
 """M4 Personal MaxCAGR (V3B 5-Asset, 16-Pair Stage-2 Elite) Live MT5 Execution Engine.
 
 Runs exact strategy, sizing, portfolio governor, and trade-management parity with:
-  - footprint_Chart/backtesting/mt5_per_asset_27strat_optimizer.py (BTCUSDT, ETHUSDT)
-  - footprint_Chart/backtesting/mt5_tradfi_ohlc_optimizer.py (USDJPY.pi, SP500.p, GAUUSD.pi<-XAU)
-  - footprint_Chart/backtesting/mt5_shared_account_portfolio_optimizer.py (M4_Personal_MaxCAGR)
-  - footprint_Chart/backtesting/fast_kernels.py (sim_1m_trades_nb BE/step_lock/ATR-trail/max_hold)
+  - exchange_feed/backtesting/mt5_per_asset_27strat_optimizer.py (BTCUSDT, ETHUSDT)
+  - exchange_feed/backtesting/mt5_tradfi_ohlc_optimizer.py (USDJPY.pi, SP500.p, GAUUSD.pi<-XAU)
+  - exchange_feed/backtesting/mt5_shared_account_portfolio_optimizer.py (M4_Personal_MaxCAGR)
+  - exchange_feed/backtesting/fast_kernels.py (sim_1m_trades_nb BE/step_lock/ATR-trail/max_hold)
 
-Read-only with respect to footprint_Chart/data/: stores incremental live Binance Vision + WS
+Read-only with respect to exchange_feed/data/: stores incremental live Binance Vision + WS
 aggTrade footprint tails separately under engine/data/m4_live_fp/.
 """
 
@@ -59,17 +59,17 @@ from engine.unified_alpha_pilot import (
     spec_from_fallback,
     spec_from_mt5,
 )
-from footprint_Chart.backtesting.btc_all25_optimizer_v2 import _df_to_bars, _to_chart_df
-from footprint_Chart.backtesting.multi_asset_optimizer import _fast_s07_masks
-from footprint_Chart.backtesting.multi_asset_prop_optimizer import _sigs_to_arr
-from footprint_Chart.backtesting.portfolio_engine import (
+from exchange_feed.backtesting.btc_all25_optimizer_v2 import _df_to_bars, _to_chart_df
+from exchange_feed.backtesting.multi_asset_optimizer import _fast_s07_masks
+from exchange_feed.backtesting.multi_asset_prop_optimizer import _sigs_to_arr
+from exchange_feed.backtesting.portfolio_engine import (
     _agg_tf_bars_and_raw,
     _finalize_tf_indicators,
     load_asset_tfs_cached,
 )
-from footprint_Chart.data_pipeline.binance_dumper import DATA_DIR, compute_adaptive_tick_bucket
-from footprint_Chart.data_pipeline.vision_backfill import aggregate_day_zip
-from footprint_Chart.engines.coinglass_parity import compute_cg_signals
+from exchange_feed.data_pipeline.binance_dumper import DATA_DIR, compute_adaptive_tick_bucket
+from exchange_feed.data_pipeline.vision_backfill import aggregate_day_zip
+from exchange_feed.engines.coinglass_parity import compute_cg_signals
 import scripts.delta_pa_trend_optimizer as dpa
 from strategies.core.fp_features import build_fp_context
 from strategies.core.indicators import adx_arr, ema_arr, rolling_std_arr, sma_arr, wilder_atr
@@ -608,12 +608,61 @@ def eval_crypto_signals(g2: pd.DataFrame, g4: pd.DataFrame, chart_map: dict[str,
     }
 
 
+def _cluster_for_pair(pair: dict[str, Any]) -> str:
+    """Resolve return-driver cluster for orthogonality & exposure caps."""
+    if pair.get("cluster"):
+        return str(pair["cluster"]).upper()
+    cat = str(pair.get("category", "")).upper()
+    ms = str(pair.get("mt5_symbol", "")).upper()
+    if ms.startswith("GAU") or cat in ("METAL", "METALS"):
+        return "GOLD_GRAM" if ms.startswith("GAU") else "METAL"
+    if cat in ("ENERGY", "COMMODITY") or any(k in ms for k in ("WTI", "BRENT")):
+        return "ENERGY"
+    if cat in ("CRYPTO", "INDEX", "FOREX"):
+        return cat
+    return cat or "OTHER"
+
+
+def _causal_s03_cluster_signals(
+    h: np.ndarray, l: np.ndarray, c: np.ndarray, atr: np.ndarray, ep: int = 233, slope_gate: bool = True,
+) -> dict[str, np.ndarray]:
+    """Strictly causal H4 P4_cluster EMA rejection up to latest closed bar n - 1."""
+    n = len(c)
+    side = np.zeros(n, dtype=np.int8)
+    rd = np.zeros(n, dtype=float)
+    ef = ema_arr(c, ep)
+    start_i = max(ep + 10, 5)
+    for i in range(start_i, n):
+        ai = float(atr[i])
+        ei = float(ef[i])
+        if h[i] <= l[i] or not np.isfinite(ai) or ai <= 0.0 or ei <= 0.0:
+            continue
+        rising = ei > float(ef[i - 5])
+        falling = ei < float(ef[i - 5])
+        if slope_gate and not (rising or falling):
+            continue
+        tol = max(1e-5, 0.20 * ai)
+        ch, cl, cc = h[i - 3 : i], l[i - 3 : i], c[i - 3 : i]
+        if rising and int((cl >= ei - tol).sum()) >= 2 and float(np.min(cc)) >= ei - 0.15 * ai and c[i] > float(np.max(ch)):
+            side[i] = 1
+            rd[i] = max(float(c[i]) - (float(np.min(cl)) - 0.20 * ai), 1.2 * ai)
+        elif falling and int((ch <= ei + tol).sum()) >= 2 and float(np.max(cc)) <= ei + 0.15 * ai and c[i] < float(np.min(cl)):
+            side[i] = -1
+            rd[i] = max((float(np.max(ch)) + 0.20 * ai) - float(c[i]), 1.2 * ai)
+    return {"side": side, "rd": rd}
+
+
 def eval_tradfi_signals(df_u: pd.DataFrame, chart_map: dict[str, Any]) -> dict[str, dict[str, Any]]:
-    """Evaluate TradFi Stage-2 Elite strategies matching mt5_tradfi_ohlc_optimizer.py 1:1."""
+    """Evaluate TradFi Stage-2 Elite + causal H4 Sovereign strategies 1:1."""
     ts_a = df_u["ts"].to_numpy(dtype=np.int64)
     end_a = df_u["end_ts"].to_numpy(dtype=np.int64)
+    o_a = df_u["open"].to_numpy(dtype=float)
+    h_a = df_u["high"].to_numpy(dtype=float)
+    l_a = df_u["low"].to_numpy(dtype=float)
     c_a = df_u["close"].to_numpy(dtype=float)
-    atr_a = dpa._atr_wilder(df_u["high"].to_numpy(float), df_u["low"].to_numpy(float), c_a, 14)
+    atr_a = dpa._atr_wilder(h_a, l_a, c_a, 14)
+    e50_a = ema_arr(c_a, 50)
+    e200_a = ema_arr(c_a, 200)
     e233_a = ema_arr(c_a, 233)
     up233, dn233 = c_a > e233_a, c_a < e233_a
 
@@ -640,6 +689,34 @@ def eval_tradfi_signals(df_u: pd.DataFrame, chart_map: dict[str, Any]) -> dict[s
             if var_s == var_target:
                 out[sid_key] = {"side": sa.astype(np.int8), "atr": atr_a, "ts": ts_a, "end_ts": end_a, "c": c_a}
     out["ema_pullback"] = {"side": sa_ep, "atr": atr_a, "ts": ts_a, "end_ts": end_a, "c": c_a}
+
+    # Causal Sovereign H4 TradFi strategies (evaluated cleanly through final bar n - 1)
+    from strategies.core.indicators import er_arr
+
+    adx_a = adx_arr(h_a, l_a, c_a, 14)
+    er_a = er_arr(c_a, 14)
+    hh14 = pd.Series(h_a).shift(1).rolling(14).max().to_numpy(dtype=float)
+    ll14 = pd.Series(l_a).shift(1).rolling(14).min().to_numpy(dtype=float)
+    s9_side = np.where(
+        (c_a > hh14) & (e50_a > e200_a) & (c_a > e200_a) & (adx_a >= 18.0) & (er_a >= 0.15), 1,
+        np.where((c_a < ll14) & (e50_a < e200_a) & (c_a < e200_a) & (adx_a >= 18.0) & (er_a >= 0.15), -1, 0),
+    ).astype(np.int8)
+    out["s09_donchian_cta"] = {"side": s9_side, "atr": atr_a, "ts": ts_a, "end_ts": end_a, "c": c_a}
+
+    sma20 = sma_arr(c_a, 20)
+    sd20 = rolling_std_arr(c_a, 20)
+    bb_up, bb_dn = sma20 + 2.0 * sd20, sma20 - 2.0 * sd20
+    kc_up, kc_dn = sma20 + 1.5 * atr_a, sma20 - 1.5 * atr_a
+    sq3 = pd.Series((bb_up < kc_up) & (bb_dn > kc_dn)).shift(1).rolling(3).min().fillna(0.0).to_numpy() > 0.5
+    s4_side = np.where(
+        sq3 & (c_a > bb_up) & (c_a >= o_a) & (c_a > e200_a) & (e50_a >= e200_a), 1,
+        np.where(sq3 & (c_a < bb_dn) & (c_a <= o_a) & (c_a < e200_a) & (e50_a <= e200_a), -1, 0),
+    ).astype(np.int8)
+    s4_rd = np.maximum(np.abs(c_a - sma20), 1.2 * atr_a)
+    out["s04_vc_squeeze_breakout"] = {"side": s4_side, "atr": atr_a, "ts": ts_a, "end_ts": end_a, "c": c_a, "rd": s4_rd}
+
+    s3 = _causal_s03_cluster_signals(h_a, l_a, c_a, atr_a, ep=233, slope_gate=True)
+    out["s03_htf_ema_rejection"] = {"side": s3["side"], "atr": atr_a, "ts": ts_a, "end_ts": end_a, "c": c_a, "rd": s3["rd"]}
     return out
 
 
@@ -664,10 +741,40 @@ def update_dd_state(state: dict[str, Any], equity: float, dd_levels: list[float]
     return cur_mult
 
 
-def compute_pair_risk_usd(equity: float, cfg: dict[str, Any], pair: dict[str, Any], dd_mult: float, vof_mult: float) -> float:
+def compute_corr_erc_mult(
+    pair: dict[str, Any],
+    positions: list[Any],
+    pair_by_magic: dict[int, dict[str, Any]],
+    corr_matrix: dict[str, float] | None = None,
+    same_cluster_rho: float = 0.55,
+) -> float:
+    """Marginal Equal-Risk-Contribution shrinkage against open portfolio return clusters."""
+    if not positions:
+        return 1.0
+    c_new = _cluster_for_pair(pair)
+    cmap = corr_matrix or {}
+    rho_sum = 0.0
+    for pos in positions:
+        op = pair_by_magic.get(int(getattr(pos, "magic", 0)))
+        if op is None:
+            continue
+        c_open = _cluster_for_pair(op)
+        rho = cmap.get(f"{c_new}|{c_open}", cmap.get(f"{c_open}|{c_new}", same_cluster_rho if c_new == c_open else 0.0))
+        rho_sum += max(0.0, float(rho))
+    return round(float(max(0.50, min(1.00, 1.0 / (1.0 + rho_sum)))), 4)
+
+
+def compute_pair_risk_usd(
+    equity: float,
+    cfg: dict[str, Any],
+    pair: dict[str, Any],
+    dd_mult: float,
+    vof_mult: float,
+    extra_mult: float = 1.0,
+) -> float:
     gov = cfg["governor"]
     risk_pct = float(gov["risk_pct"]) / 100.0
-    return round(float(equity) * risk_pct * float(dd_mult) * float(pair["pair_weight"]) * float(vof_mult), 2)
+    return round(float(equity) * risk_pct * float(dd_mult) * float(pair["pair_weight"]) * float(vof_mult) * float(extra_mult), 2)
 
 
 def m4_portfolio_gate(
@@ -682,7 +789,7 @@ def m4_portfolio_gate(
     committed_sl_risk: float,
     planned_risk_usd: float,
 ) -> tuple[bool, str]:
-    """Enforce exact M4 V3B concurrency, bucket, asset, same-side crypto & equity-floor gates."""
+    """Enforce exact M4 V3B & Sovereign concurrency, cluster, asset, crypto & equity-floor gates."""
     gov = cfg["governor"]
     floor = float(cfg["account"].get("equity_floor_usd", 0.0))
     if equity > 0 and equity < floor:
@@ -694,7 +801,7 @@ def m4_portfolio_gate(
         return False, "pair already has open position"
 
     cooldown_bars = int(gov.get("cooldown_bars", 1))
-    last_out = int(last_close_ts_by_magic.get(magic, 0) or 0)
+    last_out = int(last_close_ts_by_magic.get(str(magic), last_close_ts_by_magic.get(magic, 0)) or 0)
     if last_out > 0 and cur_bar_ts < last_out + cooldown_bars * int(pair["tf_sec"]):
         return False, "cooldown active"
 
@@ -704,6 +811,14 @@ def m4_portfolio_gate(
     sym = pair["mt5_symbol"]
     if sum(1 for p in ours if getattr(p, "symbol", "") == sym) >= int(gov["max_per_asset"]):
         return False, f"max_per_asset {gov['max_per_asset']} on {sym}"
+
+    cl_caps = gov.get("cluster_caps") or {}
+    if cl_caps:
+        cl = _cluster_for_pair(pair)
+        if cl in cl_caps:
+            cl_cnt = sum(1 for p in ours if _cluster_for_pair(pair_by_magic[int(p.magic)]) == cl)
+            if cl_cnt >= int(cl_caps[cl]):
+                return False, f"cluster_cap {cl}={cl_caps[cl]}"
 
     bkt = pair["bucket"]
     b_cap = int((gov.get("bucket_caps") or {}).get(bkt, 99))
@@ -790,9 +905,14 @@ class M4LiveEngine:
         self.chart_map = discover_chart_strategies()
         self.pairs = [p for p in self.cfg["pairs"] if p.get("enabled", True)]
         self.pair_by_magic = {int(p["magic"]): p for p in self.pairs}
+        ws_syms = sorted({str(p["source_symbol"]).upper() for p in self.pairs if p.get("feed_type") == "binance_footprint"})
+        if self.cfg.get("ml_gate", {}).get("enabled", False) and "BTCUSDT" not in ws_syms and (DATA_DIR / "BTCUSDT_agg_footprint.parquet").is_file():
+            ws_syms = sorted(set(ws_syms) | {"BTCUSDT"})
         self.ws_collector = BinanceAggTradeCollector(
-            ["BTCUSDT", "ETHUSDT"], LIVE_FP_DIR, int(self.cfg["governor"].get("sync_margin_sec", 3))
+            ws_syms or ["BTCUSDT", "ETHUSDT"], LIVE_FP_DIR, int(self.cfg["governor"].get("sync_margin_sec", 3))
         )
+        self._crypto_tfs: dict[str, tuple[pd.DataFrame, pd.DataFrame]] = {}
+        self._btc_macro_ref: dict[str, np.ndarray] | None = None
         self._last_sig_eval: dict[str, tuple[int, dict[str, Any]]] = {}
 
     def _rates_to_df(self, rates: Any, tf_sec: int, cur_tick_ts: int | None = None) -> pd.DataFrame:
@@ -817,16 +937,34 @@ class M4LiveEngine:
         payloads: dict[str, dict[str, Any]] = {}
         atr_lookup: dict[str, dict[int, float]] = {}
 
-        # 1. Crypto assets (BTCUSDT, ETHUSDT)
-        crypto_syms = sorted({p["source_symbol"] for p in self.pairs if p["feed_type"] == "binance_footprint"})
+        # 1. Crypto / Binance footprint assets (dynamically mapped to pair mt5_symbol)
+        fp_pairs = [p for p in self.pairs if p["feed_type"] == "binance_footprint"]
+        crypto_syms = sorted({str(p["source_symbol"]).upper() for p in fp_pairs})
+        if self.cfg.get("ml_gate", {}).get("enabled", False) and (DATA_DIR / "BTCUSDT_agg_footprint.parquet").is_file() and "BTCUSDT" not in crypto_syms:
+            crypto_syms_load = sorted(set(crypto_syms) | {"BTCUSDT"})
+        else:
+            crypto_syms_load = crypto_syms
+
+        mt5_by_csym: dict[str, set[str]] = {}
+        for p in fp_pairs:
+            mt5_by_csym.setdefault(str(p["source_symbol"]).upper(), set()).add(str(p["mt5_symbol"]))
+
         crypto_sig_cache: dict[str, dict[tuple[str, str], dict[str, Any]]] = {}
-        for csym in crypto_syms:
+        self._crypto_tfs.clear()
+        self._btc_macro_ref = None
+        for csym in crypto_syms_load:
             self.ws_collector.flush_closed(force=False)
             g2, g4 = build_crypto_live_tfs(csym, LIVE_FP_DIR)
-            crypto_sig_cache[csym] = eval_crypto_signals(g2, g4, self.chart_map)
-            mt5_s = "BTCUSD.pi" if csym == "BTCUSDT" else "ETHUSD.pi"
-            atr_lookup.setdefault(mt5_s, {})[7200] = float(g2["atr"].iloc[-1])
-            atr_lookup[mt5_s][14400] = float(g4["atr"].iloc[-1])
+            self._crypto_tfs[csym] = (g2, g4)
+            if csym == "BTCUSDT":
+                from exchange_feed.backtesting.ml_meta_engine import build_btc_macro_reference
+
+                self._btc_macro_ref = build_btc_macro_reference(g4)
+            if csym in mt5_by_csym:
+                crypto_sig_cache[csym] = eval_crypto_signals(g2, g4, self.chart_map)
+                for mt5_s in mt5_by_csym[csym]:
+                    atr_lookup.setdefault(mt5_s, {})[7200] = float(g2["atr"].iloc[-1])
+                    atr_lookup[mt5_s][14400] = float(g4["atr"].iloc[-1])
 
         # 2. TradFi OHLC assets directly from MT5
         tradfi_groups: dict[tuple[str, int], list[dict[str, Any]]] = {}
@@ -848,21 +986,33 @@ class M4LiveEngine:
                 res = tsigs.get(p["sid"])
                 if res is not None:
                     i = len(res["c"]) - 1
+                    atr_i = float(res["atr"][i])
+                    rd_arr = res.get("rd")
+                    sl_dist_ovr = float(rd_arr[i]) if (rd_arr is not None and float(rd_arr[i]) > 0.0) else None
+                    v_mult = 1.0
+                    if p.get("use_s08_vol_target", False) or self.cfg["governor"].get("use_s08_vol_target", False):
+                        from strategies.s08_vol_target_overlay.overlay import vol_target_risk_usd
+
+                        v_mult = float(
+                            vol_target_risk_usd(
+                                res["c"], "H4" if tf_sec == 14400 else "H1",
+                                1.0, 0.75, 1.25, target_ann_vol=0.22, lookback=20,
+                            )
+                        )
                     payloads[p["pair_id"]] = {
                         "ts": int(res["ts"][i]),
                         "end_ts": int(res["end_ts"][i]),
                         "side": int(res["side"][i]),
-                        "atr": float(res["atr"][i]),
+                        "atr": atr_i,
                         "c": float(res["c"][i]),
-                        "vof_mult": 1.0,
+                        "vof_mult": v_mult,
+                        "sl_dist_override": sl_dist_ovr,
                     }
-                    atr_lookup.setdefault(ms, {})[tf_sec] = float(res["atr"][i])
+                    atr_lookup.setdefault(ms, {})[tf_sec] = atr_i
 
         # Populate crypto payloads
-        for p in self.pairs:
-            if p["feed_type"] != "binance_footprint":
-                continue
-            csym = p["source_symbol"]
+        for p in fp_pairs:
+            csym = str(p["source_symbol"]).upper()
             key = (p["sid"], p["tf"])
             if p["sid"] == "rsi2_of_reversion":
                 tag = "rsi=20.0" if "rsi=20" in p["cfg"] else "rsi=15.0"
@@ -880,6 +1030,7 @@ class M4LiveEngine:
                 "atr": float(res["atr"][i]),
                 "c": float(res["c"][i]),
                 "vof_mult": vof,
+                "sl_dist_override": None,
             }
 
         return payloads, atr_lookup
@@ -1052,9 +1203,64 @@ class M4LiveEngine:
                                  note=f"sp={spread_px:.5f} > {gov['spread_atr_max']}*ATR")
                 continue
 
-            risk_usd = compute_pair_risk_usd(equity, self.cfg, pair, dd_mult, float(pl["vof_mult"]))
+            sl_ovr = pl.get("sl_dist_override")
+            sl_dist = float(sl_ovr) if (sl_ovr is not None and float(sl_ovr) > 0.0) else float(pair["sl_atr"]) * atr
+            max_sp_sl = float(gov.get("max_spread_sl_ratio", 0.0) or 0.0)
+            if max_sp_sl > 0.0 and spread_px > max_sp_sl * sl_dist:
+                self.journal.log("SPREAD_VETO", sleeve=pid, magic=pair["magic"], symbol=ms,
+                                 note=f"sp={spread_px:.5f} > {max_sp_sl:.2f}*SL({sl_dist:.5f})")
+                continue
+
+            ml_mult = 1.0
+            ml_cfg = self.cfg.get("ml_gate") or {}
+            if ml_cfg.get("enabled", False) and pair.get("feed_type") == "binance_footprint":
+                dom = set(ml_cfg.get("domain_symbols") or [])
+                if not dom or ms in dom:
+                    csym_u = str(pair["source_symbol"]).upper()
+                    tfs_pair = self._crypto_tfs.get(csym_u)
+                    if tfs_pair is not None:
+                        from exchange_feed.backtesting.ml_meta_engine import (
+                            FINAL_BUNDLE_PATH,
+                            build_live_ml_feature_vector,
+                            score_live_signal,
+                        )
+
+                        tf_k = 2 if str(pair.get("tf", "4H")).upper() == "2H" else 4
+                        tf_df = tfs_pair[0] if tf_k == 2 else tfs_pair[1]
+                        mid_px = max(1e-9, 0.5 * (ask + bid))
+                        sp_bps_live = (spread_px / mid_px) * 10000.0
+                        is_met = 1.0 if ("XAU" in ms or "XAG" in ms or "GAU" in ms) else 0.0
+                        bpath_raw = ml_cfg.get("bundle_path")
+                        bpath = (ROOT / bpath_raw) if (bpath_raw and not os.path.isabs(str(bpath_raw))) else (
+                            Path(bpath_raw) if bpath_raw else FINAL_BUNDLE_PATH
+                        )
+                        vec = build_live_ml_feature_vector(
+                            tf_df, bar_idx=-1, side=float(side), sleeve=str(pair["sid"]),
+                            tf_k=tf_k, sp_bps=sp_bps_live, is_metal=is_met,
+                            btc_ref=self._btc_macro_ref, bundle_path=bpath, cfg_str=str(pair.get("cfg", "")),
+                        )
+                        if vec is not None:
+                            ml_res = score_live_signal(
+                                vec[0], vec[1], bundle_path=bpath,
+                                min_expected_r=float(ml_cfg.get("min_expected_r", -0.10)),
+                                model_name=ml_cfg.get("model_name"),
+                            )
+                            if ml_res.get("ok") and not ml_res.get("approve_regime", True):
+                                self.journal.log(
+                                    "ML_VETO", sleeve=pid, magic=pair["magic"], symbol=ms,
+                                    side="BUY" if side == 1 else "SELL",
+                                    note=f"E[R]={ml_res['expected_r']:+.3f} ({ml_res['tier']})",
+                                )
+                                continue
+                            if ml_res.get("ok"):
+                                ml_mult = float(ml_res.get("risk_mult", 1.0))
+
+            corr_mult = (
+                compute_corr_erc_mult(pair, positions, self.pair_by_magic, gov.get("corr_matrix"))
+                if gov.get("use_corr_erc", False) else 1.0
+            )
+            risk_usd = compute_pair_risk_usd(equity, self.cfg, pair, dd_mult, float(pl["vof_mult"]), extra_mult=ml_mult * corr_mult)
             max_lot_cap = float(pair.get("max_lot_risk_usd", equity * float(gov["max_risk_single_trade_pct"]) / 100.0))
-            sl_dist = float(pair["sl_atr"]) * atr
             lots, l_err = lots_for_risk(spec, sl_dist, risk_usd, max_lot_cap)
             if lots is None:
                 self.journal.log("RISK_REJECT", sleeve=pid, magic=pair["magic"], symbol=ms,
@@ -1150,10 +1356,21 @@ class M4LiveEngine:
 def run_selftest(cfg_path: Path) -> None:
     cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
     gov = cfg["governor"]
-    assert len(cfg["pairs"]) == 16, f"Expected 16 V3B pairs, got {len(cfg['pairs'])}"
-    assert len({p["magic"] for p in cfg["pairs"]}) == 16, "Duplicate magic IDs"
-    assert abs(float(gov["risk_pct"]) - 0.80) < 1e-9
-    assert int(gov["max_global"]) == 6 and int(gov["max_per_asset"]) == 2 and int(gov["max_crypto_same_side"]) == 4
+    is_sov = "sovereign" in cfg_path.name.lower() or cfg.get("_meta", {}).get("profile") == "sovereign_2500"
+    if is_sov:
+        n_p = len(cfg["pairs"])
+        assert n_p >= 15 and len({p["magic"] for p in cfg["pairs"]}) == n_p, "Duplicate or missing Sovereign magics"
+        risk_pct = float(gov["risk_pct"])
+        assert 0.0 < risk_pct <= float(gov["max_risk_single_trade_pct"]) <= 0.50
+        assert math.isclose(risk_pct, float(cfg["_meta"]["base_risk_pct"]))
+        assert abs(float(gov["max_total_open_risk_pct"]) - 1.0) < 1e-9
+        max_global_expected = 2 if cfg.get("_meta", {}).get("research_only") else 4
+        assert int(gov["max_global"]) == max_global_expected and int(gov["max_per_asset"]) == 1
+    else:
+        assert len(cfg["pairs"]) == 16, f"Expected 16 V3B pairs, got {len(cfg['pairs'])}"
+        assert len({p["magic"] for p in cfg["pairs"]}) == 16, "Duplicate magic IDs"
+        assert abs(float(gov["risk_pct"]) - 0.80) < 1e-9
+        assert int(gov["max_global"]) == 6 and int(gov["max_per_asset"]) == 2 and int(gov["max_crypto_same_side"]) == 4
 
     # 1. Causal Determinism + 1:1 Crypto Optimizer Signal Parity Check on Cached BTC & ETH
     chart_map = discover_chart_strategies()
@@ -1206,7 +1423,7 @@ def run_selftest(cfg_path: Path) -> None:
     assert update_dd_state(st, 2330.0, [4.5, 6.5]) == 0.25  # 6.8% DD
     assert update_dd_state(st, 2450.0, [4.5, 6.5]) == 1.00  # 2.0% DD < 2.25% resets
 
-    # 4. Portfolio Governor Caps (global=6, asset=2, crypto_same_side=4, bucket caps)
+    # 4. Portfolio Governor Caps
     pair_map = {int(p["magic"]): p for p in cfg["pairs"]}
     class _FakePos:
         def __init__(self, sym, magic, ptype):
@@ -1214,18 +1431,26 @@ def run_selftest(cfg_path: Path) -> None:
 
     btc_pairs = [p for p in cfg["pairs"] if p["mt5_symbol"] == "BTCUSD.pi"]
     eth_pairs = [p for p in cfg["pairs"] if p["mt5_symbol"] == "ETHUSD.pi"]
-    mock_pos = [_FakePos("BTCUSD.pi", btc_pairs[0]["magic"], 0), _FakePos("BTCUSD.pi", btc_pairs[1]["magic"], 0)]
-    ok, rsn = m4_portfolio_gate(btc_pairs[2], 1, mock_pos, cfg, pair_map, {}, 1000, 2500.0, 40.0, 20.0)
-    assert not ok and "max_per_asset" in rsn, f"Expected max_per_asset, got {(ok, rsn)}"
+    if is_sov:
+        gau_p = [p for p in cfg["pairs"] if p["mt5_symbol"] == "GAUUSD.pi"][0]
+        mock_p = [_FakePos("BTCUSD.pi", btc_pairs[0]["magic"], 0)]
+        ok_b, rsn_b = m4_portfolio_gate(btc_pairs[1], 1, mock_p, cfg, pair_map, {}, 1000, 2500.0, 6.25, 6.25)
+        assert not ok_b and "max_per_asset" in rsn_b, f"Expected max_per_asset, got {(ok_b, rsn_b)}"
+        ok_g, rsn_g = m4_portfolio_gate(gau_p, 1, mock_p, cfg, pair_map, {}, 1000, 2500.0, 6.25, 6.25)
+        assert ok_g, f"Orthogonal GOLD_GRAM should pass Sovereign gate: {rsn_g}"
+    else:
+        mock_pos = [_FakePos("BTCUSD.pi", btc_pairs[0]["magic"], 0), _FakePos("BTCUSD.pi", btc_pairs[1]["magic"], 0)]
+        ok, rsn = m4_portfolio_gate(btc_pairs[2], 1, mock_pos, cfg, pair_map, {}, 1000, 2500.0, 40.0, 20.0)
+        assert not ok and "max_per_asset" in rsn, f"Expected max_per_asset, got {(ok, rsn)}"
 
-    # Test max_crypto_same_side=4
-    mock_crypto4 = mock_pos + [
-        _FakePos("ETHUSD.pi", eth_pairs[0]["magic"], 0),
-        _FakePos("ETHUSD.pi", eth_pairs[1]["magic"], 0),
-    ]
-    usdjpy_p = [p for p in cfg["pairs"] if p["mt5_symbol"] == "USDJPY.pi"][0]
-    ok_jpy, rsn_jpy = m4_portfolio_gate(usdjpy_p, 1, mock_crypto4, cfg, pair_map, {}, 1000, 2500.0, 60.0, 15.0)
-    assert ok_jpy, f"TradFi should bypass crypto same-side cap: {rsn_jpy}"
+        # Test max_crypto_same_side=4
+        mock_crypto4 = mock_pos + [
+            _FakePos("ETHUSD.pi", eth_pairs[0]["magic"], 0),
+            _FakePos("ETHUSD.pi", eth_pairs[1]["magic"], 0),
+        ]
+        usdjpy_p = [p for p in cfg["pairs"] if p["mt5_symbol"] == "USDJPY.pi"][0]
+        ok_jpy, rsn_jpy = m4_portfolio_gate(usdjpy_p, 1, mock_crypto4, cfg, pair_map, {}, 1000, 2500.0, 60.0, 15.0)
+        assert ok_jpy, f"TradFi should bypass crypto same-side cap: {rsn_jpy}"
 
     # 5. Trail/BE/StepLock state transitions (including progressive +2R @ +3R lock)
     meta = {"side": 1, "entry": 100.0, "sd": 2.0, "atr_entry": 1.0}
@@ -1248,7 +1473,8 @@ def run_selftest(cfg_path: Path) -> None:
         ok_c, rsn_c = m4_portfolio_gate(d_eth[0], -1, [_FakePos("BTCUSD.pi", d_btc[0]["magic"], 0)], dcfg, d_pair_map, {}, 1000, 2500.0, 5.5, 5.5)
         assert not ok_c and "max_crypto_total" in rsn_c, f"Expected max_crypto_total, got {(ok_c, rsn_c)}"
 
-    print("SELFTEST PASS: 16/16 V3B pairs, causal determinism, sizing/ZEC reject, DD hysteresis, M4 governor, BE/step_lock/trail verified.", flush=True)
+    print(f"SELFTEST PASS: {len(cfg['pairs'])} configured pairs, causal determinism, sizing, DD hysteresis, "
+          "governor, BE/step_lock/trail verified.", flush=True)
 
 
 def main() -> int:

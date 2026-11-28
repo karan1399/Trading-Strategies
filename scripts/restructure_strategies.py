@@ -17,7 +17,7 @@ ARCHIVE_DIR = STRAT_DIR / "archive" / "unprofitable"
 ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
 
 # 1. Load accounts from prop_26_5k
-ACC_DIR = ROOT / "footprint_Chart" / "data" / "prop_26_5k" / "accounts"
+ACC_DIR = ROOT / "exchange_feed" / "data" / "prop_26_5k" / "accounts"
 acc_files = sorted(ACC_DIR.glob("Acc_*.json"))
 account_data = {}
 for p in acc_files:
@@ -107,7 +107,7 @@ for py_file in LOOSE_PROFITABLE_FILES:
         target_init.write_text('"""Strategy package entry point."""\nfrom .strategy import *\n', encoding="utf-8")
 
 # For OI strategies (oi_4h_sqz_mom, oi_2h_liq_break, oi_2h_reclaim_fade)
-# They are implemented in footprint_Chart/backtesting/oi_vwap_sweep_research.py
+# They are implemented in exchange_feed/backtesting/oi_vwap_sweep_research.py
 # We create modular strategy packages for them in strategies/
 OI_STRATS = {
     "oi_4h_sqz_mom": "4H OI Squeeze Momentum with Footprint / Imbalance filters",
@@ -123,7 +123,7 @@ for oi_sid, oi_desc in OI_STRATS.items():
     if not target_strat.is_file():
         code = f'''"""OI Strategy: {oi_sid}
 {oi_desc}
-Implements causal signal evaluation referencing footprint_Chart.backtesting.oi_vwap_sweep_research.
+Implements causal signal evaluation referencing exchange_feed.backtesting.oi_vwap_sweep_research.
 """
 from __future__ import annotations
 from typing import Any

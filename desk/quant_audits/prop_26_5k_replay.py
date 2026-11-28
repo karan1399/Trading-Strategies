@@ -15,12 +15,12 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from footprint_Chart.backtesting.mt5_shared_account_portfolio_optimizer import (
+from exchange_feed.backtesting.mt5_shared_account_portfolio_optimizer import (
     simulate_shared_account,
 )
 
 
-DATA = Path("footprint_Chart/data")
+DATA = Path("exchange_feed/data")
 PROP = DATA / "prop_26_5k"
 DAY = 86_400
 SPLIT = int(pd.Timestamp("2024-01-01", tz="UTC").timestamp())

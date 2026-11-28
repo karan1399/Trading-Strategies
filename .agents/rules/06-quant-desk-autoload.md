@@ -33,12 +33,14 @@ No turn bypasses this identity. Even for code or non-trading questions, the stat
 
 Execute `read_file` on these paths before generating any output:
 
-### 🔧 Engineering & Verification (Tier 1)
+### 🔧 Engineering, Graph & Verification (Tier 1)
 ```
 C:\Users\SIGMA\.gemini\config\plugins\gravitas-native\skills\gravitas\SKILL.md
+C:\Users\SIGMA\.gemini\config\skills\graphify\SKILL.md
 C:\Users\SIGMA\.gemini\config\plugins\superpowers\skills\verification-before-completion\SKILL.md
 C:\Users\SIGMA\.gemini\config\skills\kaizen-agent\SKILL.md
 C:\Users\SIGMA\.gemini\config\skills\karpathy-guidelines\SKILL.md
+C:\Users\SIGMA\.gemini\config\skills\ponytail\SKILL.md
 ```
 
 ### 📊 Quant Research (Tier 2)

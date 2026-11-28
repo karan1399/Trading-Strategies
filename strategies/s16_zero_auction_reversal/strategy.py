@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from footprint_Chart.engines.strategy_base import BaseFootprintStrategy, FootprintSignal, StrategyParam
+from exchange_feed.engines.strategy_base import BaseFootprintStrategy, FootprintSignal, StrategyParam
 
 
 class ZeroAuctionReversalStrategy(BaseFootprintStrategy):

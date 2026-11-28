@@ -20216,7 +20216,8 @@ Cleared Delta ILK-01 (116.50.84.115), fixed delta_exec.py slot count, restarted 
 ## R28 AUDIT & WS-14 RE-ANCHORS · 2026-11-25 12:22 UTC · Antigravity
   * DELTA BTCUSD TRAIL: #1714517851 SL 59520.0 (+$0.817 locked); cancelled #1714234069.
   * DELTA NEW FILUSD: #1714518260 SELL_LIMIT 1 @ 0.5340 (SL 0.5465, TP 0.5090, $0.0125 0.88%, 2.00R).
-  * MT5 WS-14 MODIFY (etcode=10009): ETHUSD.pi #20501509 -> 1662.50/1716.50/1554.50 ($5.40); JP225.p #20502882 -> 56450.0/57050.0/55250.0 ($2.64).
+  * MT5 WS-14 MODIFY (
+etcode=10009): ETHUSD.pi #20501509 -> 1662.50/1716.50/1554.50 ($5.40); JP225.p #20502882 -> 56450.0/57050.0/55250.0 ($2.64).
 
 ## R29 ENGINE AUDIT, UNLIMITED SLOTS & AUTO-WAKE FIX · 2026-11-25 13:16 UTC · Antigravity
   * DELTA BRIDGE (`scripts/delta_exec.py`): Added `*USDT -> *USD` + cached `/v2/products` fallback; disabled numeric cap when `max_concurrent <= 0`.
@@ -20309,7 +20310,7 @@ Synced live MT5 #5126976 execution & `/thinking-red-team` backtest verification 
 - Cancelled MT5 `#20568027 ZECUSD.p` (`retcode=10009`, `-$14.22` pending risk); `#20567499 XAUUSD.pi` queued for automatic `TRADE_ACTION_REMOVE` on Metals open. Delta `#26902927` (`NetEq=$3.3801`, `0` pos, `2` orders `OPUSD`/`TRXUSD`) unchanged.
 
 ### [2026-11-27T06:04:00Z] · R44 · DAEMON RECOVERY (`4/4` LIVE), `40/40` `16P` VERIFICATION & `HK50.p` `#20580949` SYNC
-- Restarted all 4 stopped background daemons (`start-server.mjs :3000`, `telemetry_daemon.py v5.0`, `footprint_Chart.app :8060`, `unified_alpha_pilot.py --live`). Verified HTTP `200` on `:3000` & `:8060`, and `40/40 Effective Fresh` (`10` disk + `30` live continuation) under `telemetry_16p_engine.py --verify-gate --live-continue`.
+- Restarted all 4 stopped background daemons (`start-server.mjs :3000`, `telemetry_daemon.py v5.0`, `exchange_feed.app :8060`, `unified_alpha_pilot.py --live`). Verified HTTP `200` on `:3000` & `:8060`, and `40/40 Effective Fresh` (`10` disk + `30` live continuation) under `telemetry_16p_engine.py --verify-gate --live-continue`.
 - Live MT5 `#5126976`: `Bal=$2,501.57, Eq=$2,501.17, Open=1, Pend=0`. `ig_s2_rsi2_meanrev` (`42009`) executed `#20580949 HK50.p SELL 0.03 @ 22741.7` (`SL 22866.91, TP 22450.44, Risk $4.80, Reward $11.16, 2.33R`, `retcode=10009`).
 - Delta `#26902927` MCP & REST halted (`HTTP 401 ip_not_whitelisted_for_api_key`, new IP `116.50.84.113`).
 

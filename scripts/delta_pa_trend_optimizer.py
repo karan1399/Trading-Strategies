@@ -30,9 +30,9 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from footprint_Chart.backtesting.mt5_shared_account_portfolio_optimizer import simulate_shared_account
+from exchange_feed.backtesting.mt5_shared_account_portfolio_optimizer import simulate_shared_account
 
-DATA_DIR = ROOT / "Delta_Exchange_Data"
+DATA_DIR = ROOT / "historical_data" / "delta_exchange"
 CATALOG_PATH = DATA_DIR / "delta_products_catalog.json"
 REPORT_JSON = DATA_DIR / "delta_pa_optimization_report.json"
 DELTA_FIT_TS = int(pd.Timestamp("2026-06-01", tz="UTC").timestamp())

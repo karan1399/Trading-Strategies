@@ -3666,7 +3666,8 @@ Empirical audit of today's MT5 deal history reveals the exact root causes of sto
 
 
 ### [2026-11-25T12:22:00Z] · Antigravity · ZERO-CACHE 252-ASSET AUDIT, BTC TRAILING SL, FILUSD ENTRY & WS-14 MT5 RE-ANCHORS — R28 (17:52 IST)
-**Verdict:** Completed fresh zero-cache audit of all 252 assets and 168 footprint directories (artifact ALL_252_ASSETS_QUANT_AUDIT_20261125.md) + cleaned __pycache__. **DELTA EXCHANGE #26902927 EXECUTED:** (1) Trailed BTCUSD -1 @ 60337 SL atomically 59850 -> 59520.0 (#1714517851 placed first, #1714234069 cancelled cleanly; locks +$0.817 above M15 EMA89 59447 & Day VAH 59405 while mark=58591, uPnL=+$1.7450, +282% ROE); (2) Staged #1714518260 FILUSD SELL_LIMIT 1 @ 0.5340 (post_only=true, SL 0.5465 clears 0.5415 3d/7d/30d peaks, TP 0.5090, $0.0125 risk=0.88%, 2.00R); kept #1714234905 ADAUSD. **MT5 #5126976 WS-14 RE-ANCHORS (etcode=10009):** (1) Modified #20501509 ETHUSD.pi -> 1662.50 / SL 1716.50 / TP 1554.50 ($5.40, 2.00R, clears 1696.17 30d peak + 2.29 ATR); (2) Modified #20502882 JP225.p -> Session POC 56450.0 / SL 57050.0 / TP 55250.0 ($2.64, 2.00R). Kept BNBUSD.p (#20432336), EURUSD.pi (#20467916), GBPNZD.pi (#20499902), NOKJPY.pi (#20501510).
+**Verdict:** Completed fresh zero-cache audit of all 252 assets and 168 footprint directories (artifact ALL_252_ASSETS_QUANT_AUDIT_20261125.md) + cleaned __pycache__. **DELTA EXCHANGE #26902927 EXECUTED:** (1) Trailed BTCUSD -1 @ 60337 SL atomically 59850 -> 59520.0 (#1714517851 placed first, #1714234069 cancelled cleanly; locks +$0.817 above M15 EMA89 59447 & Day VAH 59405 while mark=58591, uPnL=+$1.7450, +282% ROE); (2) Staged #1714518260 FILUSD SELL_LIMIT 1 @ 0.5340 (post_only=true, SL 0.5465 clears 0.5415 3d/7d/30d peaks, TP 0.5090, $0.0125 risk=0.88%, 2.00R); kept #1714234905 ADAUSD. **MT5 #5126976 WS-14 RE-ANCHORS (
+etcode=10009):** (1) Modified #20501509 ETHUSD.pi -> 1662.50 / SL 1716.50 / TP 1554.50 ($5.40, 2.00R, clears 1696.17 30d peak + 2.29 ATR); (2) Modified #20502882 JP225.p -> Session POC 56450.0 / SL 57050.0 / TP 55250.0 ($2.64, 2.00R). Kept BNBUSD.p (#20432336), EURUSD.pi (#20467916), GBPNZD.pi (#20499902), NOKJPY.pi (#20501510).
 
 **Confidence:** VERIFIED (Delta & MT5 post-exec readbacks + 252/252 audit + :3000 live checks + antigravity_selfcheck.py).
 
@@ -3830,7 +3831,7 @@ Empirical audit of today's MT5 deal history reveals the exact root causes of sto
 
 ### [2026-11-26T21:38:30Z] · `atg-exec` · R43: **FINAL `12/12` UNIFIED PORTFOLIO + `1.5y` TIME-DECAY ML BUNDLE & AUTONOMOUS PILOT ACTIVATION**
 - **12/12 Historic Footprint + 1m/Funding Complete:** `ETHUSDT` finished (`70/70` monthly parquets + 32d daily backfill -> `522,672` `agg_footprint` rows, `3,067,200` 1m klines; total `12,022,832` footprint rows across all `12/12` CORE assets). `ETHUSDT` (`ETHUSD.pi`, `17.77bp`) earned `n=815, WR=41.1%, SumR=+187.39R, OOS=+123.81R, t=3.185`.
-- **Final Unified Engine Persisted (`footprint_Chart/data/final_live_ml_bundle.pkl` & `final_live_blueprint.json`):**
+- **Final Unified Engine Persisted (`exchange_feed/data/final_live_ml_bundle.pkl` & `final_live_blueprint.json`):**
   - Portfolio #7 (`Tight-Spread <=25bp BTC(3)+Alts(1) vOF`): `n=1312, WR=44.2%, PF=1.60, SumR=+367.39R, End=$320,691.40, CAGR=103.7%, DD=28.68%, Calmar=3.62, Sharpe=1.99, OOS=+222.25R, t=3.859`.
   - ML Overlay (`1.5y Time-Decay Expected-R Huber Blend`: `30% CatBoost + 25% XGBoost + 25% LightGBM + 10% HuberLinear + 10% PyTorch SeqResNet`, `4,599` training trades, 7d-purged OOS `2023–2026`): `n=1258, PF=1.51, SumR=+234.50R, DD=22.8%, Calmar=4.23, Sharpe=1.87, t=2.941`.
 - **MT5 `#5126976` Remediation & Auto-Prune Guard:**
@@ -3845,7 +3846,7 @@ Empirical audit of today's MT5 deal history reveals the exact root causes of sto
 - **4/4 Background Daemons Restarted & Verified:**
   - `task-32674`: `node scripts/start-server.mjs` (`:3000` Next.js CG Terminal — `HTTP 200`).
   - `task-32675`: `python -u scripts/telemetry_daemon.py` (`v5.0 winloop`, cycling live `62/161` CG + `151` MT5 layers).
-  - `task-32676`: `python -u -m footprint_Chart.app` (`:8060` FastAPI `/api/final-live-portfolio` — `HTTP 200`).
+  - `task-32676`: `python -u -m exchange_feed.app` (`:8060` FastAPI `/api/final-live-portfolio` — `HTTP 200`).
   - `task-32677`: `python -u engine/unified_alpha_pilot.py --live --i-understand-live-risk` (`#5126976`, `9` sleeves active).
 - **MT5 `#5126976` Live Blotter & Execution (`WS-16` Sync):**
   - Interlock `TradeAllowed=True`. `Bal=$2,501.57`, `Eq=$2,501.17`, `Free=$2,414.05`, `Open=1`, `Pend=0`.
@@ -3856,17 +3857,17 @@ Empirical audit of today's MT5 deal history reveals the exact root causes of sto
 **Confidence:** VERIFIED (`manage_task` `4/4`, `:3000`/`:8060` HTTP `200`, `telemetry_16p_engine --verify-gate --live-continue`, live `MT5` API + `order_calc_profit`, `delta-exchange-mcp`).
 
 ### [2026-11-27T06:35:00Z] · `atg-exec` · R45: **NUMBA PER-ASSET × PER-STRATEGY (`ALL-13` + `MT5`) OPTIMIZER, `CANDIDATE 12` (`CALMAR 5.13`) & `BLEND_TD` ML (`CALMAR 5.80`) LIVE PROMOTION**
-- **Track A (`footprint_Chart/backtesting/multi_asset_optimizer.py` + `fast_kernels.py`):** Expanded Numba-accelerated `optimize_per_asset_strict_is_oos` across all `13` strategy families × `12` CORE assets (`IS <= 2023` -> `Frozen OOS 2024–2026`, `50/50` split Metals) with parameter plateau regularization (`0.65 self + 0.35 sibling`), half-split IS stability (`half_min > -2.5R`), and cost-edge dominance (`>= 2.8x`).
+- **Track A (`exchange_feed/backtesting/multi_asset_optimizer.py` + `fast_kernels.py`):** Expanded Numba-accelerated `optimize_per_asset_strict_is_oos` across all `13` strategy families × `12` CORE assets (`IS <= 2023` -> `Frozen OOS 2024–2026`, `50/50` split Metals) with parameter plateau regularization (`0.65 self + 0.35 sibling`), half-split IS stability (`half_min > -2.5R`), and cost-edge dominance (`>= 2.8x`).
   - **New #1 Champion (`Candidate 12`: `Tight<=25bp Per-Asset All-13 Robust`, `mc=5, vOF`):** Full `2021–2026`: **`n=1,455, WR=44.5%, PF=1.65, SumR=+441.78R, CAGR=131.3%, MaxDD=25.62%, Calmar=5.13, Sharpe=1.93, t_HAC=3.753`** (vs prior pooled `Candidate 7`: `Calmar=3.61, PF=1.59, SumR=+367.21R`). Frozen `2024–2026` OOS: **`+223.10R, PF=1.58, MaxDD=25.37%, Calmar=5.41`**.
-  - Refreshed [`footprint_Chart/data/final_live_ml_bundle.pkl`](file:///c:/Users/SIGMA/Documents/Trading-Strategies/footprint_Chart/data/final_live_ml_bundle.pkl) (`7,173` training trades) & [`final_live_blueprint.json`](file:///c:/Users/SIGMA/Documents/Trading-Strategies/footprint_Chart/data/final_live_blueprint.json): 7d-purged OOS `2023–2026` `Per-Asset Opt13 + Blend_TD Full ExpectancyScale` achieved **`n=928, PF=1.72, SumR=+293.07R, DD=22.9%, Calmar=5.80, Sharpe=2.09, t_HAC=3.299`** across 4 consecutive profitable years (`+122.36 / +60.23 / +63.89 / +46.59R`).
+  - Refreshed [`exchange_feed/data/final_live_ml_bundle.pkl`](file:///c:/Users/SIGMA/Documents/Trading-Strategies/exchange_feed/data/final_live_ml_bundle.pkl) (`7,173` training trades) & [`final_live_blueprint.json`](file:///c:/Users/SIGMA/Documents/Trading-Strategies/exchange_feed/data/final_live_blueprint.json): 7d-purged OOS `2023–2026` `Per-Asset Opt13 + Blend_TD Full ExpectancyScale` achieved **`n=928, PF=1.72, SumR=+293.07R, DD=22.9%, Calmar=5.80, Sharpe=2.09, t_HAC=3.299`** across 4 consecutive profitable years (`+122.36 / +60.23 / +63.89 / +46.59R`).
 - **Track B (`engine/mt5_per_asset_optimizer.py` + `engine/config.json` + `engine/unified_alpha_pilot.py`):** Built `sim_ohlc_trades_nb` and audited all `151` MT5 symbols (`110` passed `$6` min-lot risk; `76` passed `2x spread <= 25%` ATR; `sp_bps <= 25.0` & non-FX regime scoping enforced after Holdout falsified FX 4H trends at `-27.06R`). Strict `55% Train -> 23% Val -> 22% Locked Holdout OOS` yielded **`n=84, WR=46.4%, SumR=+25.99R, PF=1.64, 7/7 sleeves positive`**.
   - Promoted Holdout-verified tight-spread `symbol_params` into [`engine/config.json`](file:///c:/Users/SIGMA/Documents/Trading-Strategies/engine/config.json): re-enabled `ig_s5_zscore_breakout` (`42007`, added to `gold_cluster_magics`) strictly on `GAUUSD.pi` & `GAUCNH.pi` (`+12.24R OOS`), plus per-asset optimal configs for `GAUCNH.pi`/`GAUUSD.pi`/`ETHUSD.pi`/`DSHUSD.p`/`USWTI.p` (`ig_s7, ig_s9, ig_s10, ig_s2`) and fixed per-symbol `max_hold_bars` lookup in `unified_alpha_pilot.py`.
-- **Verification Gates:** `unified_alpha_pilot.py --selftest` -> **`SELFTEST: PASS`**; `pytest -v footprint_Chart/tests/test_footprint_suite.py strategies/tests/test_fp_steroids.py` -> **`12 passed` (`105.29s`)**; `graphify update .` -> **`4846 nodes, 11767 edges, 252 communities`**.
+- **Verification Gates:** `unified_alpha_pilot.py --selftest` -> **`SELFTEST: PASS`**; `pytest -v exchange_feed/tests/test_footprint_suite.py strategies/tests/test_fp_steroids.py` -> **`12 passed` (`105.29s`)**; `graphify update .` -> **`4846 nodes, 11767 edges, 252 communities`**.
 
 **Confidence:** VERIFIED (`pytest` 12/12 + `--selftest` + live `mt5.symbol_info()` spreads + `multi_asset_optimal_report.json` + `mt5_per_asset_opt_report.json` + `final_live_blueprint.json`).
 
 ### [2026-11-27T08:05:00Z] · GLM · R46 QUANT REVIEW & OPTIMIZATION AUDIT OF `prop_26_5k` @ `61350ea6e` (13:35 IST)
-**Verdict:** Performed zero-lookahead review of `footprint_Chart/backtesting/strategy_26_5k_optimizer.py` + `multi_asset_prop_optimizer.py` + shared-account MC engine at commit `61350ea6e`. **Code is causally clean — no blocking lookahead found.** Six minor findings (F1–F6 below), none execution-blocking. Signed off on the 12 purges (Stage-A scorecards genuinely lack account-level OOS edge); Tier-B promotions denied as-is; concrete rescue hypotheses proposed with exact parameter diffs.
+**Verdict:** Performed zero-lookahead review of `exchange_feed/backtesting/strategy_26_5k_optimizer.py` + `multi_asset_prop_optimizer.py` + shared-account MC engine at commit `61350ea6e`. **Code is causally clean — no blocking lookahead found.** Six minor findings (F1–F6 below), none execution-blocking. Signed off on the 12 purges (Stage-A scorecards genuinely lack account-level OOS edge); Tier-B promotions denied as-is; concrete rescue hypotheses proposed with exact parameter diffs.
 
 #### 1. Causal & leakage audit (VERIFIED — code inspection at `61350ea6e`):
 1. **`_build_wf_trade_pool` is properly causal** (18M trailing → 6M forward, `ts_hi <= ts_in < ts_end`): no leakage.
@@ -3948,8 +3949,42 @@ Empirical audit of today's MT5 deal history reveals the exact root causes of sto
 **Verdict:** Independently verified R048 (`44/44` pytest + `2/2` `--selftest` + `68/68` proposal preconditions). Accepted Sol's causal/sizing fixes and merged with Antigravity's persistent MT5 IPC bridge fix. Promoted desk-capped M4 policy to [engine/config_m4_v3b_desk.json](engine/config_m4_v3b_desk.json) (`max_global=2`, `max_per_asset=1`, `max_crypto_same_side=1`, `max_crypto_total=1`, `1.0%` heat, `$6.00` gross cap), applied all `16` `execution_status` metadata tags from `r048_shadow_proposals.json`, and patched M4's Binance Vision 404 retry spam (`1800s` cooldown) while flagging live `ws=down` neutral kline fallback.
 
 **VERIFIED:**
-- `footprint_Chart/tests/test_footprint_suite.py` (`9/9`), `test_r048_causal_inputs.py` (`15/15`), `test_mt5_shared_account_causality.py` (`7/7`), `test_r047_farm_policy.py` (`6/6`), `Charts/tests/test_charts_suite.py` (`4/4`), `strategies/tests/test_fp_steroids.py` (`3/3`), `m4_live_engine.py --selftest`, `unified_alpha_pilot.py --selftest`, and `r048_verify` / `r048_delta_replay` local replays.
+- `exchange_feed/tests/test_footprint_suite.py` (`9/9`), `test_r048_causal_inputs.py` (`15/15`), `test_mt5_shared_account_causality.py` (`7/7`), `test_r047_farm_policy.py` (`6/6`), `Charts/tests/test_charts_suite.py` (`4/4`), `strategies/tests/test_fp_steroids.py` (`3/3`), `m4_live_engine.py --selftest`, `unified_alpha_pilot.py --selftest`, and `r048_verify` / `r048_delta_replay` local replays.
 - Live MT5 `#5126976`: `Bal=$2,501.80`, `Eq=$2,501.80`, `positions=[]`, `orders=[]`, `trade_allowed=True`.
 - Live Delta (`delta_pa_live_trader.py`): `Eq=$3.37`, `1/6` slot `SNDKBUSD`; hardened `1.0%` (`$0.0337`) floor actively blocking oversized min-contracts (`XAUTUSD`, `SLVONUSD`, `MMTUSD`, `AKEUSD`).
 
 **Signed — Antigravity, execution authority.**
+
+### [2026-11-28T10:01:46Z] · Arena.ai / Codex · REVIEW · round R049
+**Verdict:** Sovereign Core has a positive historical shadow result. Withhold execution reliance until interlock, snapshot, sizing and readback defects are resolved.
+
+**VERIFIED:** Replayed the actual SovereignCoreEngine.step_once and inherited position manager using an in-memory broker and archived CFD/footprint bars for the configured 18 routes. May–November 2026 from $2,501.80 returned +5.05% on 98 closed trades, PF 1.67 and marked DD 1.37%. An extra 20 bp per round trip reduced return to +2.16% and PF 1.19. A $6 stressed rejection screen with an extra 10 bp returned +3.07% on 63 closes. The built-in self-test passed using local cached data. Reproduced a Friday mutation attempt while the interlock was red, a missed flatten with a failed signal feed, zero retries after the Saturday boundary, a persisted cooldown ignored due to string/integer keys, and failed position/order readback represented as zero exposure. The nominal $6.25 route cap is independent of the configured 0.25% equity ceiling and the binding $6 stressed limit.
+
+**Proposal:** Make every venue mutation interlock-first, separate stop management from signal availability, persist and reconcile missed Friday exits, fail closed on invalid exposure snapshots, and normalize cooldown keys. Intersect all account and desk limits at the rounded executable stop using loss-currency risk and broker readback.
+
+**UNVERIFIED-BY-AGENT:** Historical tick-level fills, financing/commissions, live broker terms and holiday calendars, shared reservations and any live performance. No broker was contacted and no engine or venue configuration was changed. [Signed report](quant_audits/sovereign_engine_review.md) · [Direct engine runner](quant_audits/sovereign_engine_step_replay.py) · [Results and trade log](quant_audits/sovereign_engine_step_results.json).
+
+**Signed — Arena.ai / Codex, quantitative review.**
+
+### [2026-11-28T10:26:19Z] · Arena.ai / Codex · AUDIT · round R050
+**VERIFIED:** Hardened Sovereign's interlock ordering, failed exposure snapshots, persisted weekend flatten, cooldown, quote age, rounded-stop stressed lot cap and operator proposal path. Rescreened 94 historical recipes from 10,418 stored trades. Ran the actual engine's decision loop across chronological windows with native CFD candle pricing and 11 new route challengers. The incumbent ranked first on the pre-final drawdown-adjusted score. The desk-slot ETH Donchian arm returned +2.27% at +20 bp in October–November on 18 closed trades versus +1.40% for the matched desk-slot control. Passed 110 sampled challenger closed-prefix comparisons. [Signed upgrade review](quant_audits/sovereign_upgrade_review.md) · [Replay and search](quant_audits/sovereign_upgrade_search_results.json).
+
+**SHADOW_TRIAL:** Froze the ETH Donchian arm in a research-only profile with two total slots, one crypto and separate state. Existing incumbent composition remains the reference. [Profile](../engine/config_sovereign_shadow.json).
+
+**UNVERIFIED-BY-AGENT:** Tick-level execution and actual charges, broker and farm reservation evidence, structural shelf clearance and new forward profitability. No connected venue action occurred. The fresh all-pairs refit is a separate offline verification step.
+
+**Signed — Arena.ai / Codex, quantitative review.**
+
+### [2026-11-28T10:33:15Z] · Arena.ai / Codex · ADDENDUM · round R050
+**VERIFIED:** The isolated refit completed all 728 Stage A cells, changed 138 recipes and supplied 128 routes passing the stressed pre-2024 filter. All six larger Stage A baskets finished with 2026 historical PF at or below 1.00 under +20 bp. The exact saved ETH shadow profile ran offline over May–November and returned +3.79% at +20 bp on 78 closes, with PF 1.70 and sampled marked DD 0.94%. The 35 focused tests and both offline self-tests passed. The research profile rejected live mode. The protection bridge now rechecks interlock state before every close or amendment, and proposal headroom fails closed on unprotected or unvalueable exposures. [Final report and evidence](quant_audits/sovereign_upgrade_review.md).
+
+**Disposition:** Keep the incumbent as the default reference and retain the ETH challenger under the independently replayable research profile. UNVERIFIED-BY-AGENT for venue fills, native cashflows, structural shelf clearance and forward performance. No venue action occurred.
+
+**Signed — Arena.ai / Codex, quantitative review.**
+
+### [2026-11-28T10:42:23Z] · Arena.ai / Codex · REVIEW · round R051
+**VERIFIED:** Updated Sovereign's default sizing target and equity ceiling to 0.50% per trade. The $6 stressed hard cap remains binding at the $2,501.80 replay seed. The archived 1 May–20 November 2026 comparison at +20 bp per round trip returned +3.09%, 1.21% marked drawdown and 83 closed trades for the updated incumbent. The 0.25% incumbent returned +2.75% and 0.99% marked drawdown. The frozen ETH Donchian shadow profile at 0.25% returned +3.79% and 0.94% marked drawdown. The maximum modeled stressed entry risk at 0.50% was $5.996712. Both offline self-tests and 14 focused tests passed. [Equity curve](quant_audits/sovereign_equity_curve.png) · [Results and daily equity](quant_audits/sovereign_equity_results.json) · [Replay runner](quant_audits/sovereign_equity_replay.py).
+
+**Disposition:** Keep autonomous entry on hold. The corrected engine manages existing Sovereign positions under the operator's interlock and emits new entries as desk proposals. Antigravity owns broker approval and execution. UNVERIFIED-BY-AGENT for current venue state, pending-limit gateway and shared reservation readback, tick fills, and forward profitability. No connected venue action occurred.
+
+**Signed — Arena.ai / Codex, quantitative review.**

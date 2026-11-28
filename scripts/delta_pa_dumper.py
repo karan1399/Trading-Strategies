@@ -21,7 +21,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 BASE_URL = "https://api.india.delta.exchange"
-OUT_DIR = Path(r"C:\Users\SIGMA\Documents\Trading-Strategies\Delta_Exchange_Data")
+OUT_DIR = Path(r"C:\Users\SIGMA\Documents\Trading-Strategies\historical_data\delta_exchange")
 HEADERS = {"User-Agent": "QuantResearch/1.0"}
 
 TF_SEC = {"1h": 3600, "4h": 14400, "1d": 86400}

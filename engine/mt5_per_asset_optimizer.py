@@ -25,9 +25,9 @@ if str(ROOT) not in sys.path:
 import numpy as np
 import pandas as pd
 
-from footprint_Chart.backtesting.fast_kernels import sim_ohlc_trades_nb
-from footprint_Chart.backtesting.multi_asset_optimizer import compute_hac_stats
-from footprint_Chart.backtesting.portfolio_engine import _dsr_pct
+from exchange_feed.backtesting.fast_kernels import sim_ohlc_trades_nb
+from exchange_feed.backtesting.multi_asset_optimizer import compute_hac_stats
+from exchange_feed.backtesting.portfolio_engine import _dsr_pct
 from strategies.core.indicators import (
     adx_arr,
     ema_arr,
@@ -39,9 +39,9 @@ from strategies.core.indicators import (
     williams_r_arr,
 )
 
-HIST_DIR = ROOT / "historical_parquet"
+HIST_DIR = ROOT / "historical_data" / "mt5_parquet"
 CONFIG_PATH = ROOT / "engine" / "config.json"
-REPORT_PATH = ROOT / "footprint_Chart" / "data" / "mt5_per_asset_opt_report.json"
+REPORT_PATH = ROOT / "exchange_feed" / "data" / "mt5_per_asset_opt_report.json"
 
 TF_DIR = {"M1": "1M", "M5": "5M", "M15": "15M", "H1": "1H", "H4": "4H"}
 

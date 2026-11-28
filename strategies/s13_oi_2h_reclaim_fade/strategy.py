@@ -1,6 +1,6 @@
 """OI Strategy: oi_2h_reclaim_fade
 2H False Breakout Reclaim / Mean Reversion Fade
-Implements causal signal evaluation referencing footprint_Chart.backtesting.oi_vwap_sweep_research.
+Implements causal signal evaluation referencing exchange_feed.backtesting.oi_vwap_sweep_research.
 """
 from __future__ import annotations
 from typing import Any

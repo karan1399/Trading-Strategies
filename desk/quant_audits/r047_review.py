@@ -21,9 +21,9 @@ from strategies.rsi2_mean_reversion.strategy import Rsi2MeanReversionStrategy
 from desk.quant_audits.prop_26_5k_replay import (
     DATA, DAY, END, PROP, SPLIT, START, bootstrap, equity_series, statistics,
 )
-from footprint_Chart.backtesting import strategy_26_5k_optimizer as optimizer
-from footprint_Chart.backtesting.mt5_shared_account_portfolio_optimizer import _entry_order
-from footprint_Chart.backtesting.portfolio_engine import _load_funding_arrays
+from exchange_feed.backtesting import strategy_26_5k_optimizer as optimizer
+from exchange_feed.backtesting.mt5_shared_account_portfolio_optimizer import _entry_order
+from exchange_feed.backtesting.portfolio_engine import _load_funding_arrays
 
 
 SEED = 47026

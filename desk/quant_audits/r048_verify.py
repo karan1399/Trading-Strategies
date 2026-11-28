@@ -10,18 +10,18 @@ import pandas as pd
 
 from engine.m4_live_engine import eval_crypto_signals, eval_tradfi_signals
 from engine.unified_alpha_pilot import SymbolSpec, lots_for_risk
-from footprint_Chart.backtesting.btc_all25_optimizer_v2 import _df_to_bars, _prep_arrs
-from footprint_Chart.backtesting.fast_kernels import sim_1m_trades_nb
-from footprint_Chart.backtesting.mt5_shared_account_portfolio_optimizer import (
+from exchange_feed.backtesting.btc_all25_optimizer_v2 import _df_to_bars, _prep_arrs
+from exchange_feed.backtesting.fast_kernels import sim_1m_trades_nb
+from exchange_feed.backtesting.mt5_shared_account_portfolio_optimizer import (
     _exit_available_at, simulate_shared_account,
 )
-from footprint_Chart.backtesting.strategy_26_5k_optimizer import discover_chart_strategies
+from exchange_feed.backtesting.strategy_26_5k_optimizer import discover_chart_strategies
 from strategies.s11_of_initiative_breakout.strategy import (
     OrderFlowInitiativeBreakoutStrategy, completed_d1_directions,
 )
 
 
-DATA = Path("footprint_Chart/data")
+DATA = Path("exchange_feed/data")
 PROP = DATA / "prop_26_5k"
 MT5 = DATA / "mt5_portfolio"
 START = 1609459200
