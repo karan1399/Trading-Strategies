@@ -5,7 +5,7 @@ across 4H (with 1H intrabar execution) and 1H individually for every Delta Excha
 future contract dumped in Delta_Exchange_Data/, enforcing:
   - Strict causal timing (signal on closed bar t -> fill at open of t+1)
   - Realistic round-trip costs (2x5bps taker fees + live spread + liquidity-tier slippage)
-  - Chronological 50% IS -> 50% Frozen OOS split + IS clone pruning (|corr| <= 0.72)
+  - Fixed UTC fit and evaluation boundaries with settled labels and IS clone pruning
   - Multi-strategy ensemble combination + 20,000-path block-bootstrap Monte Carlo
 """
 from __future__ import annotations
@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 import json
 import math
 from pathlib import Path
+import sys
 from typing import Any
 
 import matplotlib
@@ -25,9 +26,17 @@ import numpy as np
 import pandas as pd
 import pyarrow.parquet as pq
 
-DATA_DIR = Path(r"C:\Users\SIGMA\Documents\Trading-Strategies\Delta_Exchange_Data")
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from footprint_Chart.backtesting.mt5_shared_account_portfolio_optimizer import simulate_shared_account
+
+DATA_DIR = ROOT / "Delta_Exchange_Data"
 CATALOG_PATH = DATA_DIR / "delta_products_catalog.json"
 REPORT_JSON = DATA_DIR / "delta_pa_optimization_report.json"
+DELTA_FIT_TS = int(pd.Timestamp("2026-06-01", tz="UTC").timestamp())
+DELTA_OUTER_TS = int(pd.Timestamp("2026-12-01", tz="UTC").timestamp())
 ARTIFACT_PNG = Path(
     r"C:\Users\SIGMA\.gemini\antigravity\brain\4ed94c81-b1da-4868-8a7c-aec85386790d\delta_pa_dashboard.png"
 )
@@ -164,8 +173,8 @@ def _sim_delta_nb(
             e_idx += 1
         if e_idx >= n_e:
             break
-        # Reject huge gap (> 4 * tf_sec)
-        if exec_ts[e_idx] - target_t > 4 * tf_sec:
+        # A missing expected entry hour is a data gap, not a delayed signal fill.
+        if exec_ts[e_idx] != target_t:
             continue
 
         ent = exec_o[e_idx]
@@ -188,12 +197,13 @@ def _sim_delta_nb(
             bh = exec_h[j]
             bl = exec_l[j]
             bc = exec_c[j]
+            bo = exec_o[j]
             t_out = exec_ts[j]
 
             # Update extreme for BE & Chandelier trail cleanly
             if sd == 1:
                 if bl <= sl:
-                    raw_pnl = (sl - ent) / rd
+                    raw_pnl = (min(sl, bo) - ent) / rd
                     closed = True
                     break
                 if tp > 0.0 and bh >= tp:
@@ -216,7 +226,7 @@ def _sim_delta_nb(
                         sl = cand
             else:
                 if bh >= sl:
-                    raw_pnl = (ent - sl) / rd
+                    raw_pnl = (ent - max(sl, bo)) / rd
                     closed = True
                     break
                 if tp > 0.0 and bl <= tp:
@@ -245,15 +255,14 @@ def _sim_delta_nb(
             j += 1
 
         if not closed:
-            raw_pnl = sd * (exec_c[n_e - 1] - ent) / rd
-            t_out = exec_ts[n_e - 1]
+            break
 
         cost_r = (cost_frac * ent) / rd
         out_ti[cnt] = t_in
         out_to[cnt] = t_out
         out_r[cnt] = raw_pnl - cost_r
         cnt += 1
-        cooldown_ts = t_out + tf_sec
+        cooldown_ts = t_out + 3600
 
     return out_ti[:cnt], out_to[:cnt], out_r[:cnt]
 
@@ -373,11 +382,15 @@ def _build_pa_signals(df: pd.DataFrame) -> dict[str, list[tuple[str, np.ndarray]
     return out
 
 
-def _score_arr(ti: np.ndarray, r: np.ndarray, split_ts: int) -> dict[str, Any]:
+def _score_arr(ti: np.ndarray, to: np.ndarray, r: np.ndarray, split_ts: int,
+               evaluation_end_ts: int = DELTA_OUTER_TS) -> dict[str, Any]:
     if len(r) == 0:
         return {"n": 0, "r": 0.0, "pf": 0.0, "wr": 0.0, "nis": 0, "isr": 0.0, "ispf": 0.0, "ist": 0.0, "noos": 0, "oosr": 0.0, "oospf": 0.0, "score": -99.0}
-    ism = ti < split_ts
-    ris, roos = r[ism], r[~ism]
+    available = to + 3600
+    ism = (ti < split_ts) & (available < split_ts)
+    oosm = (ti >= split_ts) & (ti < evaluation_end_ts) & (available < evaluation_end_ts)
+    ris, roos = r[ism], r[oosm]
+    r = r[ism | oosm]
     nis, noos = int(len(ris)), int(len(roos))
     ig, il = float(ris[ris > 0].sum()), float(abs(ris[ris <= 0].sum()))
     is_pf = (ig / il) if il > 0 else (9.9 if ig > 0 else 0.0)
@@ -390,7 +403,8 @@ def _score_arr(ti: np.ndarray, r: np.ndarray, split_ts: int) -> dict[str, Any]:
     stab = 1.0 if hmin > 0 else (0.65 if hmin > -3.0 else 0.25)
     sc = ist * math.sqrt(max(0.2, min(4.0, is_pf))) * stab if (nis >= 6 and ist > 0) else (-10.0 + 0.05 * float(ris.sum()))
     return {
-        "n": int(len(r)), "r": round(float(r.sum()), 2), "pf": round(pf_all, 2), "wr": round(float((r > 0).mean() * 100.0), 1),
+        "n": int(len(r)), "r": round(float(r.sum()), 2), "pf": round(pf_all, 2),
+        "wr": round(float((r > 0).mean() * 100.0), 1) if len(r) else 0.0,
         "nis": nis, "isr": round(float(ris.sum()), 2), "ispf": round(is_pf, 2), "ist": round(ist, 2), "hmin": round(hmin, 2),
         "noos": noos, "oosr": round(float(roos.sum()), 2), "oospf": round(oos_pf, 2), "score": float(sc),
     }
@@ -403,74 +417,28 @@ def _sim_combo(
     min_ts: int | None = None,
     nmc: int = 20000,
     run_mc: bool = False,
+    max_ts: int | None = None,
 ) -> dict[str, Any]:
-    """Simulate realistic sequential/concurrent equity for selected PA ensemble."""
-    tl = sorted([t for t in trades_list if (min_ts is None or t[1] >= min_ts)], key=lambda x: (x[1], x[2]))
-    if len(tl) < 5:
-        return {"n": len(tl), "cagr": 0.0, "max_dd": 0.0, "calmar": 0.0, "pf": 0.0, "wr": 0.0, "net_r": 0.0, "sharpe": 0.0, "mc_med_1y": 0.0, "mc_ploss": 100.0, "mc_dd95": 0.0}
-
-    eq = 100000.0
-    pk = eq
-    max_dd = 0.0
-    active_out: list[int] = []
-    acc_r: list[float] = []
-    daily: dict[int, float] = {}
-
-    for _, tin, tout, rv in tl:
-        active_out = [x for x in active_out if x > tin]
-        if len(active_out) >= max_conc:
-            continue
-        active_out.append(tout)
-        acc_r.append(rv)
-        pnl_pct = rv * (risk_pct / 100.0)
-        eq = max(1.0, eq * (1.0 + pnl_pct))
-        if eq > pk:
-            pk = eq
-        dd = (pk - eq) / pk * 100.0
-        if dd > max_dd:
-            max_dd = dd
-        dk = int(tout // 86400)
-        daily[dk] = daily.get(dk, 0.0) + rv * risk_pct
-
-    ra = np.array(acc_r, dtype=float)
-    span_d = max(30.0, (tl[-1][2] - tl[0][1]) / 86400.0)
-    span_y = span_d / 365.25
-    cagr = ((eq / 100000.0) ** (1.0 / span_y) - 1.0) * 100.0 if eq > 0 else -100.0
-    gw = float(ra[ra > 0].sum())
-    gl = float(abs(ra[ra <= 0].sum()))
-    pf = gw / gl if gl > 0 else (9.9 if gw > 0 else 0.0)
-    calmar = cagr / max(max_dd, 0.5)
-
-    # Full calendar daily array for Sharpe & 20K MC
-    d0 = min(daily.keys())
-    d1 = max(daily.keys())
-    d_arr = np.array([daily.get(k, 0.0) for k in range(d0, d1 + 1)], dtype=float)
-    sharpe = float(d_arr.mean() / (d_arr.std() + 1e-9) * math.sqrt(365.0)) if len(d_arr) > 10 else 0.0
-
-    mc_med, mc_pl, mc_dd95 = 0.0, 0.0, 0.0
-    if run_mc and len(d_arr) >= 30:
-        rng = np.random.default_rng(2026)
-        hz = min(365, len(d_arr))
-        blk = min(7, max(3, len(d_arr) // 8))
-        nb = (hz + blk - 1) // blk
-        st = rng.integers(0, max(1, len(d_arr) - blk + 1), size=(nmc, nb))
-        idx = (st[:, :, None] + np.arange(blk)[None, None, :]).reshape(nmc, -1)[:, :hz]
-        paths = np.cumprod(np.maximum(0.01, 1.0 + d_arr[idx] * 0.01), axis=1)
-        p_full = np.hstack([np.ones((nmc, 1)), paths])
-        pks = np.maximum.accumulate(p_full, axis=1)
-        dds = ((pks - p_full) / pks * 100.0).max(axis=1)
-        mc_med = round(float((np.median(paths[:, -1]) - 1.0) * 100.0), 1)
-        mc_pl = round(float((paths[:, -1] < 1.0).mean() * 100.0), 1)
-        mc_dd95 = round(float(np.percentile(dds, 95)), 1)
-
+    """Use the same cash, capacity and label clock as the shared offline replay."""
+    rows = [dict(sleeve=sid, symbol="DELTA_PRODUCT", mt5_symbol="DELTA_PRODUCT", category="DELTA",
+                 bucket="PA", side="", ts_in=ti, ts_out=to, exit_available_ts=to + 3600, r=r)
+            for sid, ti, to, r in trades_list]
+    model = simulate_shared_account("Delta", rows, risk_pct=risk_pct, max_global_conc=max_conc,
+                                    max_per_asset=1, use_vof=False, dd_throttle_1=0,
+                                    min_ts=min_ts, max_ts=max_ts, mc_runs=nmc if run_mc else 0)["metrics"]
+    monte_carlo = model.get("mc_20k", {})
     return {
-        "n": len(ra), "cagr": round(cagr, 1), "max_dd": round(max_dd, 2), "calmar": round(calmar, 2),
-        "pf": round(pf, 2), "wr": round(float((ra > 0).mean() * 100.0), 1), "net_r": round(float(ra.sum()), 2),
-        "sharpe": round(sharpe, 2), "mc_med_1y": mc_med, "mc_ploss": mc_pl, "mc_dd95": mc_dd95,
+        "n": model["trades"], "cagr": model["cagr_pct"], "max_dd": model["max_dd_pct"],
+        "calmar": model["calmar"], "pf": model["pf"], "wr": model.get("wr", 0.0),
+        "net_r": model.get("net_r", 0.0), "sharpe": model.get("sharpe", 0.0),
+        "mc_med_1y": monte_carlo.get("med_1y_pct"), "mc_ploss": monte_carlo.get("p_loss_pct"),
+        "mc_dd95": monte_carlo.get("dd95"),
     }
 
 
-def optimize_delta_symbol(prod: dict[str, Any]) -> dict[str, Any] | None:
+def optimize_delta_symbol(
+    prod: dict[str, Any], *, run_mc: bool = True, cost_stress_bps: float = 0.0,
+) -> dict[str, Any] | None:
     sym = prod["symbol"]
     p4 = DATA_DIR / "ohlc_4h" / f"{sym}.parquet"
     p1 = DATA_DIR / "ohlc_1h" / f"{sym}.parquet"
@@ -478,6 +446,8 @@ def optimize_delta_symbol(prod: dict[str, Any]) -> dict[str, Any] | None:
         return None
     df4 = pq.read_table(p4).to_pandas().sort_values("timestamp").reset_index(drop=True)
     df1 = pq.read_table(p1).to_pandas().sort_values("timestamp").reset_index(drop=True)
+    df4 = df4[df4["timestamp"] + 14400 < DELTA_OUTER_TS].reset_index(drop=True)
+    df1 = df1[df1["timestamp"] + 3600 < DELTA_OUTER_TS].reset_index(drop=True)
     if len(df4) < 300 or len(df1) < 1000:
         return {"symbol": sym, "verdict": "INSUFFICIENT_HISTORY", "bars_4h": len(df4), "bars_1h": len(df1), "turnover_usd": prod["turnover_usd"]}
 
@@ -489,7 +459,8 @@ def optimize_delta_symbol(prod: dict[str, Any]) -> dict[str, Any] | None:
     turn = float(prod.get("turnover_usd") or 0.0)
     sp = max(4.0, min(40.0, float(prod.get("live_sp_bps") or 8.0)))
     slip = 2.0 if turn >= 5_000_000 else (6.0 if turn >= 500_000 else 15.0)
-    rt_cost = float(prod.get("taker_fee_bps", 5.0)) * 2.0 + sp + slip
+    rt_cost = float(prod.get("fixed_research_cost_bps", float(prod.get("taker_fee_bps", 5.0)) * 2.0 + sp + slip))
+    rt_cost += cost_stress_bps
 
     e1_ts = np.ascontiguousarray(df1["timestamp"].to_numpy(dtype=np.int64))
     e1_o = np.ascontiguousarray(df1["open"].to_numpy(dtype=np.float64))
@@ -497,7 +468,7 @@ def optimize_delta_symbol(prod: dict[str, Any]) -> dict[str, Any] | None:
     e1_l = np.ascontiguousarray(df1["low"].to_numpy(dtype=np.float64))
     e1_c = np.ascontiguousarray(df1["close"].to_numpy(dtype=np.float64))
 
-    split_ts = int(df4["timestamp"].iloc[len(df4) // 2])
+    split_ts = DELTA_FIT_TS
     min_is = 8 if span_d >= 270 else 5
 
     strat_best: list[dict[str, Any]] = []
@@ -521,7 +492,7 @@ def optimize_delta_symbol(prod: dict[str, Any]) -> dict[str, Any] | None:
                     (3.0, 6.0, 4.0, 1.5),
                 ):
                     o_ti, o_to, o_r = _sim_delta_nb(s_ts, s_end, s_atr, s_c, sa, e1_ts, e1_o, e1_h, e1_l, e1_c, sl_m, tp_m, tr_m, be_m, mh, tf_sec, rt_cost)
-                    sc = _score_arr(o_ti, o_r, split_ts)
+                    sc = _score_arr(o_ti, o_to, o_r, split_ts)
                     cand = {
                         "sid": sid, "tf": tf_l, "cfg": f"{cfg_s},sl={sl_m},tp={tp_m},tr={tr_m},be={be_m}",
                         "ti": o_ti, "to": o_to, "ra": o_r, **sc,
@@ -535,8 +506,6 @@ def optimize_delta_symbol(prod: dict[str, Any]) -> dict[str, Any] | None:
 
     qual = [x for x in strat_best if x["nis"] >= min_is and x["isr"] > 2.0 and x["ispf"] >= 1.20 and x["ist"] >= 0.65]
     qual.sort(key=lambda x: x["score"], reverse=True)
-    if len(qual) < 2:
-        qual = sorted([x for x in strat_best if x["isr"] > 1.0 and x["n"] >= 10], key=lambda x: x["score"], reverse=True)[:4]
 
     # IS Clone Pruning (|corr_IS| <= 0.72)
     picked: list[dict[str, Any]] = []
@@ -546,7 +515,7 @@ def optimize_delta_symbol(prod: dict[str, Any]) -> dict[str, Any] | None:
         for q in qual:
             dm: dict[int, float] = {}
             for _, tin, tout, rv in strat_trades[q["sid"]]:
-                if tin < split_ts:
+                if tin < split_ts and tout + 3600 < split_ts:
                     dk = int(tout // 86400)
                     dm[dk] = dm.get(dk, 0.0) + rv
                     days_s.add(dk)
@@ -568,14 +537,19 @@ def optimize_delta_symbol(prod: dict[str, Any]) -> dict[str, Any] | None:
 
     comb_trades = [t for p in picked for t in strat_trades[p["sid"]]]
     # Pick best causal risk_pct strictly inside MaxDD <= 12%
-    best_full, best_oos, best_rp = {}, {}, 0.50
+    best_is, best_rp = {}, 0.50
     for rp in (0.35, 0.50, 0.75, 1.00):
-        cf = _sim_combo(comb_trades, risk_pct=rp, max_conc=3, min_ts=None, run_mc=False)
-        if not best_full or (cf["max_dd"] <= 14.0 and cf["calmar"] > best_full["calmar"]):
-            best_full = cf
+        cf = _sim_combo(comb_trades, risk_pct=rp, max_conc=1, max_ts=split_ts)
+        if cf["n"] >= min_is and cf["max_dd"] <= 12.0 and (
+            not best_is or cf["calmar"] > best_is["calmar"]
+        ):
+            best_is = cf
             best_rp = rp
-    best_full = _sim_combo(comb_trades, risk_pct=best_rp, max_conc=3, min_ts=None, nmc=20000, run_mc=True)
-    best_oos = _sim_combo(comb_trades, risk_pct=best_rp, max_conc=3, min_ts=split_ts, run_mc=False)
+    if not best_is:
+        return {"symbol": sym, "verdict": "REJECT", "turnover_usd": turn}
+    best_full = _sim_combo(comb_trades, risk_pct=best_rp, max_conc=1, max_ts=DELTA_OUTER_TS,
+                            nmc=20000, run_mc=run_mc)
+    best_oos = _sim_combo(comb_trades, risk_pct=best_rp, max_conc=1, min_ts=split_ts, max_ts=DELTA_OUTER_TS)
 
     if best_full["pf"] >= 1.45 and best_oos["pf"] >= 1.25 and best_full["max_dd"] <= 14.0 and best_full["cagr"] >= 20.0 and turn >= 100_000:
         verdict = "CHAMPION_TREND"
@@ -594,6 +568,10 @@ def optimize_delta_symbol(prod: dict[str, Any]) -> dict[str, Any] | None:
         "turnover_usd": round(turn, 0),
         "rt_cost_bps": round(rt_cost, 1),
         "risk_pct": best_rp,
+        "fit_asof_ts": DELTA_FIT_TS,
+        "outer_holdout_start_ts": DELTA_OUTER_TS,
+        "research_status": "SHADOW_TRIAL",
+        "train": best_is,
         "recipe": recipe,
         "full": best_full,
         "oos": best_oos,

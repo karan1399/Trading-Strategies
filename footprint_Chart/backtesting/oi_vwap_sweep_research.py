@@ -119,24 +119,36 @@ def ensure_full_metrics(sym: str = "BTCUSDT", start_d: date = date(2021, 12, 1))
     return full
 
 
-def attach_causal_oi_vwap_features(gf: pd.DataFrame, m_df: pd.DataFrame, bar_hours: int) -> pd.DataFrame:
-    """Strictly causal as-of alignment (`oi_ts <= bar_end_ts`) + statistical OI/Vol/2D-VWAP Z-scores."""
+def attach_causal_oi_vwap_features(
+    gf: pd.DataFrame, m_df: pd.DataFrame, bar_hours: int, *, require_available_at: bool = False,
+) -> pd.DataFrame:
+    """Align cached event times in research or recorded release times in strict mode."""
     df = gf.copy().reset_index(drop=True)
     m = m_df.sort_values("ts").reset_index(drop=True)
 
     # Exact causal point-in-time alignment: last 5m OI sample at or before bar end_ts
-    aligned = pd.merge_asof(
-        df[["end_ts"]].rename(columns={"end_ts": "ts"}).sort_values("ts"),
-        m,
-        on="ts",
-        direction="backward",
-        tolerance=3600 * bar_hours,
-    )
+    if require_available_at:
+        if "available_at" not in m or m["available_at"].isna().any() or (m["available_at"] < m["ts"]).any():
+            raise ValueError("OI samples must carry valid point-in-time availability")
+        m["available_at"] = m["available_at"].astype(np.int64)
+        released = m.sort_values(["available_at", "ts"])
+        newest = released[released["ts"] == released["ts"].cummax()]
+        aligned = pd.merge_asof(df[["end_ts"]].sort_values("end_ts"), newest,
+                                left_on="end_ts", right_on="available_at", direction="backward",
+                                tolerance=600)
+        stale = aligned["end_ts"] - aligned["ts"] > 600
+        aligned.loc[stale, ["oi_coin", "oi_usd", "top_ls", "global_ls", "taker_ls"]] = np.nan
+    else:
+        aligned = pd.merge_asof(
+            df[["end_ts"]].rename(columns={"end_ts": "ts"}).sort_values("ts"), m, on="ts",
+            direction="backward", tolerance=3600 * bar_hours,
+        )
     for col in ("oi_coin", "oi_usd", "top_ls", "global_ls", "taker_ls"):
         df[col] = aligned[col].to_numpy(dtype=np.float64)
 
     # Also compute minimum/max OI excursion WITHIN the bar to catch intrabar liquidation drops that partially rebuilt!
     m_ts = m["ts"].to_numpy(dtype=np.int64)
+    m_available = m["available_at"].to_numpy(dtype=np.int64) if require_available_at else m_ts
     m_oi = m["oi_coin"].to_numpy(dtype=np.float64)
     b_ts = df["ts"].to_numpy(dtype=np.int64)
     b_end = df["end_ts"].to_numpy(dtype=np.int64)
@@ -146,13 +158,17 @@ def attach_causal_oi_vwap_features(gf: pd.DataFrame, m_df: pd.DataFrame, bar_hou
     ends = np.searchsorted(m_ts, b_end, side="right")
     for k in range(len(df)):
         s_i, e_i = int(starts[k]), int(ends[k])
-        if e_i > s_i and s_i > 0:
-            prev_oi = m_oi[s_i - 1]
+        prior = s_i - 1
+        while prior >= 0 and m_available[prior] > b_end[k]:
+            prior -= 1
+        if e_i > s_i and prior >= 0:
+            prev_oi = m_oi[prior]
             if prev_oi > 0 and np.isfinite(prev_oi):
-                seg = m_oi[s_i:e_i]
-                mn = float(np.nanmin(seg))
-                min_oi_in_bar[k] = mn
-                max_doi_drop_bar[k] = (mn - prev_oi) / prev_oi * 100.0
+                seg = m_oi[s_i:e_i][m_available[s_i:e_i] <= b_end[k]]
+                if len(seg) and np.isfinite(seg).any():
+                    mn = float(np.nanmin(seg))
+                    min_oi_in_bar[k] = mn
+                    max_doi_drop_bar[k] = (mn - prev_oi) / prev_oi * 100.0
 
     # Bar-to-bar OI % delta (coin-denominated, immune to spot-price valuation drop)
     oi = pd.Series(df["oi_coin"])

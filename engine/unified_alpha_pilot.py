@@ -258,21 +258,25 @@ def lots_for_risk(spec: SymbolSpec, sl_distance: float, risk_usd: float,
     Returns (lots, "") or (None, reason). NEVER compresses the stop: if the risk at
     volume_min exceeds risk_usd_max the trade is rejected outright.
     """
-    if sl_distance <= 0:
-        return None, "non-positive stop distance"
+    if not all(math.isfinite(v) and v > 0 for v in (sl_distance, risk_usd, risk_usd_max)):
+        return None, "invalid stop distance or risk budget"
+    if (not all(math.isfinite(v) and v > 0 for v in (spec.vol_min, spec.vol_max, spec.vol_step))
+            or spec.vol_min > spec.vol_max):
+        return None, "invalid lot grid"
     unit = spec.value_per_price_unit()
-    if unit <= 0:
+    if not math.isfinite(unit) or unit <= 0:
         return None, "invalid tick value/size"
     risk_per_lot = sl_distance * unit
-    lots = normalize_lots(risk_usd / risk_per_lot, spec.vol_step)
+    lots = normalize_lots(min(risk_usd, risk_usd_max, spec.vol_max * risk_per_lot) / risk_per_lot,
+                          spec.vol_step)
     if lots < spec.vol_min - 1e-9:
         min_risk = spec.vol_min * risk_per_lot
         if min_risk > risk_usd_max + 1e-9:
             return None, (f"min-lot risk ${min_risk:.2f} > cap ${risk_usd_max:.2f} "
                           f"— reject, stop not compressed")
         lots = spec.vol_min
-    if lots > spec.vol_max:
-        lots = spec.vol_max
+    if lots > spec.vol_max + 1e-9 or lots * risk_per_lot > risk_usd_max + 1e-9:
+        return None, "lot grid exceeds broker volume or dollar cap"
     return round(lots, 8), ""
 
 
@@ -311,6 +315,8 @@ class MT5Bridge:
         if not MT5_OK:
             print("[bridge] MetaTrader5 python package not available")
             return False
+        if self.connected and mt5.terminal_info() is not None:
+            return True
         acc = self.cfg.get("account", {})
         kw = {}
         if acc.get("terminal_path"):
@@ -319,6 +325,7 @@ class MT5Bridge:
             kw.update(login=int(acc["login"]), password=acc["password"], server=acc["server"])
         if not mt5.initialize(**kw):
             print("[bridge] initialize failed:", mt5.last_error())
+            self.connected = False
             return False
         self.connected = True
         ai = mt5.account_info()
@@ -329,6 +336,7 @@ class MT5Bridge:
     def shutdown(self):
         if MT5_OK and self.connected:
             mt5.shutdown()
+            self.connected = False
 
     def ensure_visible(self, symbol: str):
         info = mt5.symbol_info(symbol)

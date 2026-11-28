@@ -17,7 +17,9 @@ Stage B (26 Independent $5,000 Accounts):
 from __future__ import annotations
 
 import argparse
+from collections.abc import Callable
 from datetime import date, datetime, timezone
+from functools import lru_cache
 import gc
 import glob
 import json
@@ -46,6 +48,7 @@ from footprint_Chart.backtesting.btc_quant_pareto_optimizer import ALPHA_BUCKETS
 from footprint_Chart.backtesting.fast_kernels import sim_1m_trades_nb
 from footprint_Chart.backtesting.mt5_per_asset_27strat_optimizer import EXTRA_BUCKETS
 from footprint_Chart.backtesting.mt5_shared_account_portfolio_optimizer import (
+    _exit_available_at,
     TS_2022,
     simulate_shared_account,
 )
@@ -61,6 +64,7 @@ from footprint_Chart.backtesting.oi_vwap_sweep_research import (
     ensure_full_metrics,
 )
 from footprint_Chart.backtesting.portfolio_engine import _load_funding_arrays, load_asset_tfs_cached
+from footprint_Chart.backtesting.prop_execution import ExecutionTape, replay_lot_risk
 from footprint_Chart.data_pipeline.binance_dumper import DATA_DIR
 from footprint_Chart.data_pipeline.dump_mutual_5k import MUTUAL_SPECS_PATH, snapshot_all_mutual_specs
 from strategies.core.fp_features import build_fp_context
@@ -79,6 +83,7 @@ CFG_DIR = PROP_DIR / "configs"
 TRADES_DIR = PROP_DIR / "trades"
 ACC_DIR = PROP_DIR / "accounts"
 MASTER_JSON = PROP_DIR / "prop_26_5k_master.json"
+OUTER_HOLDOUT_TS = int(pd.Timestamp("2026-12-01", tz="UTC").timestamp())
 
 # Purged/retired standalone $5K prop strategies (failed to sustain >0R OOS after causal upgrades;
 # retained in Stage A scorecard & master JSON audit for composite/GLM redesign, purged from accounts/)
@@ -131,10 +136,22 @@ ALL_26_STRATEGIES: tuple[str, ...] = (
 )
 
 
-def _optimize_asset_all26(sym: str, mspec: dict[str, Any], chart_map: dict[str, Any], force: bool = False) -> dict[str, Any] | None:
-    cfg_p = CFG_DIR / f"{sym}.json"
-    tr_p = TRADES_DIR / f"{sym}.parquet"
-    if not force and cfg_p.is_file() and tr_p.is_file():
+def _optimize_asset_all26(
+    sym: str, mspec: dict[str, Any], chart_map: dict[str, Any], force: bool = False,
+    *, train_start_ts: int | None = None, fit_asof_ts: int = SPLIT_2024_TS,
+    evaluation_end_ts: int = OUTER_HOLDOUT_TS, execution: ExecutionTape | None = None,
+    output_dir: Path = PROP_DIR,
+) -> dict[str, Any] | None:
+    if not (train_start_ts is None or train_start_ts < fit_asof_ts):
+        raise ValueError("Training window must start before fit cutoff")
+    if not fit_asof_ts < evaluation_end_ts <= OUTER_HOLDOUT_TS:
+        raise ValueError("Recipe selection must stop before the sealed outer holdout")
+    cfg_dir, trades_dir = output_dir / "configs", output_dir / "trades"
+    cfg_p = cfg_dir / f"{sym}.json"
+    tr_p = trades_dir / f"{sym}.parquet"
+    if (execution is None and not force and cfg_p.is_file() and tr_p.is_file()
+            and train_start_ts is None and fit_asof_ts == SPLIT_2024_TS
+            and evaluation_end_ts == OUTER_HOLDOUT_TS):
         return json.loads(cfg_p.read_text(encoding="utf-8"))
 
     agg_p = DATA_DIR / f"{sym}_agg_footprint.parquet"
@@ -152,6 +169,12 @@ def _optimize_asset_all26(sym: str, mspec: dict[str, Any], chart_map: dict[str, 
     print(f"[26xAsset] Evaluating 26 strategies on {sym:10s} ({mt5_sym:9s} | sp={live_sp:6.2f}bp | 0.01_2.5ATR=${min_sl25_usd:6.2f})...", flush=True)
 
     g2, g4, m1_ts, m1_o, m1_h, m1_l, m1_c = load_asset_tfs_cached(sym, DATA_DIR, adaptive_tick=True)
+    g2 = g2[g2["end_ts"] < evaluation_end_ts].reset_index(drop=True)
+    g4 = g4[g4["end_ts"] < evaluation_end_ts].reset_index(drop=True)
+    if min(len(g2), len(g4)) < 240:
+        return None
+    last_minute = int(np.searchsorted(m1_ts, evaluation_end_ts - 60))
+    m1_ts, m1_o, m1_h, m1_l, m1_c = (a[:last_minute] for a in (m1_ts, m1_o, m1_h, m1_l, m1_c))
     m1_ts_c = np.ascontiguousarray(m1_ts, dtype=np.int64)
     m1_o_c = np.ascontiguousarray(m1_o, dtype=np.float64)
     m1_h_c = np.ascontiguousarray(m1_h, dtype=np.float64)
@@ -169,17 +192,26 @@ def _optimize_asset_all26(sym: str, mspec: dict[str, Any], chart_map: dict[str, 
 
     ts_start, ts_end = int(g4["ts"].iloc[0]), int(g4["end_ts"].iloc[-1])
     is_short = (cat == "COMMODITY") or (ts_start >= SPLIT_2024_TS - 120 * 86400)
-    split_ts = int(g4["ts"].iloc[len(g4) // 2]) if is_short else SPLIT_2024_TS
+    split_ts = fit_asof_ts
     min_is = 5 if is_short else 8
 
     def _run(arrs, tf_sec, side_arr, sl, tp, tr, be, stp, mh, dyn):
-        return sim_1m_trades_nb(
+        if train_start_ts is not None:
+            side_arr = np.where(arrs[1] >= train_start_ts, side_arr, 0)
+        if execution is not None:
+            side_arr = execution.filter_entries(side_arr, arrs[1], arrs[2], sl, m1_ts_c, m1_o_c)
+        result = sim_1m_trades_nb(
             arrs[0], arrs[1], arrs[2], arrs[3], arrs[4], arrs[5],
             np.ascontiguousarray(side_arr, dtype=np.int8),
             m1_ts_c, m1_o_c, m1_h_c, m1_l_c, m1_c_c,
             int(tf_sec), float(sl), float(tp), float(tr), float(be), 0.05, bool(stp), int(mh), 1, bool(dyn),
-            True, float(live_sp), False, 0.0, 0.0, 5, -2.5, -1.5, fts_c, frt_c,
+            True, 0.0 if execution is not None else live_sp, False, 0.0, 0.0, 5,
+            0.0 if execution is not None else -2.5, 0.0 if execution is not None else -1.5, fts_c, frt_c,
+            closed_bar_replay=True,
         )
+        if execution is not None:
+            execution.apply_costs(result, sl * arrs[2][result[0]])
+        return result
 
     c4, h4, l4 = a4[5], g4["h"].to_numpy(dtype=float), g4["l"].to_numpy(dtype=float)
     e89_4, e233_4 = a4[3], a4[4]
@@ -213,7 +245,9 @@ def _optimize_asset_all26(sym: str, mspec: dict[str, Any], chart_map: dict[str, 
     def _push(sid, tf_l, mode_l, cfg_s, df_u, arrs, tf_s, sa, sl, tp, tr, be, stp, mh, dyn):
         assert float(tp) >= 2.0, f"{sid} violated min 2.0R target: tp={tp}"
         res = _run(arrs, tf_s, sa, sl, tp, tr, be, stp, mh, dyn)
-        sc = _score_is_oos(res[1], res[7], split_ts, min_is, o_fr=res[8])
+        sc = _score_is_oos(res[1], res[7], split_ts, min_is, o_fr=res[8],
+                           exit_available_ts=res[2] + 60, train_start_ts=train_start_ts,
+                           evaluation_end_ts=evaluation_end_ts)
         trials.setdefault(sid, []).append({
             "sid": sid, "tf": tf_l, "mode": mode_l, "cfg": cfg_s,
             "sl": sl, "tp": tp, "tr": tr, "be": be, "stp": stp, "mh": mh, "dyn": dyn,
@@ -409,13 +443,24 @@ def _optimize_asset_all26(sym: str, mspec: dict[str, Any], chart_map: dict[str, 
     # ---- OI + 2D/4D VWAP Strategies (with >=2R TP + trailing + FP steroid) ----
     try:
         oi_start_d = date(2025, 11, 1) if cat == "COMMODITY" else date(2021, 12, 1)
-        m_df = ensure_full_metrics(sym, start_d=oi_start_d)
+        if execution is None:
+            m_df = ensure_full_metrics(sym, start_d=oi_start_d)
+        else:
+            local_oi = DATA_DIR / f"{sym}_metrics_5m_full.parquet"
+            m_df = pd.read_parquet(local_oi) if local_oi.is_file() else pd.DataFrame()
+            if "available_at" not in m_df:
+                m_df = pd.DataFrame()
         if not m_df.empty and len(m_df) >= 200:
-            g4_oi = attach_causal_oi_vwap_features(g4, m_df, bar_hours=4)
-            g2_oi = attach_causal_oi_vwap_features(g2, m_df, bar_hours=2)
+            g4_oi = attach_causal_oi_vwap_features(g4, m_df, bar_hours=4,
+                                                 require_available_at=execution is not None)
+            g2_oi = attach_causal_oi_vwap_features(g2, m_df, bar_hours=2,
+                                                 require_available_at=execution is not None)
             oi_t0 = int(m_df["ts"].iloc[0]) + (24 * 7200 if cat == "COMMODITY" else 48 * 7200)
             valid4 = g4_oi["ts"].to_numpy(dtype=np.int64) >= oi_t0
             valid2 = g2_oi["ts"].to_numpy(dtype=np.int64) >= oi_t0
+            if execution is not None:
+                valid4 &= g4_oi["oi_coin"].notna().to_numpy()
+                valid2 &= g2_oi["oi_coin"].notna().to_numpy()
             zdoi4, zint4, zvol4 = g4_oi["z_doi"].to_numpy(float), g4_oi["z_intrabar_drop"].to_numpy(float), g4_oi["z_vol"].to_numpy(float)
             vwl4, vwh4 = g4_oi["vwz2d_low"].to_numpy(float) <= -2.0, g4_oi["vwz2d_high"].to_numpy(float) >= 2.0
             for zt_oi, zt_v in ((1.5, 1.5), (1.25, 1.25)):
@@ -509,7 +554,7 @@ def _optimize_asset_all26(sym: str, mspec: dict[str, Any], chart_map: dict[str, 
         is_ok = (best["nis"] >= min_is and best["ispf"] >= 1.15 and best["isr"] > 0.0 and avg_is_r >= 0.12)
 
         trs = _res_to_dicts(best["df"], sid, f"{best['tf']} {best['mode']}", best["res"])
-        for tr in trs:
+        for row_i, tr in enumerate(trs):
             idx_r = max(0, int(np.searchsorted(ea4, int(tr["ts_in"]), side="right")) - 1)
             s_sign = 1 if tr["side"] == "BUY" else -1
             imb_v = int(imba4[idx_r]) if sum_imba4[idx_r] > 0 else s_sign
@@ -527,9 +572,15 @@ def _optimize_asset_all26(sym: str, mspec: dict[str, Any], chart_map: dict[str, 
             tr["cfg"] = best["cfg"]
             tr["vof_mult"] = round(float(vof_mult), 4)
             tr["mt5_cost_bps"] = mt5_cost
+            tr["exit_available_ts"] = int(tr["ts_out"]) + 60
+            if execution is not None:
+                entry = float(best["res"][5][row_i])
+                stop = float(best["df"]["atr"].iat[tr["bar_i"]]) * best["sl"]
+                tr.update(execution.sizing_terms(tr["ts_in"], entry, stop))
+                tr["spread_bps_at_entry"] = execution.quote_at(tr["ts_in"])["spread_bps"]
         all_rows.extend(trs)
 
-        r_is_arr = np.array([float(x["r"]) for x in trs if int(x["ts_in"]) < split_ts], dtype=float)
+        r_is_arr = np.array([float(x["r"]) for x in trs if _exit_available_at(x) < split_ts], dtype=float)
         down_var = float(np.mean(np.minimum(r_is_arr, 0.0) ** 2)) if len(r_is_arr) > 1 else 1.0
         mean_r = float(r_is_arr.mean()) if len(r_is_arr) else 0.0
         is_kelly = max(0.05, (mean_r / max(down_var, 0.15)) * math.sqrt(max(1.0, best["ispf"]))) if best["nis"] >= 5 else 0.05
@@ -548,8 +599,8 @@ def _optimize_asset_all26(sym: str, mspec: dict[str, Any], chart_map: dict[str, 
             "n_all": best["n_all"], "r_all": best["r_all"], "pf_all": best["pf_all"],
         })
 
-    CFG_DIR.mkdir(parents=True, exist_ok=True)
-    TRADES_DIR.mkdir(parents=True, exist_ok=True)
+    cfg_dir.mkdir(parents=True, exist_ok=True)
+    trades_dir.mkdir(parents=True, exist_ok=True)
     if all_rows:
         pd.DataFrame(all_rows).to_parquet(tr_p, index=False)
 
@@ -558,9 +609,13 @@ def _optimize_asset_all26(sym: str, mspec: dict[str, Any], chart_map: dict[str, 
         "span_start": datetime.fromtimestamp(ts_start, tz=timezone.utc).strftime("%Y-%m-%d"),
         "span_end": datetime.fromtimestamp(ts_end, tz=timezone.utc).strftime("%Y-%m-%d"),
         "split_iso": datetime.fromtimestamp(split_ts, tz=timezone.utc).strftime("%Y-%m-%d"),
+        "fit_asof_ts": fit_asof_ts, "train_start_ts": train_start_ts,
+        "evaluation_end_ts": evaluation_end_ts, "outer_holdout_start_ts": OUTER_HOLDOUT_TS,
+        "cost_model": "point_in_time" if execution is not None else "snapshot_research_proxy",
         "live_sp_bps": live_sp, "mt5_cost_bps": mt5_cost, "min_lot_25atr_sl_usd": min_sl25_usd,
         "swap_long": sw_l, "swap_short": sw_s,
         "strategies_evaluated": len(strat_catalog),
+        "ledger_rows": len(all_rows),
         "strategy_scorecard": strat_catalog,
     }
     cfg_p.write_text(json.dumps(out_cfg, indent=2), encoding="utf-8")
@@ -571,28 +626,30 @@ def _optimize_asset_all26(sym: str, mspec: dict[str, Any], chart_map: dict[str, 
 
 def _build_wf_trade_pool(
     sid: str,
-    candidates: list[dict[str, Any]],
+    refit: Callable[[str, int, int, int], list[dict[str, Any]]],
     k_top: int = 4,
     train_months: int = 18,
     step_months: int = 6,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
-    """Build strictly causal rolling Walk-Forward trade pool (18M trailing IS -> 6M forward OOS)."""
-    liq = [x for x in candidates if x["sp_bps"] <= 50.0]
-    if not liq:
-        return [], [], []
-
-    fold_starts = pd.date_range("2022-07-01", "2026-12-01", freq=f"{step_months}MS", tz="UTC")
+    """Select only from each fold's separately refit recipes and settled training labels."""
+    fold_starts = pd.date_range("2022-07-01", "2026-12-01", freq=f"{step_months}MS", tz="UTC",
+                                inclusive="left")
     wf_trades: list[dict[str, Any]] = []
     fold_log: list[dict[str, Any]] = []
-    latest_syms: set[str] = set()
+    assets_by_symbol: dict[str, dict[str, Any]] = {}
 
     for fs in fold_starts:
         ts_lo = int((fs - pd.DateOffset(months=train_months)).timestamp())
         ts_hi = int(fs.timestamp())
-        ts_end = int((fs + pd.DateOffset(months=step_months)).timestamp())
+        ts_end = min(OUTER_HOLDOUT_TS, int((fs + pd.DateOffset(months=step_months)).timestamp()))
         scored: list[tuple[float, dict[str, Any]]] = []
-        for x in liq:
-            r_tr = [float(t["r"]) for t in x["trades"] if ts_lo <= int(t["ts_in"]) < ts_hi]
+        for x in refit(sid, ts_lo, ts_hi, ts_end):
+            if x.get("train_start_ts") != ts_lo or x.get("fit_asof_ts") != ts_hi:
+                raise ValueError("Walk-forward candidate lacks the requested fold-local fit provenance")
+            if x["sp_bps"] > 50.0:
+                continue
+            r_tr = [float(t["r"]) for t in x["trades"]
+                    if ts_lo <= int(t["ts_in"]) < ts_hi and _exit_available_at(t) < ts_hi]
             if len(r_tr) < 4:
                 continue
             arr_t = np.array(r_tr, dtype=float)
@@ -604,47 +661,53 @@ def _build_wf_trade_pool(
                 continue
             t_val = float(arr_t.mean() / (arr_t.std() + 1e-9) * math.sqrt(len(arr_t)))
             scored.append((t_val * min(pf, 3.0) + 0.05 * net_r, x))
-        if not scored:
-            # Causal fallback: lowest-spread pre-2024 assets with trailing >=0R
-            for x in liq:
-                r_tr = [float(t["r"]) for t in x["trades"] if ts_lo <= int(t["ts_in"]) < ts_hi]
-                scored.append((float(sum(r_tr)) - 0.02 * x["sp_bps"], x))
-        scored.sort(key=lambda z: z[0], reverse=True)
+        scored.sort(key=lambda z: (-z[0], z[1]["symbol"]))
         chosen = [z[1] for z in scored[:k_top]]
         chosen_syms = [x["symbol"] for x in chosen]
-        latest_syms.update(chosen_syms)
+        assets_by_symbol.update({x["symbol"]: x for x in chosen})
         fold_trades = [t for x in chosen for t in x["trades"] if ts_hi <= int(t["ts_in"]) < ts_end]
         wf_trades.extend(fold_trades)
         fold_log.append({
             "fold_start": fs.strftime("%Y-%m-%d"),
             "assets": chosen_syms,
+            "configs": {x["symbol"]: x["cfg"] for x in chosen},
             "trades_out": len(fold_trades),
         })
 
-    active_cands = [x for x in liq if x["symbol"] in latest_syms] or liq[:k_top]
-    return wf_trades, active_cands, fold_log
+    return wf_trades, list(assets_by_symbol.values()), fold_log
 
 
-def build_26_accounts(specs: dict[str, dict[str, Any]], max_spread_bp: float = 165.0) -> dict[str, Any]:
+def build_26_accounts(
+    specs: dict[str, dict[str, Any]], max_spread_bp: float = 165.0, *,
+    output_dir: Path = PROP_DIR, require_pit: bool = False,
+    wf_refit: Callable[[str, int, int, int], list[dict[str, Any]]] | None = None,
+) -> dict[str, Any]:
     """Optimize & simulate each of the 26 strategies independently across all mutual assets on $5,000."""
-    ACC_DIR.mkdir(parents=True, exist_ok=True)
+    account_dir = output_dir / "accounts"
+    account_dir.mkdir(parents=True, exist_ok=True)
     cfgs: dict[str, dict[str, Any]] = {}
     dfs: dict[str, pd.DataFrame] = {}
-    for p in sorted(CFG_DIR.glob("*.json")):
+    for p in sorted((output_dir / "configs").glob("*.json")):
         sym = p.stem
-        tp = TRADES_DIR / f"{sym}.parquet"
+        tp = output_dir / "trades" / f"{sym}.parquet"
         if not tp.is_file():
             continue
         cfgs[sym] = json.loads(p.read_text(encoding="utf-8"))
+        if cfgs[sym].get("ledger_rows") == 0:
+            del cfgs[sym]
+            continue
+        if require_pit and cfgs[sym].get("cost_model") != "point_in_time":
+            raise ValueError(f"{sym} has no point-in-time replay in the requested output directory")
         dfs[sym] = pd.read_parquet(tp)
 
     ts_2023 = int(pd.Timestamp("2023-01-01", tz="UTC").timestamp())
+    sizing = {"size_risk_usd": replay_lot_risk, "max_open_risk_pct": 1.0} if require_pit else {}
     print(f"\n[Stage B] Building 26 Independent $5,000 Strategy Accounts from {len(cfgs)} Mutual Assets...", flush=True)
     account_rows: list[dict[str, Any]] = []
 
     for acc_idx, sid in enumerate(ALL_26_STRATEGIES, start=1):
         if sid in RETIRED_STRATEGIES:
-            acc_p = ACC_DIR / f"Acc_{acc_idx:02d}_{sid}.json"
+            acc_p = account_dir / f"Acc_{acc_idx:02d}_{sid}.json"
             if acc_p.is_file():
                 acc_p.unlink()
             account_rows.append({
@@ -654,27 +717,34 @@ def build_26_accounts(specs: dict[str, dict[str, Any]], max_spread_bp: float = 1
             print(f"  Acc_{acc_idx:02d} {sid:25s} | PURGED_UNPROFITABLE | deleted standalone account; retained Stage A telemetry", flush=True)
             continue
 
+        if sid in WF_STRATEGIES and wf_refit is None:
+            account_rows.append({"acc_id": f"Acc_{acc_idx:02d}", "sid": sid, "status": "WF_REFIT_REQUIRED"})
+            continue
+
         # Gather eligible assets strictly via pre-2024 causal IS (zero 2026 commodity or OOS leakage)
         candidates: list[dict[str, Any]] = []
         for sym, c in sorted(cfgs.items()):
             sp_bp = float(c["live_sp_bps"])
-            if sp_bp > min(float(max_spread_bp), 50.0):
+            if not require_pit and sp_bp > min(float(max_spread_bp), 50.0):
                 continue
             sc_rows = [r for r in c["strategy_scorecard"] if r["sid"] == sid]
             if not sc_rows:
                 continue
             r = sc_rows[0]
-            if not r["fits_5k_1pct"]:
+            if not require_pit and not r["fits_5k_1pct"]:
                 continue
             df_s = dfs[sym]
-            grp = df_s[df_s["sleeve"] == sid]
+            grp = df_s[(df_s["sleeve"] == sid) & (df_s["ts_in"] < OUTER_HOLDOUT_TS)]
             if grp.empty:
                 continue
-            is_grp = grp[grp["ts_in"] < SPLIT_2024_TS]
+            available = pd.Series((_exit_available_at(t) for t in grp.to_dict("records")), index=grp.index)
+            is_grp = grp[(grp["ts_in"] < SPLIT_2024_TS) & (available < SPLIT_2024_TS)]
             nis_pre24 = int(len(is_grp))
             if nis_pre24 < 5:
                 # Eliminates late-2025/2026 inception commodities from leaking into 2024-2026 OOS ledger
                 continue
+            if require_pit:
+                sp_bp = float(is_grp["spread_bps_at_entry"].median())
             ris = is_grp["r"].to_numpy(dtype=float)
             ig, il = float(ris[ris > 0].sum()), float(abs(ris[ris < 0].sum()))
             ispf_pre24 = round((ig / il) if il > 0 else (9.9 if ig > 0 else 0.0), 2)
@@ -683,7 +753,7 @@ def build_26_accounts(specs: dict[str, dict[str, Any]], max_spread_bp: float = 1
             ist_pre24 = round(compute_hac_stats(ris)["t_hac"], 2) if nis_pre24 >= 6 else 0.0
             late_is_r = float(is_grp[is_grp["ts_in"] >= TS_2022]["r"].sum())
             r23 = float(is_grp[is_grp["ts_in"] >= ts_2023]["r"].sum())
-            oos_grp = grp[grp["ts_in"] >= SPLIT_2024_TS]
+            oos_grp = grp[(grp["ts_in"] >= SPLIT_2024_TS) & (available < OUTER_HOLDOUT_TS)]
             roos = oos_grp["r"].to_numpy(dtype=float)
             og, ol = float(roos[roos > 0].sum()), float(abs(roos[roos < 0].sum()))
             oospf_p = round((og / ol) if ol > 0 else (9.9 if og > 0 else 0.0), 2)
@@ -706,7 +776,7 @@ def build_26_accounts(specs: dict[str, dict[str, Any]], max_spread_bp: float = 1
         wf_folds: list[dict[str, Any]] | None = None
         if sid in WF_STRATEGIES:
             for k_wf in (2, 3, 4):
-                wf_pool, wf_cands, wf_log = _build_wf_trade_pool(sid, candidates, k_top=k_wf)
+                wf_pool, wf_cands, wf_log = _build_wf_trade_pool(sid, wf_refit, k_top=k_wf)
                 if wf_pool:
                     tiers.append((f"wf_18m_6m_top{k_wf}", wf_cands, wf_pool, wf_log))
         else:
@@ -762,7 +832,8 @@ def build_26_accounts(specs: dict[str, dict[str, Any]], max_spread_bp: float = 1
                 for mg in (4, 6, 8):
                     for cs in (2, 3, 4):
                         res_is = simulate_shared_account(
-                            f"{sid}_{t_name}", pool_t, 5000.0, rp, mg, 1, cs, None, weights, True, 4.0, 6.0, max_ts=SPLIT_2024_TS
+                            f"{sid}_{t_name}", pool_t, 5000.0, rp, mg, 1, cs, None, weights, True, 4.0, 6.0,
+                            max_ts=SPLIT_2024_TS, **sizing
                         )
                         m = res_is["metrics"]
                         if m.get("trades", 0) < 8:
@@ -771,9 +842,11 @@ def build_26_accounts(specs: dict[str, dict[str, Any]], max_spread_bp: float = 1
                         pf = float(m.get("pf", 0.0))
                         cal = float(m.get("calmar", 0.0))
                         cagr = float(m.get("cagr_pct", 0.0))
-                        # Tighter causal IS cushion: IS DD <= 5.2% keeps OOS MC breach10 well under 10%
+                        if pf < 1.12 or cagr <= 0.0:
+                            continue
+                        # Penalize historical drawdown above the preset training cushion.
                         dd_pen = 1.0 if dd <= 5.2 else (0.35 if dd <= 6.5 else 0.03)
-                        sc = (cagr * math.sqrt(max(0.5, cal)) * dd_pen) if (pf >= 1.12 and cagr > 0.0) else (-10.0 + pf)
+                        sc = cagr * math.sqrt(max(0.5, cal)) * dd_pen
                         top_is_cands.append({
                             "is_score": sc, "tier": t_name, "c_list": c_list, "pool_t": pool_t,
                             "weights": weights, "rp": rp, "mg": mg, "cs": cs, "is_metrics": m, "wf_log": w_log,
@@ -795,7 +868,7 @@ def build_26_accounts(specs: dict[str, dict[str, Any]], max_spread_bp: float = 1
             for cand_b in mc_cands:
                 rmc = simulate_shared_account(
                     f"{sid}_ismc", cand_b["pool_t"], 5000.0, cand_b["rp"], cand_b["mg"], 1, cand_b["cs"],
-                    None, cand_b["weights"], True, 4.0, 6.0, max_ts=SPLIT_2024_TS, mc_runs=2000
+                    None, cand_b["weights"], True, 4.0, 6.0, max_ts=SPLIT_2024_TS, mc_runs=2000, **sizing
                 )
                 imc = rmc["metrics"].get("mc_20k", {})
                 is_br = float(imc.get("breach10_pct", 99.0))
@@ -808,14 +881,16 @@ def build_26_accounts(specs: dict[str, dict[str, Any]], max_spread_bp: float = 1
             print(f"  Acc_{acc_idx:02d} {sid:26s} | INSUFFICIENT IS TRADES", flush=True)
             continue
 
-        # Frozen Full + Untouched OOS evaluation + 20,000-Run Prop Monte Carlo at $5,000
+        # Frozen full-history and historical validation diagnostics on the selected recipe.
         rf = simulate_shared_account(
             f"Acc_{acc_idx:02d}:{sid}", best_is["pool_t"], 5000.0,
-            best_is["rp"], best_is["mg"], 1, best_is["cs"], None, best_is["weights"], True, 4.0, 6.0, mc_runs=20000
+            best_is["rp"], best_is["mg"], 1, best_is["cs"], None, best_is["weights"], True, 4.0, 6.0,
+            max_ts=OUTER_HOLDOUT_TS, mc_runs=20000, **sizing
         )
         ro = simulate_shared_account(
             f"Acc_{acc_idx:02d}:{sid} [OOS]", best_is["pool_t"], 5000.0,
-            best_is["rp"], best_is["mg"], 1, best_is["cs"], None, best_is["weights"], True, 4.0, 6.0, min_ts=SPLIT_2024_TS, mc_runs=20000
+            best_is["rp"], best_is["mg"], 1, best_is["cs"], None, best_is["weights"], True, 4.0, 6.0,
+            min_ts=SPLIT_2024_TS, max_ts=OUTER_HOLDOUT_TS, mc_runs=20000, **sizing
         )
         fm, om = rf["metrics"], ro["metrics"]
         fmc = fm.get("mc_20k", {})
@@ -839,6 +914,8 @@ def build_26_accounts(specs: dict[str, dict[str, Any]], max_spread_bp: float = 1
             "status": status,
             "start_equity": 5000.0,
             "tier": best_is["tier"],
+            "cost_model": "point_in_time" if require_pit else "snapshot_research_proxy",
+            "outer_holdout_start_ts": OUTER_HOLDOUT_TS,
             "governor": {
                 "risk_pct": best_is["rp"],
                 "max_global": best_is["mg"],
@@ -863,7 +940,7 @@ def build_26_accounts(specs: dict[str, dict[str, Any]], max_spread_bp: float = 1
         }
         if best_is.get("wf_log"):
             acc_cfg["wf_folds"] = best_is["wf_log"]
-        (ACC_DIR / f"Acc_{acc_idx:02d}_{sid}.json").write_text(json.dumps(acc_cfg, indent=2), encoding="utf-8")
+        (account_dir / f"Acc_{acc_idx:02d}_{sid}.json").write_text(json.dumps(acc_cfg, indent=2), encoding="utf-8")
 
         summary_row = {
             "acc_id": f"Acc_{acc_idx:02d}", "sid": sid, "status": status, "tier": best_is["tier"],
@@ -886,6 +963,8 @@ def build_26_accounts(specs: dict[str, dict[str, Any]], max_spread_bp: float = 1
     master = {
         "generated_utc": datetime.now(timezone.utc).isoformat(),
         "split_iso": "2024-01-01",
+        "outer_holdout_start_ts": OUTER_HOLDOUT_TS,
+        "cost_model": "point_in_time" if require_pit else "snapshot_research_proxy",
         "start_equity_per_account": 5000.0,
         "total_strategies": len(ALL_26_STRATEGIES),
         "total_assets_evaluated": len(cfgs),
@@ -894,12 +973,14 @@ def build_26_accounts(specs: dict[str, dict[str, Any]], max_spread_bp: float = 1
             "TIER_B_CONDITIONAL": sum(1 for r in account_rows if r.get("status") == "TIER_B_CONDITIONAL"),
             "FAIL_STANDALONE": sum(1 for r in account_rows if r.get("status") == "FAIL_STANDALONE"),
             "PURGED_UNPROFITABLE": sum(1 for r in account_rows if r.get("status") == "PURGED_UNPROFITABLE"),
-            "UNAVAILABLE": sum(1 for r in account_rows if r.get("status") in ("NO_ELIGIBLE_ASSETS", "INSUFFICIENT_IS_TRADES")),
+            "UNAVAILABLE": sum(1 for r in account_rows if r.get("status") in
+                               ("NO_ELIGIBLE_ASSETS", "INSUFFICIENT_IS_TRADES", "WF_REFIT_REQUIRED")),
         },
         "accounts": sorted(account_rows, key=lambda r: (r.get("oos_pf", 0.0), r.get("full_calmar", 0.0)), reverse=True),
     }
-    MASTER_JSON.write_text(json.dumps(master, indent=2), encoding="utf-8")
-    print(f"\n[COMPLETE] Saved 26-account $5K Master Scorecard -> {MASTER_JSON}", flush=True)
+    master_path = output_dir / MASTER_JSON.name
+    master_path.write_text(json.dumps(master, indent=2), encoding="utf-8")
+    print(f"\n[COMPLETE] Saved 26-account $5K Master Scorecard -> {master_path}", flush=True)
     return master
 
 
@@ -908,22 +989,71 @@ def main() -> None:
     ap.add_argument("--force-assets", action="store_true")
     ap.add_argument("--stage-b-only", action="store_true")
     ap.add_argument("--max-spread-bp", type=float, default=165.0)
+    ap.add_argument("--output-dir", type=Path, default=PROP_DIR)
+    ap.add_argument("--execution-tape", type=Path,
+                    help="Offline per-symbol timestamped quotes and signed rollover debits")
+    ap.add_argument("--risk-cap-usd", type=float, default=6.0)
     args = ap.parse_args()
 
+    if args.execution_tape is not None and not MUTUAL_SPECS_PATH.is_file():
+        ap.error("Point-in-time refits require the local symbol mapping")
     specs = json.loads(MUTUAL_SPECS_PATH.read_text(encoding="utf-8")) if MUTUAL_SPECS_PATH.is_file() else snapshot_all_mutual_specs()
+    tapes = {}
+    if args.execution_tape is not None:
+        if args.output_dir.resolve() == PROP_DIR.resolve():
+            ap.error("Point-in-time refits require a separate --output-dir")
+        data = json.loads(args.execution_tape.read_text(encoding="utf-8"))
+        tapes = {sym: ExecutionTape(t["quotes"], t["rollover"], risk_usd=args.risk_cap_usd,
+                                    cashflow_coverage=t["cashflow_coverage"],
+                                    max_spread_bps=min(50.0, args.max_spread_bp))
+                 for sym, t in data.items()}
+        if not tapes:
+            ap.error("The point-in-time tape contains no symbols")
     if not args.stage_b_only:
         chart_map = discover_chart_strategies()
         for sym, sp in sorted(specs.items()):
-            if not sp.get("mt5_available"):
+            if args.execution_tape is not None and sym not in tapes:
                 continue
-            if float(sp.get("sp_bps", 999.0)) > args.max_spread_bp:
+            if args.execution_tape is None and (
+                not sp.get("mt5_available") or float(sp.get("sp_bps", 999.0)) > args.max_spread_bp
+            ):
                 continue
             if not ((DATA_DIR / f"{sym}_agg_footprint.parquet").is_file() and (DATA_DIR / "cache" / f"{sym}_4h.parquet").is_file()):
                 print(f"[skip] {sym} still downloading / missing cache", flush=True)
                 continue
-            _optimize_asset_all26(sym, sp, chart_map, force=args.force_assets)
+            _optimize_asset_all26(sym, sp, chart_map, force=args.force_assets,
+                                  execution=tapes.get(sym), output_dir=args.output_dir)
 
-    build_26_accounts(specs, max_spread_bp=args.max_spread_bp)
+    @lru_cache(maxsize=None)
+    def refit(sid, start, fit_at, end):
+        fold_dir = args.output_dir / "folds" / str(fit_at)
+        candidates = []
+        chart_map = discover_chart_strategies()
+        for sym, execution in sorted(tapes.items()):
+            if sym not in specs:
+                continue
+            config = _optimize_asset_all26(sym, specs[sym], chart_map, train_start_ts=start,
+                                          fit_asof_ts=fit_at, evaluation_end_ts=end,
+                                          execution=execution, output_dir=fold_dir)
+            if config is None:
+                continue
+            score = next((s for s in config["strategy_scorecard"] if s["sid"] == sid and s["is_ok"]), None)
+            if score is None:
+                continue
+            ledger = pd.read_parquet(fold_dir / "trades" / f"{sym}.parquet")
+            trades = ledger[ledger["sleeve"] == sid]
+            settled = trades[trades["exit_available_ts"] < fit_at]
+            if settled.empty:
+                continue
+            candidates.append({
+                **score, "symbol": sym, "mt5": config["mt5_symbol"], "cat": config["category"],
+                "sp_bps": float(settled["spread_bps_at_entry"].median()), "trades": trades.to_dict("records"),
+                "train_start_ts": config["train_start_ts"], "fit_asof_ts": config["fit_asof_ts"],
+            })
+        return candidates
+
+    build_26_accounts(specs, max_spread_bp=args.max_spread_bp, output_dir=args.output_dir,
+                      require_pit=args.execution_tape is not None, wf_refit=refit if tapes else None)
 
 
 if __name__ == "__main__":

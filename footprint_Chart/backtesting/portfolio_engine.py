@@ -71,8 +71,11 @@ def _agg_tf_bars_and_raw(
     g["dur_m"] = tf_sec // 60
 
     if adaptive_tick:
-        floor_tick = 5.0 if float(g["o"].median()) >= 10000.0 else 1e-6
-        ticks_map = {int(r.ts): max(floor_tick, _ladder_round(float(r.o) * bps_tick / 10000.0)) for r in g.itertuples(index=False)}
+        ticks_map = {
+            int(r.ts): max(5.0 if r.o >= 10000.0 else 1e-6,
+                           _ladder_round(float(r.o) * bps_tick / 10000.0))
+            for r in g.itertuples(index=False)
+        }
     else:
         ticks_map = {int(r.ts): float(fixed_tick) for r in g.itertuples(index=False)}
     bars_map = {int(r.ts): (float(r.o), float(r.h), float(r.l), float(r.c)) for r in g.itertuples(index=False)}
@@ -250,7 +253,7 @@ def load_asset_tfs_cached(
         "k_mtime": k_st.st_mtime_ns if k_st else 0,
         "f_size": f_st.st_size if f_st else 0,
         "adaptive": int(adaptive_tick),
-        "ver": 2,
+        "ver": 3,
     }
     cache_dir = data_dir / "cache"
     cache_dir.mkdir(parents=True, exist_ok=True)

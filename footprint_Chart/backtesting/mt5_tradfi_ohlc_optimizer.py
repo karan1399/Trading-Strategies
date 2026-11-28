@@ -143,7 +143,8 @@ def run_tradfi_mt5() -> None:
                                 True, float(eff_sp), False, 0.0, 0.0, 2, float(spec["sw_l"]), float(spec["sw_s"]),
                                 empty_f_ts, empty_f_rt,
                             )
-                            sc = _score_is_oos(res[1], res[7], split_ts, min_is=10)
+                            sc = _score_is_oos(res[1], res[7], split_ts, min_is=10,
+                                               exit_available_ts=res[2] + 3600)
                             trials.setdefault(sid, []).append({
                                 "sid": sid, "tf": tf_l, "cfg": f"{var_s},sl={sl_m},tr={tr_m},be={be_m}",
                                 "sl": sl_m, "tr": tr_m, "be": be_m, "res": res, **sc,
@@ -176,7 +177,8 @@ def run_tradfi_mt5() -> None:
                             "symbol": sym, "mt5_symbol": ms, "category": cat, "sleeve": sid,
                             "bucket": bkt, "tf": best["tf"], "mode": "Pure OHLC", "cfg": best["cfg"],
                             "side": "BUY" if int(res[3][k]) == 1 else "SELL",
-                            "ts_in": int(res[1][k]), "ts_out": int(res[2][k]), "r": float(res[7][k]),
+                            "ts_in": int(res[1][k]), "ts_out": int(res[2][k]),
+                            "exit_available_ts": int(res[2][k]) + 3600, "r": float(res[7][k]),
                             "vof_mult": 1.0, "mt5_cost_bps": eff_sp,
                         })
                     qual_trs[sid] = rows

@@ -4,7 +4,7 @@ Safety & Research Controls:
   - Defaults to DRY-RUN mode (`--dry-run` implicit unless `--live` is explicitly passed).
   - Pure OHLC Price Action (imports exact PA01..PA10 builders from scripts/delta_pa_trend_optimizer.py).
   - Evaluates ONLY closed 1H / 4H candles (`candle_ts + tf_sec <= now_utc`) -> zero repainting.
-  - Enforces Safe 1.0% equity risk sizing (`1ct` min contract allowed only if `loss_1ct <= 5.0%` of live equity),
+  - Floors quantity within the equity and hard USD risk and margin limits,
     max 1 open position/order per symbol, max 6 concurrent positions portfolio-wide, and <= 20x / 80% margin cap.
   - Monitors Delta API IP whitelist continuously (`ip_not_whitelisted_for_api_key`) and pushes instant
     alerts to CallMeBot WhatsApp, custom JSON Webhook (Make/n8n/Twilio/Discord/Slack), Telegram,
@@ -291,24 +291,26 @@ def compute_safe_contracts(
     contract_value: float,
     initial_margin_pct: float,
     risk_pct: float = 1.0,
-    max_1ct_risk_pct: float = 5.0,
+    max_risk_usd: float = 0.50,
+    max_margin_usd: float = 1.50,
+    stress_bps: float = 25.0,
 ) -> tuple[int, str]:
-    """Compute Safe 1.0% integer contract count respecting max 20x cap & 5% tiny-account guard."""
-    if equity_usd <= 0 or entry_px <= 0 or sl_dist <= 0 or contract_value <= 0:
+    """Floor contracts to the binding equity, dollar and initial-margin budgets."""
+    required = (equity_usd, entry_px, sl_dist, contract_value, risk_pct, max_risk_usd, max_margin_usd)
+    if not all(math.isfinite(v) and v > 0 for v in required) or not math.isfinite(stress_bps) or stress_bps < 0:
         return 0, "invalid_inputs"
+    if not all(math.isfinite(v) and v >= 0 for v in (free_margin_usd, initial_margin_pct)):
+        return 0, "invalid_margin_inputs"
     notional_1ct = contract_value * entry_px
-    loss_1ct = contract_value * sl_dist
+    loss_1ct = contract_value * sl_dist + notional_1ct * stress_bps / 10_000.0
     eff_im_pct = max(float(initial_margin_pct or 5.0), 5.0)
     mgn_1ct = notional_1ct * (eff_im_pct / 100.0)
 
-    target_risk = equity_usd * (risk_pct / 100.0)
+    target_risk = min(equity_usd * min(risk_pct, 1.0) / 100.0, max_risk_usd)
     cts = int(math.floor(target_risk / loss_1ct))
     if cts == 0:
-        if (loss_1ct / equity_usd * 100.0) <= max_1ct_risk_pct:
-            cts = 1
-        else:
-            return 0, f"1ct_risk={loss_1ct/equity_usd*100:.1f}% > {max_1ct_risk_pct}%"
-    max_mgn_cts = int(math.floor(max(0.0, free_margin_usd) / max(1e-9, mgn_1ct)))
+        return 0, f"minimum contract stressed risk ${loss_1ct:.4f} exceeds budget ${target_risk:.4f}"
+    max_mgn_cts = int(math.floor(min(max(0.0, free_margin_usd), max_margin_usd) / max(1e-9, mgn_1ct)))
     cts = min(cts, max_mgn_cts)
     if cts <= 0:
         return 0, f"insufficient_free_margin(need=${mgn_1ct:.2f},free=${free_margin_usd:.2f})"
@@ -318,7 +320,8 @@ def compute_safe_contracts(
 def load_tier_a15_recipes() -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]]]:
     rep = json.loads(REPORT_PATH.read_text(encoding="utf-8"))
     cat = {c["symbol"]: c for c in json.loads(CATALOG_PATH.read_text(encoding="utf-8"))}
-    tier_a = [x for x in rep["assets"] if x.get("verdict") == "CHAMPION_TREND" and float(x.get("turnover_usd") or 0) >= 375_000]
+    tier_a = [x for x in rep["assets"] if x.get("verdict") == "CHAMPION_TREND"
+              and x.get("research_status") != "SHADOW_TRIAL" and float(x.get("turnover_usd") or 0) >= 375_000]
     return tier_a, cat
 
 
@@ -558,8 +561,12 @@ def run_cycle(client: DeltaClient, cfg: dict[str, str], tier_a: list[dict[str, A
 
     pos_r = client.request("GET", "/v2/positions/margined")
     ord_r = client.request("GET", "/v2/orders", query="?state=open")
-    live_pos = [p for p in pos_r.get("result", []) if abs(float(p.get("size") or 0)) > 0] if pos_r.get("success") else []
-    open_orders = ord_r.get("result", []) if ord_r.get("success") else []
+    if (not pos_r.get("success") or not isinstance(pos_r.get("result"), list)
+            or not ord_r.get("success") or not isinstance(ord_r.get("result"), list)):
+        print("[STATE_UNAVAILABLE] Position or pending-order readback failed; cycle skipped.", flush=True)
+        return
+    live_pos = [p for p in pos_r["result"] if abs(float(p.get("size") or 0)) > 0]
+    open_orders = ord_r["result"]
 
     live_pos_map = {str(p.get("product_symbol")): p for p in live_pos}
     occupied_syms = set(live_pos_map.keys()) | {str(o.get("product_symbol")) for o in open_orders if not o.get("reduce_only")}
@@ -608,6 +615,8 @@ def run_cycle(client: DeltaClient, cfg: dict[str, str], tier_a: list[dict[str, A
                 continue
 
             bar_ts = int(df_u["timestamp"].iloc[-1])
+            if time.time() - (bar_ts + TF_SEC[tf_l]) > 15 * 60:
+                continue
             state_key = f"{sym}|{tf_l}"
             if int(state["last_bars"].get(state_key, 0)) >= bar_ts:
                 continue
@@ -621,7 +630,7 @@ def run_cycle(client: DeltaClient, cfg: dict[str, str], tier_a: list[dict[str, A
             if not np.isfinite(atr14) or atr14 <= 0:
                 continue
 
-            sl_dist = sl_m * atr_i if False else sl_m * atr14
+            sl_dist = sl_m * atr14
             sl_pct = sl_dist / max(close_px, 1e-9)
             # Ensure Delta liquidation distance (>~90%/lev) clears SL distance by >=2.25x
             safe_lev = max(1, min(10, int(math.floor(0.40 / max(sl_pct, 1e-4)))))
@@ -630,7 +639,7 @@ def run_cycle(client: DeltaClient, cfg: dict[str, str], tier_a: list[dict[str, A
             im_pct = max(float(prod.get("initial_margin") or 5.0), 100.0 / safe_lev)
             tick = float(prod.get("tick_size") or 0.01)
 
-            cts, reason = compute_safe_contracts(eq_usd, free_usd, close_px, sl_dist, cv, im_pct, risk_pct=1.0, max_1ct_risk_pct=5.0)
+            cts, reason = compute_safe_contracts(eq_usd, free_usd, close_px, sl_dist, cv, im_pct)
             if cts <= 0:
                 print(f"  [SKIP] {sym} {tf_l} {sid} ({'LONG' if sd==1 else 'SHORT'}): {reason}", flush=True)
                 continue

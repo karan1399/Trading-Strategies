@@ -77,9 +77,12 @@ from strategies.delta_divergence import DeltaDivergenceStrategy
 from strategies.s08_vol_target_overlay.overlay import vol_of_conviction_risk_usd
 
 DEFAULT_CONFIG_PATH = ROOT / "engine" / "config_m4_v3b.json"
+DESK_CONFIG_PATH = ROOT / "engine" / "config_m4_v3b_desk.json"
 DEFAULT_STATE_PATH = ROOT / "engine" / "data" / "m4_v3b_state.json"
 DEFAULT_JOURNAL_PATH = ROOT / "engine" / "data" / "m4_v3b_journal.csv"
 LIVE_FP_DIR = ROOT / "engine" / "data" / "m4_live_fp"
+VISION_MISS_COOLDOWN_SEC = 1800.0
+_VISION_MISS_UNTIL: dict[tuple[str, str], float] = {}
 
 FP_COLS = [
     "bar_1m", "price_bucket", "buy_trades", "sell_trades",
@@ -91,15 +94,21 @@ FP_COLS = [
 class BinanceAggTradeCollector:
     """Thread-safe real-time Binance Futures @aggTrade -> 1m x tick_bucket aggregator."""
 
-    def __init__(self, symbols: list[str], out_dir: Path = LIVE_FP_DIR):
+    def __init__(self, symbols: list[str], out_dir: Path = LIVE_FP_DIR, close_grace_seconds: int = 3):
         self.symbols = [s.upper() for s in symbols]
         self.out_dir = out_dir
         self.out_dir.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
+        self._flush_lock = threading.Lock()
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         # sym -> bar_1m -> price_bucket -> [bt, st, bq, sq, o, h, l, c]
         self._bars: dict[str, dict[int, dict[float, list[float]]]] = {s: {} for s in self.symbols}
+        self._minute_events = {}
+        self._pending_flush: dict[str, list[dict[str, Any]]] = {}
+        self._closed_before = 0
+        self._close_grace_seconds = close_grace_seconds
+        self.late_count = 0
         self._last_flush_ts = 0.0
         self.connected = False
         self.msg_count = 0
@@ -126,6 +135,21 @@ class BinanceAggTradeCollector:
         trades = max(1, last_id - first_id + 1)
         is_buy = not is_maker
         with self._lock:
+            if bar_1m < self._closed_before:
+                self.late_count += 1
+                return
+            minute_key = sym, bar_1m
+            first = ts_ms, first_id, price
+            last = ts_ms, last_id, price
+            if minute_key in self._minute_events:
+                old_first, old_last, seen = self._minute_events[minute_key]
+                if first_id in seen:
+                    return
+                first, last = min(first, old_first), max(last, old_last)
+            else:
+                seen = set()
+            seen.add(first_id)
+            self._minute_events[minute_key] = first, last, seen
             sym_map = self._bars.setdefault(sym, {})
             b_map = sym_map.setdefault(bar_1m, {})
             rec = b_map.get(pb)
@@ -152,23 +176,27 @@ class BinanceAggTradeCollector:
             self.msg_count += 1
 
     def flush_closed(self, force: bool = False) -> None:
+        with self._flush_lock:
+            self._flush_closed(force)
+
+    def _flush_closed(self, force: bool) -> None:
         cur_min = (int(time.time()) // 60) * 60
-        cutoff = cur_min + 60 if force else cur_min
-        to_write: dict[str, list[dict[str, Any]]] = {}
+        cutoff = cur_min if force else ((int(time.time()) - self._close_grace_seconds) // 60) * 60
         with self._lock:
+            self._closed_before = max(self._closed_before, cutoff)
             for sym, sym_map in self._bars.items():
                 done_mins = [m for m in sym_map.keys() if m < cutoff]
                 if not done_mins:
                     continue
                 rows = []
                 for m in sorted(done_mins):
-                    b_map = sym_map.pop(m) if (m < cur_min or force) else sym_map[m]
-                    # Compute 1m OHLC consistently across buckets for that minute
+                    b_map = sym_map.pop(m)
+                    first, last, _ = self._minute_events.pop((sym, m))
                     all_vals = list(b_map.values())
-                    o_m = all_vals[0][4]
+                    o_m = first[2]
                     h_m = max(v[5] for v in all_vals)
                     l_m = min(v[6] for v in all_vals)
-                    c_m = all_vals[-1][7]
+                    c_m = last[2]
                     for pb, rec in b_map.items():
                         rows.append({
                             "bar_1m": int(m),
@@ -183,9 +211,9 @@ class BinanceAggTradeCollector:
                             "close": float(c_m),
                         })
                 if rows:
-                    to_write[sym] = rows
+                    self._pending_flush.setdefault(sym, []).extend(rows)
 
-        for sym, rows in to_write.items():
+        for sym, rows in list(self._pending_flush.items()):
             p = self.out_dir / f"{sym}_ws_1m_fp.parquet"
             df_new = pd.DataFrame(rows, columns=FP_COLS)
             if p.is_file():
@@ -199,7 +227,10 @@ class BinanceAggTradeCollector:
                 .sort_values(["bar_1m", "price_bucket"])
                 .reset_index(drop=True)
             )
-            pq.write_table(pa.Table.from_pandas(df_new, preserve_index=False), p, compression="snappy")
+            temp = p.with_suffix(".tmp")
+            pq.write_table(pa.Table.from_pandas(df_new, preserve_index=False), temp, compression="snappy")
+            temp.replace(p)
+            del self._pending_flush[sym]
         self._last_flush_ts = time.time()
 
     def _run_forever(self) -> None:
@@ -299,18 +330,24 @@ def sync_live_fp_tail(sym: str, base_max_bar1m: int, fp_dir: Path = LIVE_FP_DIR)
     parts: list[pd.DataFrame] = []
     highest_covered = base_max_bar1m
 
-    # 1. Completed UTC days strictly before today -> Vision daily ZIPs (cached once)
+    # 1. Completed UTC days strictly before today -> Vision daily ZIPs (cached once; cooldown on 404/miss)
     cur_d = start_day
     while cur_d < today_utc:
-        vp = fp_dir / f"{sym}_vision_{cur_d.isoformat()}.parquet"
-        if not vp.is_file():
+        d_iso = cur_d.isoformat()
+        vp = fp_dir / f"{sym}_vision_{d_iso}.parquet"
+        miss_key = (sym, d_iso)
+        if not vp.is_file() and time.time() >= _VISION_MISS_UNTIL.get(miss_key, 0.0):
             try:
-                vdf = aggregate_day_zip(sym, cur_d.isoformat())
+                vdf = aggregate_day_zip(sym, d_iso)
                 if not vdf.empty:
                     vdf = vdf[FP_COLS]
                     pq.write_table(pa.Table.from_pandas(vdf, preserve_index=False), vp, compression="snappy")
+                    _VISION_MISS_UNTIL.pop(miss_key, None)
+                else:
+                    _VISION_MISS_UNTIL[miss_key] = time.time() + VISION_MISS_COOLDOWN_SEC
             except Exception as exc:
-                print(f"[fp-sync] {sym} Vision {cur_d} fallback ({exc})", flush=True)
+                _VISION_MISS_UNTIL[miss_key] = time.time() + VISION_MISS_COOLDOWN_SEC
+                print(f"[fp-sync] {sym} Vision {cur_d} fallback ({exc}; cooldown {int(VISION_MISS_COOLDOWN_SEC)}s)", flush=True)
         if vp.is_file():
             vdf = pq.read_table(vp, columns=FP_COLS).to_pandas()
             if not vdf.empty:
@@ -537,19 +574,23 @@ def eval_crypto_signals(g2: pd.DataFrame, g4: pd.DataFrame, chart_map: dict[str,
     end4 = g4["end_ts"].to_numpy(dtype=np.int64)
     imba4 = bi4 - si4
     sum_imba4 = bi4 + si4
-    idx4 = len(g4) - 1
-    vof_map = {}
-    if idx4 >= 0:
+    def vof_at(idx4: int) -> dict[int, float]:
+        if idx4 < 0:
+            return {}
+        result = {}
         for side_v in (1, -1):
             imb_v = int(imba4[idx4]) if sum_imba4[idx4] > 0 else side_v
-            vof_map[side_v] = float(vol_of_conviction_risk_usd(
+            result[side_v] = float(vol_of_conviction_risk_usd(
                 c4[max(0, idx4 - 245) : idx4 + 1], "H4", side_v,
                 float(dp4[idx4]), imb_v, float(vpin4[idx4]),
                 1.0, 0.65, 1.25, target_ann_vol=0.55, lookback=240,
             ))
+        return result
 
     ts2 = g2["ts"].to_numpy(dtype=np.int64)
     end2 = g2["end_ts"].to_numpy(dtype=np.int64)
+    vof_map = vof_at(len(end4) - 1)
+    h4_asof_h2 = int(np.searchsorted(end4, end2[-1], side="right")) - 1 if len(end2) else -1
 
     return {
         ("s01_williams_pullback", "4H"): {"side": sa_s01, "atr": atr4, "ts": ts4, "end_ts": end4, "c": c4, "vof": vof_map},
@@ -560,7 +601,8 @@ def eval_crypto_signals(g2: pd.DataFrame, g4: pd.DataFrame, chart_map: dict[str,
         ("s06_iv_wall_fade", "4H"): {"side": sa_s06, "atr": atr4, "ts": ts4, "end_ts": end4, "c": c4, "vof": vof_map},
         ("s07_daily_pivot_breakout", "4H"): {"side": sa_s07, "atr": atr4, "ts": ts4, "end_ts": end4, "c": c4, "vof": vof_map},
         ("s10_ema_pullback", "4H"): {"side": sa_s10, "atr": atr4, "ts": ts4, "end_ts": end4, "c": c4, "vof": vof_map},
-        ("delta_divergence", "2H"): {"side": sa_dd, "atr": atr2, "ts": ts2, "end_ts": end2, "c": c2, "vof": vof_map},
+        ("delta_divergence", "2H"): {"side": sa_dd, "atr": atr2, "ts": ts2, "end_ts": end2, "c": c2,
+                                    "vof": vof_at(h4_asof_h2)},
         ("vwap_rejection", "4H"): {"side": sa_vw, "atr": atr4, "ts": ts4, "end_ts": end4, "c": c4, "vof": vof_map},
         ("ema_pullback", "4H"): {"side": sa_ep, "atr": atr4, "ts": ts4, "end_ts": end4, "c": c4, "vof": vof_map},
     }
@@ -669,10 +711,12 @@ def m4_portfolio_gate(
         return False, f"bucket_cap {bkt}={b_cap}"
 
     if pair["category"] == "CRYPTO":
+        crypto = [p for p in ours if pair_by_magic[int(p.magic)]["category"] == "CRYPTO"]
+        max_crypto_total = gov.get("max_crypto_total")
+        if max_crypto_total is not None and len(crypto) >= int(max_crypto_total):
+            return False, "max_crypto_total reached"
         same_crypto = sum(
-            1 for p in ours
-            if pair_by_magic[int(p.magic)]["category"] == "CRYPTO"
-            and ((1 if int(p.type) == 0 else -1) == side)
+            1 for p in crypto if (1 if int(p.type) == 0 else -1) == side
         )
         if same_crypto >= int(gov["max_crypto_same_side"]):
             return False, f"max_crypto_same_side {gov['max_crypto_same_side']}"
@@ -746,7 +790,9 @@ class M4LiveEngine:
         self.chart_map = discover_chart_strategies()
         self.pairs = [p for p in self.cfg["pairs"] if p.get("enabled", True)]
         self.pair_by_magic = {int(p["magic"]): p for p in self.pairs}
-        self.ws_collector = BinanceAggTradeCollector(["BTCUSDT", "ETHUSDT"], LIVE_FP_DIR)
+        self.ws_collector = BinanceAggTradeCollector(
+            ["BTCUSDT", "ETHUSDT"], LIVE_FP_DIR, int(self.cfg["governor"].get("sync_margin_sec", 3))
+        )
         self._last_sig_eval: dict[str, tuple[int, dict[str, Any]]] = {}
 
     def _rates_to_df(self, rates: Any, tf_sec: int, cur_tick_ts: int | None = None) -> pd.DataFrame:
@@ -893,26 +939,34 @@ class M4LiveEngine:
             # Closed TF bar boundary check matching sim_1m_trades_nb
             cur_b = now_s // int(pair["tf_sec"])
             if cur_b != int(meta.get("last_managed_b", cur_b)):
-                meta["last_managed_b"] = cur_b
                 latest_atr = (atr_lookup.get(p.symbol) or {}).get(int(pair["tf_sec"]), float(meta["atr_entry"]))
                 new_sl = compute_bar_trail_sl(
                     meta, best_px, float(p.sl), latest_atr,
                     float(pair["be_r"]), float(pair["be_pad_r"]),
                     bool(pair["step_lock"]), float(pair["trail_atr"]), bool(pair["dyn_atr"]),
                 )
-                if new_sl is not None:
-                    spec = spec_from_mt5(p.symbol)
-                    if spec:
-                        new_sl = round(new_sl, spec.digits)
-                    min_dist = (mt5.symbol_info(p.symbol).trade_stops_level or 0) * (spec.point if spec else 0.0)
-                    valid_sl = (new_sl < cur_px - min_dist) if side == 1 else (new_sl > cur_px + min_dist)
-                    if valid_sl and abs(new_sl - float(p.sl)) > (spec.point if spec else 1e-6):
-                        if self.live:
-                            res = self.bridge.modify_sl(p.ticket, new_sl, float(p.tp))
-                            rc = getattr(res, "retcode", -1)
-                            self.journal.log("TRAIL_SL", sleeve=pair["pair_id"], magic=int(p.magic),
-                                             symbol=p.symbol, side="BUY" if side == 1 else "SELL",
-                                             lots=float(p.volume), sl=new_sl, tp=float(p.tp), retcode=str(rc))
+                if new_sl is None:
+                    meta["last_managed_b"] = cur_b
+                    continue
+                info = mt5.symbol_info(p.symbol)
+                if info is None or info.trade_tick_size <= 0:
+                    continue
+                new_sl = round(round(new_sl / info.trade_tick_size) * info.trade_tick_size, info.digits)
+                if float(p.sl) > 0 and (new_sl - float(p.sl)) * side <= 1e-9:
+                    meta["last_managed_b"] = cur_b
+                    continue
+                min_dist = max(info.trade_stops_level, info.trade_freeze_level) * info.point
+                if (cur_px - new_sl) * side <= min_dist:
+                    continue
+                if self.live:
+                    res = self.bridge.modify_sl(p.ticket, new_sl, float(p.tp))
+                    rc = getattr(res, "retcode", -1)
+                    self.journal.log("TRAIL_SL", sleeve=pair["pair_id"], magic=int(p.magic),
+                                     symbol=p.symbol, side="BUY" if side == 1 else "SELL",
+                                     lots=float(p.volume), sl=new_sl, tp=float(p.tp), retcode=str(rc))
+                    if rc != mt5.TRADE_RETCODE_DONE:
+                        continue
+                meta["last_managed_b"] = cur_b
 
     def step_once(self) -> dict[str, Any]:
         if not self.bridge.connect():
@@ -1066,20 +1120,29 @@ class M4LiveEngine:
                 try:
                     sm = self.step_once()
                     if hb % 10 == 0 or sm["active_triggers"]:
+                        max_g = int(self.cfg["governor"]["max_global"])
+                        ws_st = "up" if self.ws_collector.connected else "down"
                         print(
                             f"[M4-V3B {datetime.now(timezone.utc).strftime('%H:%M:%S')}] "
-                            f"eq=${sm['equity']:.2f} dd_mult={sm['dd_mult']} pos={sm['open_pos']}/6 "
+                            f"eq=${sm['equity']:.2f} dd_mult={sm['dd_mult']} pos={sm['open_pos']}/{max_g} "
                             f"risk=${sm['committed_risk']:.2f} sigs={sm['signals_evaluated']} "
-                            f"ws_msgs={self.ws_collector.msg_count} trig={sm['active_triggers']}",
+                            f"ws={ws_st} ws_msgs={self.ws_collector.msg_count} trig={sm['active_triggers']}",
                             flush=True,
                         )
                     hb += 1
                 except Exception as exc:
                     print(f"[M4-V3B ERR] {exc}", flush=True)
-                finally:
-                    self.bridge.shutdown()
+                    import traceback
+                    traceback.print_exc()
                 time.sleep(max(1.0, poll_s - (time.time() - t0)))
+        except (KeyboardInterrupt, SystemExit):
+            print("[M4-V3B] Termination signal received, shutting down cleanly", flush=True)
+        except BaseException as exc:
+            print(f"[M4-V3B FATAL] {exc}", flush=True)
+            import traceback
+            traceback.print_exc()
         finally:
+            self.bridge.shutdown()
             self.ws_collector.stop()
 
 
@@ -1171,12 +1234,26 @@ def run_selftest(cfg_path: Path) -> None:
     assert compute_bar_trail_sl(meta, 106.0, 102.00, 1.0, 1.0, 0.05, True, 0.0, True) == 104.00  # step_lock +2R
     assert compute_bar_trail_sl(meta, 110.0, 102.00, 1.0, 1.0, 0.05, True, 3.5, True) == 106.50  # trail 3.5xATR
 
+    # Verify desk-capped shadow config compliance if present
+    if DESK_CONFIG_PATH.is_file():
+        dcfg = json.loads(DESK_CONFIG_PATH.read_text(encoding="utf-8"))
+        dgov = dcfg["governor"]
+        assert int(dgov["max_global"]) == 2 and int(dgov["max_per_asset"]) == 1
+        assert int(dgov["max_crypto_same_side"]) == 1 and int(dgov["max_crypto_total"]) == 1
+        assert abs(float(dgov["max_total_open_risk_pct"]) - 1.0) < 1e-9
+        assert all(float(p["max_lot_risk_usd"]) <= 6.0 + 1e-9 for p in dcfg["pairs"])
+        d_pair_map = {int(p["magic"]): p for p in dcfg["pairs"]}
+        d_btc = [p for p in dcfg["pairs"] if p["mt5_symbol"] == "BTCUSD.pi"]
+        d_eth = [p for p in dcfg["pairs"] if p["mt5_symbol"] == "ETHUSD.pi"]
+        ok_c, rsn_c = m4_portfolio_gate(d_eth[0], -1, [_FakePos("BTCUSD.pi", d_btc[0]["magic"], 0)], dcfg, d_pair_map, {}, 1000, 2500.0, 5.5, 5.5)
+        assert not ok_c and "max_crypto_total" in rsn_c, f"Expected max_crypto_total, got {(ok_c, rsn_c)}"
+
     print("SELFTEST PASS: 16/16 V3B pairs, causal determinism, sizing/ZEC reject, DD hysteresis, M4 governor, BE/step_lock/trail verified.", flush=True)
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="M4 Personal MaxCAGR V3B Live MT5 Engine")
-    ap.add_argument("--config", default=str(DEFAULT_CONFIG_PATH))
+    ap.add_argument("--config", default=None)
     ap.add_argument("--state", default=str(DEFAULT_STATE_PATH))
     ap.add_argument("--journal", default=str(DEFAULT_JOURNAL_PATH))
     ap.add_argument("--selftest", action="store_true")
@@ -1186,8 +1263,10 @@ def main() -> int:
     ap.add_argument("--i-understand-live-risk", action="store_true")
     args = ap.parse_args()
 
+    cfg_path = Path(args.config) if args.config else (DESK_CONFIG_PATH if (args.live and DESK_CONFIG_PATH.is_file()) else DEFAULT_CONFIG_PATH)
+
     if args.selftest:
-        run_selftest(Path(args.config))
+        run_selftest(cfg_path)
         return 0
 
     if args.live and not args.i_understand_live_risk:
@@ -1195,7 +1274,7 @@ def main() -> int:
         return 2
 
     eng = M4LiveEngine(
-        Path(args.config), Path(args.state), Path(args.journal),
+        cfg_path, Path(args.state), Path(args.journal),
         dry=(args.dry or not args.live), live=bool(args.live),
     )
     if args.once or args.dry:

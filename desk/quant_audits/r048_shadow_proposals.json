@@ -1,0 +1,697 @@
+{
+  "status": "SHADOW_TRIAL",
+  "base_commit": "ac5aaae508f2c901cac230ebb1da418dce3c30da",
+  "outer_holdout_start_utc": "2026-12-01T00:00:00Z",
+  "outer_holdout_status": "PENDING_FUTURE_DATA",
+  "forward_control": "Freeze the same 16 M4 pair recipes; apply one crypto slot, two total slots, $6 maximum MT5 stressed risk and 1% aggregate heat in a shared reservation gateway",
+  "risk_policies": {
+    "m4_personal_growth_model": {
+      "research_only": true,
+      "max_global": 6,
+      "risk_pct": 0.8,
+      "model_pair_caps_usd": [
+        20,
+        30
+      ]
+    },
+    "all_owned_venue_accounts": {
+      "max_owned_open_pending_reserved": 2,
+      "max_crypto_total": 1,
+      "max_positions_per_canonical_symbol": 1,
+      "max_equity_heat_pct": 1.0,
+      "grade_a_pct": 1.0,
+      "grade_b_pct": 0.5,
+      "mt5_hard_risk_usd": 6.0,
+      "delta_hard_risk_usd": 0.5,
+      "delta_margin_usd": 1.5,
+      "gateway_required": true
+    }
+  },
+  "patch_sets": [
+    {
+      "name": "m4_shadow_weight_cap_only",
+      "target": "engine/config_m4_v3b.json",
+      "patch": [
+        {
+          "op": "test",
+          "path": "/pairs/0/pair_id",
+          "value": "SP500.p:PA04_Donchian_Trend:1H"
+        },
+        {
+          "op": "test",
+          "path": "/pairs/0/pair_weight",
+          "value": 1.4
+        },
+        {
+          "op": "replace",
+          "path": "/pairs/0/pair_weight",
+          "value": 1.0
+        },
+        {
+          "op": "test",
+          "path": "/pairs/1/pair_id",
+          "value": "USDJPY.pi:PA05_Supertrend_EMA233:4H"
+        },
+        {
+          "op": "test",
+          "path": "/pairs/1/pair_weight",
+          "value": 1.4
+        },
+        {
+          "op": "replace",
+          "path": "/pairs/1/pair_weight",
+          "value": 1.0
+        },
+        {
+          "op": "test",
+          "path": "/pairs/2/pair_id",
+          "value": "USDJPY.pi:ema_pullback:4H"
+        },
+        {
+          "op": "test",
+          "path": "/pairs/2/pair_weight",
+          "value": 1.4
+        },
+        {
+          "op": "replace",
+          "path": "/pairs/2/pair_weight",
+          "value": 1.0
+        },
+        {
+          "op": "test",
+          "path": "/pairs/3/pair_id",
+          "value": "BTCUSD.pi:s02_rsi2_meanrev:4H"
+        },
+        {
+          "op": "test",
+          "path": "/pairs/3/pair_weight",
+          "value": 1.4
+        },
+        {
+          "op": "replace",
+          "path": "/pairs/3/pair_weight",
+          "value": 1.0
+        },
+        {
+          "op": "test",
+          "path": "/pairs/4/pair_id",
+          "value": "ETHUSD.pi:rsi2_of_reversion:4H"
+        },
+        {
+          "op": "test",
+          "path": "/pairs/4/pair_weight",
+          "value": 1.1567
+        },
+        {
+          "op": "replace",
+          "path": "/pairs/4/pair_weight",
+          "value": 1.0
+        },
+        {
+          "op": "test",
+          "path": "/pairs/5/pair_id",
+          "value": "BTCUSD.pi:rsi2_of_reversion:4H"
+        },
+        {
+          "op": "test",
+          "path": "/pairs/5/pair_weight",
+          "value": 1.0568
+        },
+        {
+          "op": "replace",
+          "path": "/pairs/5/pair_weight",
+          "value": 1.0
+        },
+        {
+          "op": "test",
+          "path": "/pairs/6/pair_id",
+          "value": "ETHUSD.pi:ema_pullback:4H"
+        },
+        {
+          "op": "test",
+          "path": "/pairs/6/pair_weight",
+          "value": 1.0885
+        },
+        {
+          "op": "replace",
+          "path": "/pairs/6/pair_weight",
+          "value": 1.0
+        }
+      ]
+    },
+    {
+      "name": "m4_desk_slot_and_stop_cap_shadow",
+      "target": "engine/config_m4_v3b.json",
+      "patch": [
+        {
+          "op": "test",
+          "path": "/governor/max_global",
+          "value": 6
+        },
+        {
+          "op": "replace",
+          "path": "/governor/max_global",
+          "value": 2
+        },
+        {
+          "op": "test",
+          "path": "/governor/max_per_asset",
+          "value": 2
+        },
+        {
+          "op": "replace",
+          "path": "/governor/max_per_asset",
+          "value": 1
+        },
+        {
+          "op": "test",
+          "path": "/governor/max_crypto_same_side",
+          "value": 4
+        },
+        {
+          "op": "replace",
+          "path": "/governor/max_crypto_same_side",
+          "value": 1
+        },
+        {
+          "op": "test",
+          "path": "/governor/max_total_open_risk_pct",
+          "value": 6.0
+        },
+        {
+          "op": "replace",
+          "path": "/governor/max_total_open_risk_pct",
+          "value": 1.0
+        },
+        {
+          "op": "test",
+          "path": "/governor/max_risk_single_trade_pct",
+          "value": 1.25
+        },
+        {
+          "op": "replace",
+          "path": "/governor/max_risk_single_trade_pct",
+          "value": 1.0
+        },
+        {
+          "op": "add",
+          "path": "/governor/max_crypto_total",
+          "value": 1
+        },
+        {
+          "op": "test",
+          "path": "/pairs/0/pair_id",
+          "value": "SP500.p:PA04_Donchian_Trend:1H"
+        },
+        {
+          "op": "test",
+          "path": "/pairs/0/max_lot_risk_usd",
+          "value": 20.0
+        },
+        {
+          "op": "replace",
+          "path": "/pairs/0/max_lot_risk_usd",
+          "value": 6.0
+        },
+        {
+          "op": "test",
+          "path": "/pairs/1/pair_id",
+          "value": "USDJPY.pi:PA05_Supertrend_EMA233:4H"
+        },
+        {
+          "op": "test",
+          "path": "/pairs/1/max_lot_risk_usd",
+          "value": 20.0
+        },
+        {
+          "op": "replace",
+          "path": "/pairs/1/max_lot_risk_usd",
+          "value": 6.0
+        },
+        {
+          "op": "test",
+          "path": "/pairs/2/pair_id",
+          "value": "USDJPY.pi:ema_pullback:4H"
+        },
+        {
+          "op": "test",
+          "path": "/pairs/2/max_lot_risk_usd",
+          "value": 20.0
+        },
+        {
+          "op": "replace",
+          "path": "/pairs/2/max_lot_risk_usd",
+          "value": 6.0
+        },
+        {
+          "op": "test",
+          "path": "/pairs/3/pair_id",
+          "value": "BTCUSD.pi:s02_rsi2_meanrev:4H"
+        },
+        {
+          "op": "test",
+          "path": "/pairs/3/max_lot_risk_usd",
+          "value": 30.0
+        },
+        {
+          "op": "replace",
+          "path": "/pairs/3/max_lot_risk_usd",
+          "value": 6.0
+        },
+        {
+          "op": "test",
+          "path": "/pairs/4/pair_id",
+          "value": "ETHUSD.pi:rsi2_of_reversion:4H"
+        },
+        {
+          "op": "test",
+          "path": "/pairs/4/max_lot_risk_usd",
+          "value": 20.0
+        },
+        {
+          "op": "replace",
+          "path": "/pairs/4/max_lot_risk_usd",
+          "value": 6.0
+        },
+        {
+          "op": "test",
+          "path": "/pairs/5/pair_id",
+          "value": "BTCUSD.pi:rsi2_of_reversion:4H"
+        },
+        {
+          "op": "test",
+          "path": "/pairs/5/max_lot_risk_usd",
+          "value": 30.0
+        },
+        {
+          "op": "replace",
+          "path": "/pairs/5/max_lot_risk_usd",
+          "value": 6.0
+        },
+        {
+          "op": "test",
+          "path": "/pairs/6/pair_id",
+          "value": "ETHUSD.pi:ema_pullback:4H"
+        },
+        {
+          "op": "test",
+          "path": "/pairs/6/max_lot_risk_usd",
+          "value": 20.0
+        },
+        {
+          "op": "replace",
+          "path": "/pairs/6/max_lot_risk_usd",
+          "value": 6.0
+        },
+        {
+          "op": "test",
+          "path": "/pairs/7/pair_id",
+          "value": "USDJPY.pi:PA01_FibEMA_89_233_Pullback:4H"
+        },
+        {
+          "op": "test",
+          "path": "/pairs/7/max_lot_risk_usd",
+          "value": 20.0
+        },
+        {
+          "op": "replace",
+          "path": "/pairs/7/max_lot_risk_usd",
+          "value": 6.0
+        },
+        {
+          "op": "test",
+          "path": "/pairs/8/pair_id",
+          "value": "GAUUSD.pi:PA03_EMA233_Rejection:4H"
+        },
+        {
+          "op": "test",
+          "path": "/pairs/8/max_lot_risk_usd",
+          "value": 20.0
+        },
+        {
+          "op": "replace",
+          "path": "/pairs/8/max_lot_risk_usd",
+          "value": 6.0
+        },
+        {
+          "op": "test",
+          "path": "/pairs/9/pair_id",
+          "value": "BTCUSD.pi:s07_daily_pivot_breakout:4H"
+        },
+        {
+          "op": "test",
+          "path": "/pairs/9/max_lot_risk_usd",
+          "value": 30.0
+        },
+        {
+          "op": "replace",
+          "path": "/pairs/9/max_lot_risk_usd",
+          "value": 6.0
+        },
+        {
+          "op": "test",
+          "path": "/pairs/10/pair_id",
+          "value": "BTCUSD.pi:delta_divergence:2H"
+        },
+        {
+          "op": "test",
+          "path": "/pairs/10/max_lot_risk_usd",
+          "value": 30.0
+        },
+        {
+          "op": "replace",
+          "path": "/pairs/10/max_lot_risk_usd",
+          "value": 6.0
+        },
+        {
+          "op": "test",
+          "path": "/pairs/11/pair_id",
+          "value": "BTCUSD.pi:s05_zscore_breakout:4H"
+        },
+        {
+          "op": "test",
+          "path": "/pairs/11/max_lot_risk_usd",
+          "value": 30.0
+        },
+        {
+          "op": "replace",
+          "path": "/pairs/11/max_lot_risk_usd",
+          "value": 6.0
+        },
+        {
+          "op": "test",
+          "path": "/pairs/12/pair_id",
+          "value": "BTCUSD.pi:s10_ema_pullback:4H"
+        },
+        {
+          "op": "test",
+          "path": "/pairs/12/max_lot_risk_usd",
+          "value": 30.0
+        },
+        {
+          "op": "replace",
+          "path": "/pairs/12/max_lot_risk_usd",
+          "value": 6.0
+        },
+        {
+          "op": "test",
+          "path": "/pairs/13/pair_id",
+          "value": "BTCUSD.pi:s06_iv_wall_fade:4H"
+        },
+        {
+          "op": "test",
+          "path": "/pairs/13/max_lot_risk_usd",
+          "value": 30.0
+        },
+        {
+          "op": "replace",
+          "path": "/pairs/13/max_lot_risk_usd",
+          "value": 6.0
+        },
+        {
+          "op": "test",
+          "path": "/pairs/14/pair_id",
+          "value": "BTCUSD.pi:s01_williams_pullback:4H"
+        },
+        {
+          "op": "test",
+          "path": "/pairs/14/max_lot_risk_usd",
+          "value": 30.0
+        },
+        {
+          "op": "replace",
+          "path": "/pairs/14/max_lot_risk_usd",
+          "value": 6.0
+        },
+        {
+          "op": "test",
+          "path": "/pairs/15/pair_id",
+          "value": "ETHUSD.pi:vwap_rejection:4H"
+        },
+        {
+          "op": "test",
+          "path": "/pairs/15/max_lot_risk_usd",
+          "value": 20.0
+        },
+        {
+          "op": "replace",
+          "path": "/pairs/15/max_lot_risk_usd",
+          "value": 6.0
+        }
+      ]
+    },
+    {
+      "name": "unified_farm_policy",
+      "reference": "r047_farm_policy.patch.json",
+      "gateway_required": true
+    }
+  ],
+  "asset_metadata_changes": [
+    {
+      "target": "strategies/s12_oi_2h_liq_break/BCH.json",
+      "patch": [
+        {
+          "op": "test",
+          "path": "/status",
+          "value": "PROFITABLE_VERIFIED"
+        },
+        {
+          "op": "add",
+          "path": "/execution_status",
+          "value": "RESEARCH_ONLY_PENDING_OI_RELEASE_TAPE_AND_SIGNAL_PARITY"
+        }
+      ]
+    },
+    {
+      "target": "strategies/s12_oi_2h_liq_break/BTC.json",
+      "patch": [
+        {
+          "op": "test",
+          "path": "/status",
+          "value": "PROFITABLE_VERIFIED"
+        },
+        {
+          "op": "add",
+          "path": "/execution_status",
+          "value": "RESEARCH_ONLY_PENDING_OI_RELEASE_TAPE_AND_SIGNAL_PARITY"
+        }
+      ]
+    },
+    {
+      "target": "strategies/s12_oi_2h_liq_break/ETH.json",
+      "patch": [
+        {
+          "op": "test",
+          "path": "/status",
+          "value": "PROFITABLE_VERIFIED"
+        },
+        {
+          "op": "add",
+          "path": "/execution_status",
+          "value": "RESEARCH_ONLY_PENDING_OI_RELEASE_TAPE_AND_SIGNAL_PARITY"
+        }
+      ]
+    },
+    {
+      "target": "strategies/s12_oi_2h_liq_break/XAU.json",
+      "patch": [
+        {
+          "op": "test",
+          "path": "/status",
+          "value": "STAGE_A_CANDIDATE"
+        },
+        {
+          "op": "add",
+          "path": "/execution_status",
+          "value": "RESEARCH_ONLY_PENDING_OI_RELEASE_TAPE_AND_SIGNAL_PARITY"
+        }
+      ]
+    },
+    {
+      "target": "strategies/s12_oi_2h_liq_break/ZEC.json",
+      "patch": [
+        {
+          "op": "test",
+          "path": "/status",
+          "value": "STAGE_A_CANDIDATE"
+        },
+        {
+          "op": "add",
+          "path": "/execution_status",
+          "value": "RESEARCH_ONLY_PENDING_OI_RELEASE_TAPE_AND_SIGNAL_PARITY"
+        }
+      ]
+    },
+    {
+      "target": "strategies/s13_oi_2h_reclaim_fade/AVAX.json",
+      "patch": [
+        {
+          "op": "test",
+          "path": "/status",
+          "value": "PROFITABLE_VERIFIED"
+        },
+        {
+          "op": "add",
+          "path": "/execution_status",
+          "value": "RESEARCH_ONLY_PENDING_OI_RELEASE_TAPE_AND_SIGNAL_PARITY"
+        }
+      ]
+    },
+    {
+      "target": "strategies/s13_oi_2h_reclaim_fade/YFI.json",
+      "patch": [
+        {
+          "op": "test",
+          "path": "/status",
+          "value": "PROFITABLE_VERIFIED"
+        },
+        {
+          "op": "add",
+          "path": "/execution_status",
+          "value": "RESEARCH_ONLY_PENDING_OI_RELEASE_TAPE_AND_SIGNAL_PARITY"
+        }
+      ]
+    },
+    {
+      "target": "strategies/s14_oi_4h_sqz_mom/AAVE.json",
+      "patch": [
+        {
+          "op": "test",
+          "path": "/status",
+          "value": "PROFITABLE_VERIFIED"
+        },
+        {
+          "op": "add",
+          "path": "/execution_status",
+          "value": "RESEARCH_ONLY_PENDING_OI_RELEASE_TAPE_AND_SIGNAL_PARITY"
+        }
+      ]
+    },
+    {
+      "target": "strategies/s14_oi_4h_sqz_mom/BCH.json",
+      "patch": [
+        {
+          "op": "test",
+          "path": "/status",
+          "value": "STAGE_A_CANDIDATE"
+        },
+        {
+          "op": "add",
+          "path": "/execution_status",
+          "value": "RESEARCH_ONLY_PENDING_OI_RELEASE_TAPE_AND_SIGNAL_PARITY"
+        }
+      ]
+    },
+    {
+      "target": "strategies/s14_oi_4h_sqz_mom/BTC.json",
+      "patch": [
+        {
+          "op": "test",
+          "path": "/status",
+          "value": "PROFITABLE_VERIFIED"
+        },
+        {
+          "op": "add",
+          "path": "/execution_status",
+          "value": "RESEARCH_ONLY_PENDING_OI_RELEASE_TAPE_AND_SIGNAL_PARITY"
+        }
+      ]
+    },
+    {
+      "target": "strategies/s14_oi_4h_sqz_mom/ETH.json",
+      "patch": [
+        {
+          "op": "test",
+          "path": "/status",
+          "value": "PROFITABLE_VERIFIED"
+        },
+        {
+          "op": "add",
+          "path": "/execution_status",
+          "value": "RESEARCH_ONLY_PENDING_OI_RELEASE_TAPE_AND_SIGNAL_PARITY"
+        }
+      ]
+    },
+    {
+      "target": "strategies/s14_oi_4h_sqz_mom/LINK.json",
+      "patch": [
+        {
+          "op": "test",
+          "path": "/status",
+          "value": "STAGE_A_CANDIDATE"
+        },
+        {
+          "op": "add",
+          "path": "/execution_status",
+          "value": "RESEARCH_ONLY_PENDING_OI_RELEASE_TAPE_AND_SIGNAL_PARITY"
+        }
+      ]
+    },
+    {
+      "target": "strategies/s14_oi_4h_sqz_mom/SOL.json",
+      "patch": [
+        {
+          "op": "test",
+          "path": "/status",
+          "value": "PROFITABLE_VERIFIED"
+        },
+        {
+          "op": "add",
+          "path": "/execution_status",
+          "value": "RESEARCH_ONLY_PENDING_OI_RELEASE_TAPE_AND_SIGNAL_PARITY"
+        }
+      ]
+    },
+    {
+      "target": "strategies/s11_of_initiative_breakout/BTC.json",
+      "patch": [
+        {
+          "op": "test",
+          "path": "/optimal_parameters/d1_ema_trend_gate",
+          "value": true
+        },
+        {
+          "op": "add",
+          "path": "/execution_status",
+          "value": "SHADOW_TRIAL"
+        }
+      ]
+    },
+    {
+      "target": "strategies/s11_of_initiative_breakout/ETH.json",
+      "patch": [
+        {
+          "op": "test",
+          "path": "/optimal_parameters/d1_ema_trend_gate",
+          "value": true
+        },
+        {
+          "op": "add",
+          "path": "/execution_status",
+          "value": "SHADOW_TRIAL"
+        }
+      ]
+    },
+    {
+      "target": "strategies/s11_of_initiative_breakout/SOL.json",
+      "patch": [
+        {
+          "op": "test",
+          "path": "/optimal_parameters/d1_ema_trend_gate",
+          "value": true
+        },
+        {
+          "op": "add",
+          "path": "/execution_status",
+          "value": "SHADOW_TRIAL"
+        }
+      ]
+    }
+  ],
+  "required_evidence": [
+    "point-in-time bid/ask and rollover cashflows",
+    "broker account currency loss tick and lot steps",
+    "pending and open reservation audit with interlock",
+    "independent holdout with no refit or re-ranking"
+  ]
+}

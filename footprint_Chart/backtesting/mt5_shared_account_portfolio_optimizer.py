@@ -15,6 +15,7 @@ Executes STRICT Causal In-Sample (<= 2023-12-31) Optimization -> Untouched Froze
 """
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime, timezone
 import json
 import math
@@ -101,9 +102,6 @@ def prop_mc_20k(daily_r: np.ndarray, risk_pct: float, n_mc: int = 20000, seed: i
     }
 
 
-_NATIVE_BAR_SECONDS = {"1H": 3600, "H1": 3600, "2H": 7200, "H2": 7200, "4H": 14400, "H4": 14400}
-
-
 def _entry_order(trade: dict[str, Any]) -> tuple[int, int, str, str, str, str, int, str, str]:
     """Rank candidates using only identity and priority published at entry."""
     return (
@@ -116,11 +114,14 @@ def _entry_order(trade: dict[str, Any]) -> tuple[int, int, str, str, str, str, i
 
 def _exit_available_at(trade: dict[str, Any]) -> int:
     """Convert an exit-bar opening timestamp to the first observable close."""
-    if "exit_available_ts" in trade:
-        return int(trade["exit_available_ts"])
-    duration = (
-        _NATIVE_BAR_SECONDS[str(trade["tf"]).upper()] if str(trade["symbol"]).startswith("MT5_") else 60
-    )
+    recorded = trade.get("exit_available_ts")
+    if recorded is not None and pd.notna(recorded):
+        available = int(recorded)
+        if available < int(trade["ts_out"]):
+            raise ValueError("Exit availability cannot precede the observed exit")
+        return available
+    # Legacy MT5 TradFi producer executes on its H1 tape even for H4 signals.
+    duration = 3600 if str(trade["symbol"]).startswith("MT5_") else 60
     return int(trade["ts_out"]) + duration
 
 
@@ -140,6 +141,10 @@ def simulate_shared_account(
     min_ts: int | None = None,
     max_ts: int | None = None,
     mc_runs: int = 0,
+    *,
+    size_risk_usd: Callable[[dict[str, Any], float, float], float | tuple[float, float] | None] | None = None,
+    max_crypto_total: int | None = None,
+    max_open_risk_pct: float | None = None,
 ) -> dict[str, Any]:
     """Replay timestamped entries with deterministic, point-in-time admission.
 
@@ -197,6 +202,9 @@ def simulate_shared_account(
             continue
         if sum(1 for a in active if a["symbol"] == sym) >= max_per_asset:
             continue
+        if cat == "CRYPTO" and max_crypto_total is not None:
+            if sum(1 for a in active if a["category"] == "CRYPTO") >= max_crypto_total:
+                continue
         if cat == "CRYPTO" and max_crypto_same_side > 0:
             if sum(1 for a in active if a["category"] == "CRYPTO" and a["side"] == side) >= max_crypto_same_side:
                 continue
@@ -217,10 +225,25 @@ def simulate_shared_account(
 
         w = float(pw.get((sym, sid), 1.0))
         vmult = float(t.get("vof_mult", 1.0)) if use_vof else 1.0
+        reserved_risk = eq * rp * w * vmult * th_mult
         eff_r = float(t["r"]) * w * vmult * th_mult
         pnl_usd = eq * rp * eff_r
+        if size_risk_usd is not None:
+            sized_risk = size_risk_usd(t, reserved_risk, eq)
+            if sized_risk is None:
+                continue
+            gross_risk, reserved_risk = sized_risk if isinstance(sized_risk, tuple) else (sized_risk, sized_risk)
+            if (not all(math.isfinite(v) and v > 0 for v in (gross_risk, reserved_risk))
+                    or reserved_risk < gross_risk or eq * rp <= 0):
+                raise ValueError("A size adapter must return positive finite stop risk")
+            pnl_usd = gross_risk * float(t["r"])
+            eff_r = pnl_usd / (eq * rp)
+        if max_open_risk_pct is not None:
+            if sum(a["reserved_risk"] for a in active) + reserved_risk > eq * max_open_risk_pct / 100 + 1e-9:
+                continue
 
-        active.append({"ts_out": tout, "symbol": sym, "category": cat, "side": side, "bucket": bkt, "pnl_usd": pnl_usd})
+        active.append({"ts_out": tout, "symbol": sym, "category": cat, "side": side, "bucket": bkt,
+                       "pnl_usd": pnl_usd, "reserved_risk": reserved_risk})
         # An unresolved label reserves capacity but contributes no training P&L.
         if max_ts is not None and tout >= max_ts:
             continue
@@ -323,7 +346,8 @@ def run_stage2() -> dict[str, Any]:
         c = cfgs[sym]
         cat = c["category"]
         mt5_cost = float(c["mt5_cost_bps"])
-        is_df = df[df["ts_in"] < SPLIT_2024_TS]
+        available = pd.Series((_exit_available_at(t) for t in df.to_dict("records")), index=df.index)
+        is_df = df[(df["ts_in"] < SPLIT_2024_TS) & (available < SPLIT_2024_TS)]
         if is_df.empty:
             continue
 

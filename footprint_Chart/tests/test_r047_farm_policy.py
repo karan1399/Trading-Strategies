@@ -84,7 +84,7 @@ def test_asset_proposals_match_pinned_files_and_replay_arms():
         cfg = json.loads((root / trial["target"]).read_text("utf-8"))
         pair = replay["pairs"][cfg["symbol"]][cfg["strategy"]]
         assert trial["replay_arm"] in pair["trials"]
-        assert cfg == pair["recorded_config"]
+        assert {k: v for k, v in cfg.items() if k != "execution_status"} == pair["recorded_config"]
         for change in trial["patch"]:
             *parents, key = change["path"].removeprefix("/").split("/")
             target = cfg

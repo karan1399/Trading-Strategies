@@ -96,6 +96,7 @@ def build_footprint_bars(
 
     # Bar OHLC from 1m OHLC
     ohlc_1m = raw[["bar_1m", "bar_ts", "open", "high", "low", "close"]].drop_duplicates("bar_1m").sort_values("bar_1m")
+    last_minute = ohlc_1m.groupby("bar_ts")["bar_1m"].max()
     bar_ohlc = (
         ohlc_1m.groupby("bar_ts", as_index=False)
         .agg(open=("open", "first"), high=("high", "max"), low=("low", "min"), close=("close", "last"))
@@ -217,6 +218,7 @@ def build_footprint_bars(
         bars.append(
             {
                 "time": bts,
+                "end_ts": bts + tf_sec if last_minute[bts] == bts + tf_sec - 60 else None,
                 "open": round(float(ohlc_row.open), px_dec),
                 "high": round(float(ohlc_row.high), px_dec),
                 "low": round(float(ohlc_row.low), px_dec),

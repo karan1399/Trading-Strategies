@@ -221,7 +221,7 @@ def optimize_asset_mt5(row: dict[str, Any], mspec: dict[str, Any], chart_map: di
 
     def _push(sid, tf_l, mode_l, cfg_s, df_u, arrs, tf_s, sa, sl, tp, tr, be, stp, mh, dyn):
         res = _run(arrs, tf_s, sa, sl, tp, tr, be, stp, mh, dyn)
-        sc = _score_is_oos(res[1], res[7], split_ts, min_is)
+        sc = _score_is_oos(res[1], res[7], split_ts, min_is, exit_available_ts=res[2] + 60)
         trials.setdefault(sid, []).append({
             "sid": sid, "tf": tf_l, "mode": mode_l, "cfg": cfg_s,
             "sl": sl, "tp": tp, "tr": tr, "be": be, "mh": mh,

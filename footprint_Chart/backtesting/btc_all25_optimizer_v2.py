@@ -105,6 +105,7 @@ def _to_chart_df(gf):
 
 def _df_to_bars(gf):
     ts = gf["ts"].to_numpy(dtype=np.int64)
+    end_ts = gf["end_ts"].to_numpy(dtype=np.int64)
     o = gf["o"].to_numpy(dtype=np.float64)
     h = gf["h"].to_numpy(dtype=np.float64)
     l = gf["l"].to_numpy(dtype=np.float64)
@@ -121,7 +122,7 @@ def _df_to_bars(gf):
     bars: list[dict[str, Any]] = []
     for k in range(len(ts)):
         bars.append({
-            "time": int(ts[k]), "open": float(o[k]), "high": float(h[k]),
+            "time": int(ts[k]), "end_ts": int(end_ts[k]), "open": float(o[k]), "high": float(h[k]),
             "low": float(l[k]), "close": float(c[k]), "volume": float(v[k]),
             "delta": float(d[k]), "delta_pct": float(dp[k]),
             "buy_imbalances": int(bi[k]), "sell_imbalances": int(si[k]),

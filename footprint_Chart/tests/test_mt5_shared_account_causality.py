@@ -50,7 +50,7 @@ def test_native_ohlc_exit_is_available_at_native_bar_close():
     first = trade("MT5_XAUUSD", 60, 120, tf="H4")
     second = trade("ETH", 180, 240)
     result = simulate([second, first])
-    assert result["curve"][1][0] == 14520
+    assert result["curve"][1][0] == 3720
     assert [row["symbol"] for row in result["by_asset"]] == ["MT5_XAUUSD"]
 
 

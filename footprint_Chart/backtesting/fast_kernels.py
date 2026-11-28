@@ -91,6 +91,7 @@ def sim_1m_trades_nb(
     sw_s_bps: float,
     f_ts: np.ndarray,
     f_rt: np.ndarray,
+    closed_bar_replay: bool = False,
 ):
     """Numba-compiled exact 1m trade replay kernel matching `_sim_sleeve_1m_exact` bit-for-bit."""
     n = len(ts)
@@ -113,7 +114,9 @@ def sim_1m_trades_nb(
     cnt = 0
 
     i = 235
-    while i < n - 3:
+    signal_limit = n if closed_bar_replay else n - 3
+    entry_limit = m1_n if closed_bar_replay else m1_n - 10
+    while i < signal_limit:
         side = int(side_arr[i])
         ai = atr[i]
         if side == 0 or math.isnan(ai) or ai <= 0.0:
@@ -121,14 +124,18 @@ def sim_1m_trades_nb(
             continue
 
         k_in = _ss_left_i64(m1_ts, int(end_ts[i])) + delay
-        if k_in >= m1_n - 10:
+        if k_in >= entry_limit:
             break
 
         entry = m1_o[k_in]
+        if closed_bar_replay and (not math.isfinite(entry) or entry <= 0 or m1_ts[k_in] - end_ts[i] > 300):
+            i += 1
+            continue
         sd = sl_atr * ai
         sl = entry - side * sd
         tp = entry + side * (tp_r * sd) if has_tp else 0.0
-        k_max = _ss_right_i64(m1_ts, int(m1_ts[k_in]) + max_hold * tf_sec)
+        hold_end = int(m1_ts[k_in]) + max_hold * tf_sec
+        k_max = _ss_left_i64(m1_ts, hold_end) if closed_bar_replay else _ss_right_i64(m1_ts, hold_end)
         if k_max >= m1_n:
             k_max = m1_n - 1
 
@@ -145,7 +152,7 @@ def sim_1m_trades_nb(
             lo = m1_l[k]
             if side == 1:
                 if lo <= sl:
-                    ex_px = sl
+                    ex_px = min(sl, m1_o[k]) if closed_bar_replay else sl
                     ex_code = 2 if trailed else 1
                     k_ex = k
                     break
@@ -159,7 +166,8 @@ def sim_1m_trades_nb(
                 cur_b = int(m1_ts[k]) // tf_sec
                 if cur_b != prev_b:
                     if dyn_atr:
-                        while cur_bar_idx + 1 < n and (int(ts[cur_bar_idx + 1]) // tf_sec) < cur_b:
+                        while cur_bar_idx + 1 < n and (end_ts[cur_bar_idx + 1] <= m1_ts[k] if closed_bar_replay
+                                                       else (int(ts[cur_bar_idx + 1]) // tf_sec) < cur_b):
                             cur_bar_idx += 1
                         ac = atr[cur_bar_idx]
                         tr_a = ac if not math.isnan(ac) else ai
@@ -184,7 +192,7 @@ def sim_1m_trades_nb(
                 prev_b = cur_b
             else:
                 if hi >= sl:
-                    ex_px = sl
+                    ex_px = max(sl, m1_o[k]) if closed_bar_replay else sl
                     ex_code = 2 if trailed else 1
                     k_ex = k
                     break
@@ -198,7 +206,8 @@ def sim_1m_trades_nb(
                 cur_b = int(m1_ts[k]) // tf_sec
                 if cur_b != prev_b:
                     if dyn_atr:
-                        while cur_bar_idx + 1 < n and (int(ts[cur_bar_idx + 1]) // tf_sec) < cur_b:
+                        while cur_bar_idx + 1 < n and (end_ts[cur_bar_idx + 1] <= m1_ts[k] if closed_bar_replay
+                                                       else (int(ts[cur_bar_idx + 1]) // tf_sec) < cur_b):
                             cur_bar_idx += 1
                         ac = atr[cur_bar_idx]
                         tr_a = ac if not math.isnan(ac) else ai
@@ -223,6 +232,8 @@ def sim_1m_trades_nb(
                 prev_b = cur_b
 
         if ex_code == 0:
+            if closed_bar_replay and m1_ts[k_ex] < hold_end:
+                break  # The position is still open at the observed boundary.
             ex_px = m1_c[k_ex]
         raw_r = ((ex_px - entry) * side) / sd
 
@@ -431,11 +442,10 @@ def reduce_month_tf_nb(
     tf_nt[tf_cnt] = tnt
     tf_cnt += 1
 
-    med_o = float(np.median(tf_o[:tf_cnt]))
-    floor_tick = 5.0 if med_o >= 10000.0 else 1e-6
     tf_ticks = np.empty(tf_cnt, dtype=np.float64)
     for j in range(tf_cnt):
         if adaptive_tick:
+            floor_tick = 5.0 if tf_o[j] >= 10000.0 else 1e-6
             tk = ladder_round_nb(tf_o[j] * bps_tick / 10000.0)
             tf_ticks[j] = tk if tk > floor_tick else floor_tick
         else:

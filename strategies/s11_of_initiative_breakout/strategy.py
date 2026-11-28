@@ -17,6 +17,32 @@ def _ema_series(values: list[float], span: int) -> list[float]:
     return out
 
 
+def completed_d1_directions(bars: list[dict[str, Any]], max_age_seconds: int = 86400) -> list[int]:
+    """As-of direction using observed UTC midnight closes, including the current close."""
+    fast = slow = None
+    samples = direction = 0
+    last_close: int | None = None
+    directions = []
+    for bar in bars:
+        end = bar.get("end_ts")
+        if end is None:
+            directions.append(0)
+            continue
+        end = int(end)
+        if end <= int(bar["time"]):
+            raise ValueError("D1 gate requires a close timestamp after the bar open")
+        if end % 86400 == 0 and (last_close is None or end > last_close):
+            close = float(bar["close"])
+            fast = close if fast is None else close * (2.0 / 51.0) + fast * (49.0 / 51.0)
+            slow = close if slow is None else close * (2.0 / 201.0) + slow * (199.0 / 201.0)
+            last_close = end
+            samples += 1
+            direction = int(fast > slow) - int(fast < slow)
+        current = last_close is not None and 0 <= end - last_close < max_age_seconds
+        directions.append(direction if current and samples >= 200 else 0)
+    return directions
+
+
 class OrderFlowInitiativeBreakoutStrategy(BaseFootprintStrategy):
     """Breakout above/below N-bar extreme aligned with EMA 233, CLV acceptance, Delta %, and Footprint Imbalance dominance.
 
@@ -61,31 +87,8 @@ class OrderFlowInitiativeBreakoutStrategy(BaseFootprintStrategy):
             return []
 
         closes = [float(b["close"]) for b in bars]
-        ema233 = _ema_series(closes, 233 if n >= 260 else min(233, max(55, (n * 2) // 3)))
-
-        # Causal completed-UTC D1 EMA50 vs EMA200 trend gate (age <= 24h from last completed UTC day)
-        d1_dir = [0] * n
-        if req_d1_gate:
-            k50 = 2.0 / 51.0
-            k200 = 2.0 / 201.0
-            d_close: dict[int, float] = {}
-            for b in bars:
-                d_day = int(b["time"]) // 86400
-                d_close[d_day] = float(b["close"])
-            completed_days = sorted(d_close.keys())
-            d_ema_dir: dict[int, int] = {}
-            e50_val: float | None = None
-            e200_val: float | None = None
-            for d_idx, d_day in enumerate(completed_days):
-                c_d = d_close[d_day]
-                e50_val = c_d if e50_val is None else (c_d * k50 + e50_val * (1.0 - k50))
-                e200_val = c_d if e200_val is None else (c_d * k200 + e200_val * (1.0 - k200))
-                if d_idx + 1 >= 200:
-                    d_ema_dir[d_day] = 1 if e50_val > e200_val else (-1 if e50_val < e200_val else 0)
-            for idx, b in enumerate(bars):
-                cur_day = int(b["time"]) // 86400
-                prev_day = cur_day - 1
-                d1_dir[idx] = d_ema_dir.get(prev_day, 0)
+        ema233 = _ema_series(closes, 233)
+        d1_dir = completed_d1_directions(bars) if req_d1_gate else [0] * n
 
         trs: list[float] = []
         for idx, b in enumerate(bars):

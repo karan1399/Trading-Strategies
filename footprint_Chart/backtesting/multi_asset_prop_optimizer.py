@@ -80,7 +80,13 @@ def _score_is_oos(
     split_ts: int,
     min_is: int,
     o_fr: np.ndarray | None = None,
+    *,
+    exit_available_ts: np.ndarray,
+    train_start_ts: int | None = None,
+    evaluation_end_ts: int | None = None,
 ) -> dict[str, Any]:
+    if o_ti.shape != exit_available_ts.shape or np.any(exit_available_ts < o_ti):
+        raise ValueError("Exit availability must align with entries and cannot precede them")
     if len(o_ti) == 0:
         return {
             "n_all": 0, "r_all": 0.0, "pf_all": 0.0, "wr_all": 0.0,
@@ -88,15 +94,20 @@ def _score_is_oos(
             "hmin": -99.0, "raw_score": -99.0,
             "noos": 0, "oosr": 0.0, "oospf": 0.0, "oos_wr": 0.0,
         }
-    is_m = o_ti < split_ts
-    oos_m = ~is_m
+    is_m = (o_ti < split_ts) & (exit_available_ts < split_ts)
+    if train_start_ts is not None:
+        is_m &= o_ti >= train_start_ts
+    oos_m = o_ti >= split_ts
+    if evaluation_end_ts is not None:
+        oos_m &= (o_ti < evaluation_end_ts) & (exit_available_ts < evaluation_end_ts)
+    observed = o_r[is_m | oos_m]
     ris, roos = o_r[is_m], o_r[oos_m]
     nis, noos = int(len(ris)), int(len(roos))
     ig, il = float(ris[ris > 0].sum()), float(abs(ris[ris < 0].sum()))
     is_pf = (ig / il) if il > 0 else (9.9 if ig > 0 else 0.0)
     og, ol = float(roos[roos > 0].sum()), float(abs(roos[roos < 0].sum()))
     oos_pf = (og / ol) if ol > 0 else (9.9 if og > 0 else 0.0)
-    ag, al = float(o_r[o_r > 0].sum()), float(abs(o_r[o_r < 0].sum()))
+    ag, al = float(observed[observed > 0].sum()), float(abs(observed[observed < 0].sum()))
     all_pf = (ag / al) if al > 0 else (9.9 if ag > 0 else 0.0)
     is_t = compute_hac_stats(ris)["t_hac"] if nis >= 6 else (float(ris.mean() / (ris.std() + 1e-9) * math.sqrt(nis)) if nis >= 3 else 0.0)
     avg_is_r = float(ris.mean()) if nis > 0 else 0.0
@@ -114,8 +125,8 @@ def _score_is_oos(
         else (-10.0 + 0.01 * float(ris.sum()) if nis < 4 else -1.0 + 0.01 * float(ris.sum()))
     )
     return {
-        "n_all": int(len(o_r)), "r_all": round(float(o_r.sum()), 2), "pf_all": round(all_pf, 2),
-        "wr_all": round(float((o_r > 0).mean() * 100.0), 1),
+        "n_all": int(len(observed)), "r_all": round(float(observed.sum()), 2), "pf_all": round(all_pf, 2),
+        "wr_all": round(float((observed > 0).mean() * 100.0), 1) if len(observed) else 0.0,
         "nis": nis, "isr": round(float(ris.sum()), 2) if nis else 0.0, "ispf": round(is_pf, 2), "ist": round(is_t, 2),
         "avg_is_r": round(avg_is_r, 4), "mean_fee_r": round(mean_fee_r, 4),
         "hmin": round(hmin, 2), "raw_score": float(raw),
@@ -173,7 +184,7 @@ def _mt5_h4_commodity_crosscheck(sym: str, sp_bps: float) -> dict[str, Any]:
     sig = np.where(ohlc["s09"] != 0, ohlc["s09"], np.where(ohlc["s10"] != 0, ohlc["s10"], ohlc["s04"]))
     # Simulate cleanly bar-by-bar on H4 with 2.0 ATR SL / 3.5 ATR TP
     atr = df["atr"].to_numpy(dtype=float)
-    r_list, ti_list = [], []
+    r_list, ti_list, close_list = [], [], []
     i = 240
     cost_r = (sp_bps + 2.0) / 10000.0
     while i < len(c) - 2:
@@ -187,8 +198,10 @@ def _mt5_h4_commodity_crosscheck(sym: str, sp_bps: float) -> dict[str, Any]:
         sl_p = ent - sd * sl_d
         tp_p = ent + sd * tp_d
         j = i + 1
+        exit_i = j
         res_r = 0.0
         while j < min(len(c), i + 72):
+            exit_i = j
             if (sd == 1 and l[j] <= sl_p) or (sd == -1 and h[j] >= sl_p):
                 res_r = -1.0 - (cost_r * ent / sl_d)
                 break
@@ -198,12 +211,13 @@ def _mt5_h4_commodity_crosscheck(sym: str, sp_bps: float) -> dict[str, Any]:
             j += 1
         else:
             res_r = (sd * (c[j - 1] - ent) / sl_d) - (cost_r * ent / sl_d)
+        close_list.append(int(ts[exit_i]) + 14400)
         r_list.append(res_r)
         ti_list.append(int(ts[i + 1]))
         i = j + 1
     ra = np.array(r_list, dtype=float)
     ta = np.array(ti_list, dtype=np.int64)
-    sc = _score_is_oos(ta, ra, split_ts, min_is=10)
+    sc = _score_is_oos(ta, ra, split_ts, min_is=10, exit_available_ts=np.asarray(close_list, dtype=np.int64))
     span_y = round(float((ts[-1] - ts[0]) / (365.25 * 86400.0)), 1)
     return {"bars": len(df), "years": span_y, "n": sc["n_all"], "pf": sc["pf_all"], "r": sc["r_all"], "oos_r": sc["oosr"], "oos_pf": sc["oospf"]}
 
@@ -274,7 +288,7 @@ def optimize_single_asset(row: dict[str, Any], spec: dict[str, Any], chart_map: 
 
     def _push(sid, tf_l, mode_l, cfg_s, df_u, arrs, tf_s, sa, sl, tp, tr, be, stp, mh, dyn):
         res = _run(arrs, tf_s, sa, sl, tp, tr, be, stp, mh, dyn)
-        sc = _score_is_oos(res[1], res[7], split_ts, min_is)
+        sc = _score_is_oos(res[1], res[7], split_ts, min_is, exit_available_ts=res[2] + 60)
         trials.setdefault(sid, []).append({"sid": sid, "tf": tf_l, "mode": mode_l, "cfg": cfg_s, "df": df_u, "res": res, **sc})
 
     ohlc4 = _fast_ohlc_fallbacks(g4)
