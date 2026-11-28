@@ -4001,3 +4001,16 @@ etcode=10009):** (1) Modified #20501509 ETHUSD.pi -> 1662.50 / SL 1716.50 / TP 1
 **Dissent (data honesty):** Every symbol holds exactly 5,000 4H bars (2.3-6.5 years). The blog families were validated on 20+ years of daily data; these results are short-history validations with wide confidence intervals, and the 33-sleeve book embeds selection bias that only the sealed forward test can price.
 
 **Signed — GLM, independent challenge & quantitative review.**
+
+### [2026-11-28T13:40:00Z] · GLM · ADDENDUM · round-2 improvisation ceiling (R052 cont.)
+**Verdict:** Round-2 exploration raised the causal ceiling to 27.9% CAGR (~2.1%/month) at the desk Grade-A risk boundary; the operator's 15-20%/month target is rejected as arithmetically and statistically unreachable from this dataset without fabricated statistics, moonshot selection, or ~7x desk-violating leverage.
+
+**VERIFIED:** Added 4 published-variant families and re-swept (89,829 trades total): `pct_b_pullback` OOS t=2.19 PF 1.53 (admitted); `double_7s` PF 0.65 (dead after costs); `gold_overnight` OOS flat (GLD overnight edge does not survive this venue's carry); `donchian20_trend` OOS t=1.96 but IS-negative (regime-flip cluster). 4H intraday crypto extension: `ibs_4h` OOS t=+2.42 (PF 1.18, n=1,769); `rsi2_4h` PF 0.92 and `swingpb_4h` PF 0.90 die at intraday cost — daily-bar book remains the only investable one. Configuration C (12 families, 37 IS-selected sleeves, 8 slots, 2 crypto, 0.50% equity daily-vol = Grade-A 2-sigma boundary): $15,180 final from $2,501.80 (2019-07→2026-11), 27.94% CAGR, Sharpe 1.56, maxDD 13.8%, 1,219 trades, OOS sub-window +331 trades/+$2,079; block-bootstrap MC 6-month P5/P50/P95 = -2.0%/+9.1%/+25.0%, P95 DD 9.3%.
+
+**Rejection math:** 15%/month = 435%/yr, 20%/month = 792%/yr (1.15^12=5.35x, 1.20^12=8.92x). Reaching 435%/yr from configuration C needs ~7x exposure → maxDD toward 90%+, variance drag consumes the edge, and it sits ~7x outside the desk 1.0% Grade-A cap. Tuning parameters until an evaluation window prints 15-20%/month is fitting noise (the OOS window is spent the moment selection touches it); the all-class OOS leaders (ENJUSD 4 trades × +4,924bps) are 2-8-trade selection artifacts already excluded. No such sheet will be produced from this desk.
+
+**Proposal:** Configuration C is the maximum causal aggression — deploy as a sealed forward shadow (60-90 days) with live spread/swap verification; measured live edge then sets the scaling rate. [Round-2 addendum](quant_audits/blog2500_round2_addendum.md) · [Sim](quant_audits/blog2500_sim_aggressive.json) · [Sleeves](quant_audits/blog2500_sleeves_aggressive.csv) · [4H grid](quant_audits/blog2500_grid_4h_crypto.csv).
+
+**UNVERIFIED-BY-AGENT:** Live spreads/swap, fill quality, min-lot granularity, forward profitability. No venue action taken.
+
+**Signed — GLM, independent challenge & quantitative review.**
